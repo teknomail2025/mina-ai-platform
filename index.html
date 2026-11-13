@@ -1,0 +1,63 @@
+<!doctype html>
+<html lang="tr">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#111827">
+  <meta name="description" content="Mina AI - Türkçe yapay zekâ sohbet platformu">
+  <title>Mina AI</title>
+  <link rel="stylesheet" href="./styles.css">
+</head>
+<body>
+  <div class="app-shell">
+    <aside class="sidebar" id="sidebar">
+      <div class="brand"><div class="brand-mark">M</div><div><strong>Mina AI</strong><span>Türkçe yapay zekâ</span></div></div>
+      <button class="new-chat" id="newChatBtn">＋ Yeni sohbet</button>
+      <div class="sidebar-label">SOHBETLER</div>
+      <div class="conversation-list" id="conversationList" aria-live="polite"></div>
+      <div class="sidebar-footer"><span class="status-dot"></span><span id="connectionLabel">Bağlantı kontrol ediliyor</span></div>
+    </aside>
+
+    <main class="main-panel">
+      <header class="topbar">
+        <button class="icon-button mobile-menu" id="menuBtn" aria-label="Menüyü aç">☰</button>
+        <div class="topbar-title">Sohbet</div>
+        <div class="topbar-actions">
+          <label class="model-label" for="modelSelect">Model</label>
+          <select id="modelSelect" aria-label="Yapay zekâ modeli">
+            <option value="Qwen/Qwen2.5-7B-Instruct">Qwen 2.5 7B Instruct</option>
+            <option value="mistralai/Mistral-7B-Instruct-v0.3">Mistral 7B Instruct</option>
+          </select>
+        </div>
+      </header>
+
+      <section class="chat-scroll" id="chatScroll">
+        <div class="welcome" id="welcome">
+          <div class="welcome-orb">✦</div>
+          <p class="eyebrow">MERHABA</p>
+          <h1>Bugün ne yapmak<br>istersin?</h1>
+          <p class="welcome-copy">Sorularını sor, fikirlerini geliştir veya bir konuda birlikte çalışalım.</p>
+          <div class="suggestions">
+            <button class="suggestion" data-prompt="Bana yeni başlayanlar için Python öğrenme planı hazırla."><span>⌘</span><b>Python öğrenme planı</b><small>Adım adım bir yol haritası</small></button>
+            <button class="suggestion" data-prompt="Bir hikâye fikri bulmama yardım et."><span>✎</span><b>Hikâye fikri bul</b><small>Yaratıcılığını harekete geçir</small></button>
+            <button class="suggestion" data-prompt="Karmaşık bir konuyu basitçe açıkla: yapay zekâ nasıl çalışır?"><span>◇</span><b>Bir konuyu öğren</b><small>Karmaşık şeyleri sadeleştir</small></button>
+          </div>
+        </div>
+        <div class="messages" id="messages" aria-live="polite"></div>
+      </section>
+
+      <section class="composer-wrap">
+        <div class="file-chip" id="fileChip" hidden><span id="fileName"></span><button id="removeFileBtn" aria-label="Dosyayı kaldır">×</button></div>
+        <form class="composer" id="chatForm">
+          <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log" hidden>
+          <button class="attach-button" type="button" id="attachBtn" aria-label="Dosya ekle" title="Metin dosyası ekle">＋</button>
+          <textarea id="messageInput" rows="1" placeholder="Mina'ya bir şey sor..." aria-label="Mesajın" required></textarea>
+          <button class="send-button" id="sendBtn" type="submit" aria-label="Gönder">↑</button>
+        </form>
+        <p class="disclaimer">Mina AI hata yapabilir. Önemli bilgileri doğrulamayı unutma.</p>
+      </section>
+    </main>
+  </div>
+  <script src="./app.js" defer></script>
+</body>
+</html>
