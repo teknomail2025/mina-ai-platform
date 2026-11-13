@@ -1,0 +1,9 @@
+name = "mina-ai-api"
+main = "src/index.js"
+compatibility_date = "2026-10-01"
+
+[vars]
+# GitHub Pages origin for this repository:
+ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
+# Optional default model; HF_TOKEN must be added as a secret, never here.
+HF_MODEL = "Qwen/Qwen2.5-7B-Instruct"
