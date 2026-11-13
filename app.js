@@ -11,7 +11,7 @@
     sidebar:$("sidebar")
   };
   let conversations = loadConversations();
-  let activeId = conversations[0]?.id || createConversation();
+  let activeId = conversations[0]?.id || null;
   let attachedFile = null;
   let busy = false;
 
@@ -91,6 +91,6 @@
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
   els.model.addEventListener("change",()=>{const c=current(); if(c){c.model=els.model.value;persist();}});
-  if (!conversations.length) createConversation();
+  if (!activeId) createConversation();
   render(); checkHealth();
 })();
