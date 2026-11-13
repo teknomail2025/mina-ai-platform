@@ -15,7 +15,7 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
-  deploy:
+  validate-and-deploy:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
@@ -23,6 +23,20 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate JavaScript syntax
+        run: |
+          node --check app.js
+          node --check worker/src/index.js
+      - name: Verify required frontend files
+        run: |
+          test -s index.html
+          test -s styles.css
+          test -s app.js
+          test -s worker/wrangler.toml
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
