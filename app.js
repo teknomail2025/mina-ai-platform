@@ -8,7 +8,7 @@
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
     fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
@@ -193,6 +193,12 @@
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
   $("attachBtn").addEventListener("click", () => els.fileInput.click());
+  els.toolsToggle.addEventListener("click", () => {
+    const isOpen = els.toolsPanel.hidden;
+    els.toolsPanel.hidden = !isOpen;
+    els.toolsToggle.setAttribute("aria-expanded", String(isOpen));
+    els.toolsToggle.textContent = isOpen ? "− Araçları gizle" : "＋ Araçlar";
+  });
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
   els.imageInput.addEventListener("change", async () => {
     const file = els.imageInput.files?.[0]; if (!file) return;
