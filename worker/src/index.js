@@ -1,5 +1,16 @@
 const DEFAULT_MODEL = "gemini-2.5-flash";
-const ALLOWED_MODELS = new Set(["gemini-2.5-flash"]);
+const COMPLEX_MODEL = "gemini-2.5-pro";
+
+function chooseTask(messages) {
+  const latest = [...messages].reverse().find(m => m.role === "user")?.content || "";
+  const s = latest.toLocaleLowerCase("tr-TR");
+  const coding = /(kod|program|yazılım|debug|hata ayıkla|bug|javascript|typescript|python|html|css|sql|api|backend|frontend|react|node|terminal|script|fonksiyon|algoritma|repo|github|derle|compile|refactor)/i.test(s);
+  const reasoning = /(adım adım|karşılaştır|analiz et|detaylı|karmaşık|matematik|ispat|strateji|mimari|tasarla|planla|uzun belge|araştır|neden böyle|nasıl çalışır)/i.test(s) || latest.length > 1800;
+  const creative = /(hikâye|şiir|senaryo|karakter|yaratıcı|fikir üret|metin yaz|reklam metni)/i.test(s);
+  if (coding || reasoning) return {task:coding ? "coding" : "reasoning",model:COMPLEX_MODEL,reason:coding ? "Kodlama ve teknik görev" : "Derin analiz ve karmaşık görev"};
+  if (creative) return {task:"creative",model:DEFAULT_MODEL,reason:"Yaratıcı yazım"};
+  return {task:"chat",model:DEFAULT_MODEL,reason:"Günlük sohbet ve hızlı yanıt"};
+}
 const JSON_HEADERS = {"Content-Type":"application/json; charset=utf-8"};
 
 function corsHeaders(request, env) {
@@ -31,7 +42,7 @@ export default {
       return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY},200,cors);
     }
     if (url.pathname === "/api/models" && request.method === "GET") {
-      return json({provider:"Google Gemini",models:[...ALLOWED_MODELS].map(id=>({id}))},200,cors);
+      return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"}]},200,cors);
     }
     if (url.pathname !== "/api/chat" || request.method !== "POST") return json({error:"Uç nokta bulunamadı."},404,cors);
     if (!env.GEMINI_API_KEY) return json({error:"Gemini API anahtarı sunucuda tanımlı değil. Cloudflare GEMINI_API_KEY sırrını ekleyin."},503,cors);
@@ -39,15 +50,15 @@ export default {
     let body;
     try { body = await request.json(); } catch { return json({error:"Geçersiz JSON isteği."},400,cors); }
     if (!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-    const requested = typeof body.model === "string" ? body.model : DEFAULT_MODEL;
-    const model = ALLOWED_MODELS.has(requested) ? requested : DEFAULT_MODEL;
+    const routing = chooseTask(body.messages);
+    let model = routing.model;
     const contents = body.messages.map(m => ({
       role: m.role === "assistant" ? "model" : "user",
       parts: [{text:m.content}]
     }));
 
     try {
-      const upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+      let upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
         method:"POST",
         headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
         body:JSON.stringify({
@@ -56,6 +67,18 @@ export default {
           generationConfig:{temperature:0.7,maxOutputTokens:1200}
         })
       });
+      if (!upstream.ok && model === COMPLEX_MODEL && [429,500,502,503,504].includes(upstream.status)) {
+        model = DEFAULT_MODEL;
+        upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
+          method:"POST",
+          headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
+          body:JSON.stringify({
+            systemInstruction:{parts:[{text:"Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt."}]},
+            contents,
+            generationConfig:{temperature:0.7,maxOutputTokens:1600}
+          })
+        });
+      }
       const raw = await upstream.text();
       let parsed = {};
       try { parsed = JSON.parse(raw); } catch {}
@@ -66,7 +89,7 @@ export default {
       }
       const answer = parsed?.candidates?.[0]?.content?.parts?.map(p=>p.text || "").join("").trim();
       if (!answer) return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason || "Yanıt metni bulunamadı."},502,cors);
-      return json({choices:[{message:{role:"assistant",content:answer}}],provider:"Google Gemini",model},200,cors);
+      return json({choices:[{message:{role:"assistant",content:answer}}],provider:"Google Gemini",model,task:routing.task,selection_reason:routing.reason},200,cors);
     } catch (error) {
       return json({error:"Gemini servisine bağlanılamadı: "+(error?.message || "bilinmeyen hata")},502,cors);
     }
