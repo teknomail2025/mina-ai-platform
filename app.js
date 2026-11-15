@@ -21,7 +21,7 @@
   }
   function persist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)); } catch (e) { console.warn("Sohbet geçmişi kaydedilemedi", e); } }
   function createConversation() {
-    const c = {id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title:"Yeni sohbet", model:els.model?.value || "Qwen/Qwen2.5-7B-Instruct", messages:[]};
+    const c = {id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title:"Yeni sohbet", model:els.model?.value || "openai/gpt-oss-20b", messages:[]};
     conversations.unshift(c); activeId = c.id; persist(); return c.id;
   }
   function current() { return conversations.find(c => c.id === activeId); }
