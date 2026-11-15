@@ -42,6 +42,11 @@
         <div class="messages" id="messages" aria-live="polite"></div>
       </section>
 
+      <section class="code-workspace" id="codeWorkspacePanel" hidden>
+        <div class="workspace-heading"><strong>Kod çalışma alanı</strong><button type="button" id="closeCodeWorkspace">Kapat</button></div>
+        <textarea id="codeEditor" spellcheck="false" placeholder="Kodunu buraya yapıştır veya bir kod dosyası ekle..."></textarea>
+        <div class="workspace-actions"><button type="button" id="sendCodeBtn">Kodu Mina'ya incelet / düzenlet</button><button type="button" id="downloadCodeBtn">Kodu indir</button></div>
+      </section>
       <section class="composer-wrap">
         <div class="file-chip" id="fileChip" hidden><span id="fileName"></span><button id="removeFileBtn" aria-label="Dosyayı kaldır">×</button></div>
         <form class="composer" id="chatForm">
@@ -52,6 +57,7 @@
           <button class="tool-button" type="button" id="imageGenerateBtn" title="Yapay zekâ ile resim üret">Üret</button>
           <button class="tool-button" type="button" id="steamBtn" title="Steam oyunlarında ara">Steam</button>
           <button class="tool-button" type="button" id="githubBtn" title="GitHub bağlantı durumu">GitHub</button>
+          <button class="tool-button" type="button" id="codeWorkspaceBtn" title="Kod çalışma alanını aç">Kod</button>
           <button class="voice-input-button" type="button" id="voiceInputBtn" aria-label="Sesli mesaj" title="Türkçe konuşmak için tıkla">🎙</button>
           <textarea id="messageInput" rows="1" placeholder="Mina'ya bir şey sor..." aria-label="Mesajın" required></textarea>
           <button class="send-button" id="sendBtn" type="submit" aria-label="Gönder">↑</button>
