@@ -214,14 +214,18 @@
     const isOpen = els.toolsPanel.hidden;
     els.toolsPanel.hidden = !isOpen;
     els.toolsToggle.setAttribute("aria-expanded", String(isOpen));
-    els.toolsToggle.textContent = isOpen ? "− Araçları gizle" : "＋ Araçlar";
+    els.toolsToggle.textContent = "＋";
+    els.toolsToggle.setAttribute("aria-label", isOpen ? "Araçları kapat" : "Araçları aç");
   });
+  $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
+  $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;
       els.toolsToggle.setAttribute("aria-expanded", "false");
-      els.toolsToggle.textContent = "＋ Araçlar";
+      els.toolsToggle.textContent = "＋";
+      els.toolsToggle.setAttribute("aria-label", "Araçları aç");
     }
   });
   document.addEventListener("click", event => {
