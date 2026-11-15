@@ -8,3 +8,38 @@
 
 .tools-menu{position:relative;flex:0 0 auto}.tools-toggle{height:34px;padding:0 12px;border:1px solid #514276;border-radius:10px;background:#29213b;color:#e4d9ff;font:600 12px 'DM Sans';white-space:nowrap;cursor:pointer}.tools-toggle:hover{background:#352a4e;border-color:#9075d7}.tools-toggle[aria-expanded="true"]{background:#40315f}.tools-panel{position:absolute;z-index:20;left:0;bottom:calc(100% + 12px);width:min(330px,calc(100vw - 32px));display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;padding:12px;border:1px solid #3b4354;border-radius:14px;background:#151b26;box-shadow:0 16px 45px #0009}.tools-panel[hidden]{display:none}.tools-panel .tool-button{height:40px;text-align:left;padding:0 11px;font-size:12px}.composer .attach-button{flex:0 0 32px}.composer .voice-input-button{flex:0 0 34px}.composer textarea{min-width:80px}.tools-panel button:focus-visible,.tools-toggle:focus-visible,.composer button:focus-visible{outline:2px solid #b6a0ff;outline-offset:2px}
 @media(max-width:760px){.tools-panel{left:0;bottom:calc(100% + 10px);width:min(310px,calc(100vw - 28px))}.composer{gap:7px;padding:9px}.composer textarea{min-width:100%;order:3}.tools-menu{order:0}.attach-button{order:1}.voice-input-button{order:2}.send-button{order:4}}
+
+
+/* Mina AI: sade dikey araç menüsü ve iki tema */
+.tools-panel{display:flex;flex-direction:column;align-items:stretch;width:230px;gap:6px;padding:9px}
+.tools-panel .tool-button{width:100%;height:38px;text-align:left;padding:0 12px;border-radius:8px}
+.theme-toggle{height:34px;padding:0 11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:600 11px 'DM Sans';cursor:pointer;white-space:nowrap}
+.theme-toggle:hover{border-color:var(--accent)}
+:root[data-theme="light"]{color-scheme:light;--bg:#f4f6fb;--panel:#ffffff;--panel2:#eef1f7;--line:#dce2ed;--text:#20283a;--muted:#68748a;--accent:#7656d6;--accent2:#6243c4}
+:root[data-theme="light"] body{background:var(--bg);color:var(--text)}
+:root[data-theme="light"] .sidebar{background:#fff}
+:root[data-theme="light"] .new-chat{background:#f1edff;color:#523b9c;border-color:#d8cdf8}
+:root[data-theme="light"] .conversation-item{color:#566176}
+:root[data-theme="light"] .conversation-item.active,:root[data-theme="light"] .conversation-item:hover{background:#f0edfa;color:#30234f}
+:root[data-theme="light"] .suggestion{background:#fff;color:var(--text)}
+:root[data-theme="light"] .suggestion:hover{background:#f7f4ff}
+:root[data-theme="light"] .composer{background:#fff;border-color:#d5dce8;box-shadow:0 10px 30px #25345a12}
+:root[data-theme="light"] .composer textarea{color:var(--text)}
+:root[data-theme="light"] .attach-button,:root[data-theme="light"] .voice-input-button{background:#eef1f7;color:#47536a;border-color:#dce2ed}
+:root[data-theme="light"] .tools-toggle{background:#f0ebff;color:#513b91;border-color:#d8cdf8}
+:root[data-theme="light"] .tools-panel{background:#fff;border-color:#dce2ed;box-shadow:0 16px 40px #25345a20}
+:root[data-theme="light"] .tool-button{background:#f5f6fa;color:#354057;border-color:#e0e4ed}
+:root[data-theme="light"] .tool-button:hover{background:#eee9ff;border-color:#c9baf4}
+:root[data-theme="light"] .bubble{background:#fff;color:#20283a;border-color:#dce2ed}
+:root[data-theme="light"] .user .bubble{background:#eeeaff}
+:root[data-theme="light"] .user .avatar{background:#e4eaff;color:#415a9c}
+:root[data-theme="light"] .avatar{background:#eee9ff;color:#6348ae}
+:root[data-theme="light"] .code-workspace{background:#fff}
+:root[data-theme="light"] .code-workspace textarea{background:#f7f8fc;color:#263047;border-color:#dce2ed}
+:root[data-theme="light"] .workspace-heading button,:root[data-theme="light"] .workspace-actions button{background:#f1f3f8;color:#344057;border-color:#dce2ed}
+:root[data-theme="light"] .workspace-actions button:first-child{background:#eee9ff;border-color:#d3c6f5}
+:root[data-theme="light"] .file-chip{background:#f1edff;color:#523b9c;border-color:#d8cdf8}
+:root[data-theme="light"] .status-dot{background:#d59a28}
+:root[data-theme="light"] .status-dot.online{background:#279b70}
+:root[data-theme="light"] .welcome-orb{color:#fff}
+@media(max-width:760px){.tools-panel{width:min(260px,calc(100vw - 28px))}.theme-toggle{font-size:10px;padding:0 8px}}
