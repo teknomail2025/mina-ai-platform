@@ -96,3 +96,16 @@
 .live-voice-card h2{margin:0 0 9px;font-size:22px}.live-voice-status{margin:0 0 15px;color:#c7b8f5;font-size:14px}.live-voice-transcript{min-height:42px;max-width:100%;color:#c7c5d0;font-size:13px;line-height:1.5}
 .live-voice-controls{display:flex;gap:10px;margin:20px 0 15px}.live-voice-controls button{padding:11px 16px;border:1px solid #51466c;border-radius:12px;background:#29233a;color:#fff;cursor:pointer}.live-voice-controls button:last-child{background:#642d43;border-color:#85415b}.live-voice-card small{color:#8f899f;font-size:11px}
 :root[data-theme="light"] .live-voice-card{background:#fff;color:#20283a;border-color:#ddd5f2}:root[data-theme="light"] .live-voice-transcript{color:#596277}
+
+/* Sol çalışma alanı navigasyonu */
+.workspace-nav{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:14px 4px 18px}
+.workspace-nav-item{min-height:34px;padding:7px 9px;text-align:left;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--muted);font:600 11px 'DM Sans';cursor:pointer}
+.workspace-nav-item:hover{background:var(--panel2);color:var(--text);border-color:var(--line)}
+.sidebar-section{margin:0 5px 12px}.sidebar-section .sidebar-label{margin:0 5px 7px;font-size:9px;letter-spacing:1px;color:var(--muted)}
+.sidebar-section .sidebar-heading{margin:0 5px 7px}.mini-item-list{display:flex;flex-direction:column;gap:3px}.mini-item-list small{padding:5px;color:var(--muted);font-size:10px}
+.mini-item{width:100%;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;text-align:left;border:0;border-radius:7px;background:transparent;color:var(--muted);padding:7px 8px;font:11px 'DM Sans';cursor:pointer}.mini-item:hover{background:var(--panel2);color:var(--text)}
+.project-row{display:flex;align-items:center;gap:3px}.project-row .mini-item{flex:1}.project-delete,.pin-chat-btn{width:24px;height:27px;border:0;border-radius:6px;background:transparent;color:var(--muted);cursor:pointer}.project-delete:hover{color:#e16c78;background:var(--panel2)}
+.conversation-row .pin-chat-btn{opacity:0;flex:0 0 22px;font-size:13px}.conversation-row:hover .pin-chat-btn,.conversation-row:focus-within .pin-chat-btn,.pin-chat-btn.is-pinned{opacity:1}.pin-chat-btn.is-pinned{color:#e3b95d}
+.workspace-dialog[hidden]{display:none!important}.workspace-dialog{position:fixed;inset:0;z-index:900;display:grid;place-items:center;padding:20px;background:#080b12b8;backdrop-filter:blur(8px)}.workspace-dialog-card{position:relative;width:min(480px,100%);padding:28px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);box-shadow:0 24px 70px #0008}.workspace-dialog-card h2{margin:0 35px 14px 0;font-size:20px}.workspace-dialog-card #workspaceDialogContent{white-space:pre-wrap;color:var(--muted);font-size:13px;line-height:1.65}.workspace-dialog-close{position:absolute;right:14px;top:10px;border:0;background:transparent;color:var(--muted);font-size:27px;cursor:pointer}
+:root[data-theme="light"] .workspace-dialog-card{background:#fff}
+@media(hover:none){.conversation-row .pin-chat-btn{opacity:1}}
