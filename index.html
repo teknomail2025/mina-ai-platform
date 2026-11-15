@@ -14,6 +14,16 @@
     <aside class="sidebar" id="sidebar">
       <div class="brand"><div class="brand-mark">M</div><div><strong>Mina AI</strong><span>Türkçe yapay zekâ</span></div></div>
       <button class="new-chat" id="newChatBtn">＋ Yeni sohbet</button>
+      <nav class="workspace-nav" aria-label="Mina çalışma alanı">
+        <button type="button" class="workspace-nav-item" id="pinnedNav">☆ Sabitlenenler</button>
+        <button type="button" class="workspace-nav-item" id="projectsNav">▣ Projeler</button>
+        <button type="button" class="workspace-nav-item" id="timersNav">◷ Zamanlayıcılar</button>
+        <button type="button" class="workspace-nav-item" id="libraryNav">▤ Kitaplık</button>
+        <button type="button" class="workspace-nav-item" id="pluginsNav">⌘ Eklentiler</button>
+        <button type="button" class="workspace-nav-item" id="settingsNav">⚙ Ayarlar</button>
+      </nav>
+      <section class="sidebar-section" id="pinnedSection"><div class="sidebar-label">SABİTLENENLER</div><div id="pinnedList" class="mini-item-list"></div></section>
+      <section class="sidebar-section" id="projectsSection"><div class="sidebar-heading"><div class="sidebar-label">PROJELER</div><button class="clear-chats-btn" id="addProjectBtn" type="button" title="Proje oluştur">＋ Ekle</button></div><div id="projectsList" class="mini-item-list"></div></section>
       <div class="sidebar-heading"><div class="sidebar-label">SOHBETLER</div><button class="clear-chats-btn" id="clearChatsBtn" type="button" title="Tüm sohbetleri sil">Tümünü sil</button></div>
       <input class="chat-search" id="chatSearch" type="search" placeholder="Sohbetlerde ara..." aria-label="Sohbetlerde ara">
       <div class="conversation-list" id="conversationList" aria-live="polite"></div>
@@ -80,6 +90,7 @@
       </section>
     </main>
   </div>
+  <section class="workspace-dialog" id="workspaceDialog" hidden role="dialog" aria-modal="true" aria-labelledby="workspaceDialogTitle"><div class="workspace-dialog-card"><button type="button" id="workspaceDialogClose" class="workspace-dialog-close" aria-label="Kapat">×</button><h2 id="workspaceDialogTitle"></h2><div id="workspaceDialogContent"></div></div></section>
   <section class="live-voice" id="liveVoice" hidden role="dialog" aria-modal="true" aria-labelledby="liveVoiceTitle">
     <div class="live-voice-card">
       <button class="live-voice-close" id="liveVoiceClose" type="button" aria-label="Sesli sohbeti kapat">×</button>
