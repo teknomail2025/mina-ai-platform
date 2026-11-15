@@ -232,7 +232,8 @@
     if (!event.target.closest(".tools-menu") && !els.toolsPanel.hidden) {
       els.toolsPanel.hidden = true;
       els.toolsToggle.setAttribute("aria-expanded", "false");
-      els.toolsToggle.textContent = "＋ Araçlar";
+      els.toolsToggle.textContent = "＋";
+      els.toolsToggle.setAttribute("aria-label", "Araçları aç");
     }
   });
   els.imageInput.addEventListener("change", async () => {
