@@ -54,10 +54,12 @@
         <form class="composer" id="chatForm">
           <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql" hidden>
           <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
-          <button class="attach-button" type="button" id="attachBtn" aria-label="Dosya ekle" title="Kod veya metin dosyası ekle">＋</button>
+          <button class="attach-button" type="button" id="attachBtn" aria-label="Dosya ekle" title="Kod veya metin dosyası ekle" hidden>＋</button>
           <div class="tools-menu">
-            <button class="tools-toggle" type="button" id="toolsToggle" aria-expanded="false" aria-controls="toolsPanel">＋ Araçlar</button>
+            <button class="tools-toggle" type="button" id="toolsToggle" aria-expanded="false" aria-controls="toolsPanel" aria-label="Araçları aç" title="Araçlar">＋</button>
             <div class="tools-panel" id="toolsPanel" hidden>
+              <button class="tool-button" type="button" id="fileToolBtn" title="Dosya ekle">📎 Dosya ekle</button>
+              <button class="tool-button" type="button" id="voiceToolBtn" title="Sesli mesaj">🎙 Sesli mesaj</button>
               <button class="tool-button" type="button" id="imageBtn" title="Resim yükle">🖼 Resim ekle</button>
               <button class="tool-button" type="button" id="imageGenerateBtn" title="Yapay zekâ ile resim üret">🎨 Resim üret</button>
               <button class="tool-button" type="button" id="steamBtn" title="Steam oyunlarında ara">🎮 Steam</button>
@@ -66,7 +68,7 @@
               <button class="tool-button" type="button" id="codeWorkspaceBtn" title="Kod çalışma alanını aç">&lt;/&gt; Kod alanı</button>
             </div>
           </div>
-          <button class="voice-input-button" type="button" id="voiceInputBtn" aria-label="Sesli mesaj" title="Türkçe konuşmak için tıkla">🎙</button>
+          <button class="voice-input-button" type="button" id="voiceInputBtn" aria-label="Sesli mesaj" title="Türkçe konuşmak için tıkla" hidden>🎙</button>
           <textarea id="messageInput" rows="1" placeholder="Mina'ya bir şey sor..." aria-label="Mesajın" required></textarea>
           <button class="send-button" id="sendBtn" type="submit" aria-label="Gönder">↑</button>
         </form>
