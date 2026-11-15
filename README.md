@@ -1,62 +1,53 @@
 # Mina AI
 
-Mina, görev türüne göre Gemini Flash (hızlı sohbet/yaratıcı işler) veya Gemini Pro (kodlama/karmaşık analiz) modelini otomatik seçer. Pro geçici kota veya servis hatası verirse Flash ile yeniden dener. Model seçimi kullanıcıya bırakılmaz.
+Mina, görev türüne göre Gemini Flash (hızlı sohbet/günlük işler) veya Gemini Pro (kodlama/karmaşık analiz) modelini otomatik seçer. Pro geçici kota ya da servis hatası verirse Flash ile yeniden dener. Model seçimi kullanıcıya bırakılmaz.
 
-Türkçe yapay zekâ sohbet platformu. Bu depo, GitHub Pages üzerinde yayınlanabilen statik arayüzü ve Google Gemini API'ye güvenli istek gönderen Cloudflare Worker backend'ini içerir.
+Türkçe yapay zekâ sohbet platformu. Statik arayüz GitHub Pages üzerinde, API ise Cloudflare Worker üzerinde çalışır.
 
-## İlk sürüm özellikleri
+## Özellikler ve mevcut durum
 
-- Türkçe sohbet arayüzü ve yerel sohbet geçmişi (localStorage)
-- Model seçimi
-- TXT, MD, CSV, JSON, HTML, CSS, JS, PY ve LOG metin dosyası ekleme (en fazla 1 MB)
-- Gemini API anahtarı'ı yalnızca backend secret olarak tutulur
+- Türkçe sohbet, tarayıcıda sohbet geçmişi ve sesli okuma/mikrofon.
+- Otomatik görev yönlendirmesi: Gemini Flash / Gemini Pro.
+- JPG, PNG ve WEBP görsel yükleme ve Gemini ile görsel anlama (en fazla 8 MB).
+- Gemini 3.1 Flash Image ile görsel üretimi.
+- Web araştırması: araştırma niyeti algılandığında Gemini Google Search grounding.
+- Steam mağazasında oyun arama (Steam Store arama servisi).
+- Kod çalışma alanı: kod yapıştırma, kod dosyası yükleme, Mina'ya inceletme ve metin dosyası olarak indirme.
+- GitHub bağlantı düğmesi ve bağlantı durumu kontrol uç noktası eklendi. Güvenli GitHub OAuth ve depo üzerinde okuma/yazma işlemleri henüz tamamlanmadı; GitHub token'ını doğrudan tarayıcıya koymayın.
 
-> Kullanıcı hesabı, cihazlar arası senkronizasyon, yönetici paneli ve sunucu tarafında kalıcı sohbet saklama henüz eklenmedi. Ücretsiz model kullanımı sağlayıcı kotasına ve model erişimine bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.
+## API anahtarları
 
-## 1. GitHub Pages
+Cloudflare Worker > Settings > Variables and Secrets altında:
 
-1. Depoda **Settings → Pages** bölümünü aç.
-2. **Build and deployment → Source** alanında **GitHub Actions** seç.
-3. Aşağıdaki workflow, `main` dalına gönderilen değişikliklerde kök dizindeki statik siteyi yayınlar.
-4. Yayın adresi genellikle `https://teknomail2025.github.io/mina-ai-platform/` olur.
+- `GEMINI_API_KEY`: sohbet, görsel anlama, görsel üretme ve Gemini tabanlı web araştırması için zorunlu.
+- `GITHUB_TOKEN`: yalnızca sonraki GitHub OAuth entegrasyonu için planlanan sunucu tarafı değişkendir; henüz depo işlemleri açılmaz.
 
-## 2. Cloudflare Worker
+Anahtarları GitHub deposuna, HTML/JS dosyalarına veya localStorage'a koymayın. Sohbette paylaşmayın.
 
-1. Cloudflare hesabında Workers & Pages bölümünden bir Worker oluştur.
-2. Bu depodaki `worker` klasörünü Wrangler ile dağıt.
-3. Worker ayarlarında `GEMINI_API_KEY` adında **Secret** oluştur ve Hugging Face token'ını buraya gir. Token'ı bu depodaki dosyalara veya tarayıcı koduna yazma.
-4. `worker/wrangler.toml` içindeki `ALLOWED_ORIGINS` değerini kendi Pages alan adına göre düzenle.
-5. Worker'ı dağıt. Örnek adres: `https://mina-ai-api.<hesap-adı>.workers.dev`.
+## Dağıtım
 
-Komut satırı örneği:
+### GitHub Pages
 
-```bash
-cd worker
-npx wrangler deploy
-npx wrangler secret put GEMINI_API_KEY
-```
+Depoda Settings > Pages > Build and deployment > Source alanında GitHub Actions seçili olmalıdır. `main` dalına gönderilen değişiklikler `.github/workflows/pages.yml` ile yayınlanır.
 
-Secret komutu istediğinde token'ı güvenli terminal girişine yapıştır; sohbete veya GitHub'a gönderme.
+### Cloudflare Worker
 
-## 3. Arayüzü Worker'a bağlama
+Cloudflare Worker'ın kök dizini `worker`, giriş dosyası `src/index.js`, dağıtım komutu `npx wrangler deploy` olmalıdır. `GEMINI_API_KEY` secret'ını ekledikten sonra Worker'ı yeniden dağıtın.
 
-`app.js` içindeki `API_BASE` yer tutucu adresini kendi Worker adresinle değiştir:
+Worker sağlık kontrolü: `/api/health`
+Araç durumu: `/api/tools/status`
+Steam araması: `/api/steam/search?q=oyun-adı`
 
-```js
-const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.<hesap-adin>.workers.dev").replace(/\/$/, "");
-```
-
-## 4. Sağlık kontrolü
-
-Worker dağıtıldıktan sonra `https://<worker-adresin>/api/health` adresi JSON içinde `ok: true` döndürmelidir. `configured: true`, GEMINI_API_KEY secret'ının tanımlı olduğunu gösterir; modelin kullanılabilirliğini garanti etmez.
+GitHub Pages workflow'u yalnızca statik arayüzü dağıtır; Worker'ın ayrıca Cloudflare üzerinden dağıtılması gerekir.
 
 ## Güvenlik ve sınırlar
 
-- GEMINI_API_KEY hiçbir zaman frontend'e veya Git deposuna konulmamalıdır.
-- Bu başlangıç sürümünde kullanıcı kimlik doğrulaması ve kullanıcı bazlı hız sınırı yoktur. Genel kullanıma açmadan önce Cloudflare rate limiting/Turnstile ve kötüye kullanım koruması eklenmelidir.
-- Sohbet geçmişi yalnızca tarayıcıda saklanır.
-- Dosya yükleme metin dosyalarını okur; PDF/DOCX ve ikili dosyalar desteklenmez.
-- Model kullanılabilirliği ve ücretsiz kota sağlayıcıya göre değişebilir.
+- Şu an kullanıcı hesabı, kullanıcı bazlı kota ve sunucu tarafında kalıcı sohbet saklama yoktur.
+- Worker uç noktaları genel internetten erişilebilir. Genel kullanıma açılmadan önce kimlik doğrulama, rate limiting ve kötüye kullanım koruması zorunludur.
+- Kod çalışma alanı yerel bir editör/inceleme alanıdır; kullanıcının bilgisayarındaki dosyaları otomatik değiştirmez veya kod çalıştırmaz.
+- PDF/DOCX içeriği çıkarımı henüz desteklenmez.
+- GitHub depo işlemleri OAuth ve yetki sınırları tamamlanana kadar kapalıdır.
+- Ücretsiz model kullanımı sağlayıcının güncel kota ve şartlarına bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.
 
 ## Proje yapısı
 
