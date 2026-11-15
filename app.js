@@ -4,6 +4,9 @@
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
   const STORAGE_KEY = "mina-ai-conversations-v1";
   const MEMORY_KEY = "mina-ai-user-memory-v1";
+  const PROJECTS_KEY = "mina-ai-projects-v1";
+  const PINNED_KEY = "mina-ai-pinned-v1";
+  const LIBRARY_KEY = "mina-ai-library-v1";
   const $ = (id) => document.getElementById(id);
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
@@ -12,6 +15,9 @@
     sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), search:$("chatSearch"), exportChat:$("exportChatBtn"), voiceModeBtn:$("voiceModeBtn"), memoryBtn:$("memoryBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
+  let projects = readStore(PROJECTS_KEY, []);
+  let pinnedIds = readStore(PINNED_KEY, []);
+  let libraryItems = readStore(LIBRARY_KEY, []);
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
   let busy = false;
@@ -36,6 +42,7 @@
   themeToggle?.addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
 
 
+  function readStore(key, fallback) { try { const value=JSON.parse(localStorage.getItem(key)||"null"); return value ?? fallback; } catch { return fallback; } }
   function loadConversations() {
     try { const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(v) ? v : []; }
     catch { return []; }
@@ -60,6 +67,7 @@
   }
   function renderList() {
     els.list.replaceChildren();
+    renderPinnedAndProjects();
     const visible = conversations.filter(c => ((c.title || "") + " " + (c.messages || []).map(m => m.content || "").join(" ")).toLocaleLowerCase("tr-TR").includes(listQuery));
     visible.forEach(c => {
       const item = document.createElement("div");
@@ -138,6 +146,25 @@
     const prompt=c.messages[index].content; c.messages=c.messages.slice(0,index+1);
     activeId=c.id; persist(); render(); sendMessage(prompt,{existingUser:true});
   }
+
+  function renderPinnedAndProjects() {
+    const pinned=$("pinnedList"), projectList=$("projectsList");
+    if(!pinned||!projectList)return;
+    pinned.replaceChildren(); projectList.replaceChildren();
+    pinnedIds.map(id=>conversations.find(c=>c.id===id)).filter(Boolean).forEach(c=>{
+      const b=document.createElement("button");b.className="mini-item";b.textContent="★ "+(c.title||"Yeni sohbet");b.title=c.title||"Yeni sohbet";
+      b.addEventListener("click",()=>{activeId=c.id;render();els.sidebar.classList.remove("open");});pinned.append(b);
+    });
+    if(!pinned.children.length){const e=document.createElement("small");e.textContent="Henüz sabitlenen sohbet yok";pinned.append(e);}
+    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>openWorkspace("Proje: "+p.name,"Bu proje için sohbetleri ve dosyaları bir araya getirme alanı. Projeye sohbet ekleme bağlantısı bir sonraki geliştirme adımında tamamlanacak."));const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title="Projeyi sil";del.addEventListener("click",()=>{if(confirm('"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
+    if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
+  }
+  function openWorkspace(title,content) {
+    $("workspaceDialogTitle").textContent=title;
+    $("workspaceDialogContent").textContent=content;
+    $("workspaceDialog").hidden=false;
+  }
+
   function render() { renderList(); renderMessages(); }
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
   function setBusy(v) { busy = v; els.send.disabled = v; els.input.disabled = v; els.send.textContent = v ? "…" : "↑"; }
@@ -300,6 +327,17 @@
     render();
     els.input.focus();
   });
+
+
+  $("addProjectBtn").addEventListener("click",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
+  $("pinnedNav").addEventListener("click",()=>openWorkspace("Sabitlenenler",pinnedIds.map(id=>conversations.find(c=>c.id===id)?.title).filter(Boolean).join("\n")||"Henüz sabitlenen sohbet yok. Sohbetlerin yanındaki ☆ simgesine basarak sabitleyebilirsin."));
+  $("projectsNav").addEventListener("click",()=>openWorkspace("Projeler","Projelerini sol menüden oluşturabilir, seçebilir ve silebilirsin. Projelere sohbet ve dosya bağlama altyapısı sıradaki aşamada genişletilecek."));
+  $("timersNav").addEventListener("click",()=>openWorkspace("Zamanlayıcılar","Hatırlatma ve zamanlanmış görev alanı. Şu an arayüz hazır değil; güvenilir arka plan zamanlayıcısı ayrıca kurulmalı."));
+  $("libraryNav").addEventListener("click",()=>openWorkspace("Kitaplık",libraryItems.length?libraryItems.map(x=>x.name).join("\n"):"Henüz kitaplığa kaydedilmiş dosya yok. Kalıcı dosya yükleme ve arama altyapısı ayrıca bağlanmalı."));
+  $("pluginsNav").addEventListener("click",()=>openWorkspace("Eklentiler","Mevcut araçlar: Web araştırması, Steam, GitHub, resim yükleme/üretme, dosya ekleme ve kod alanı. Bazı araçlar için sunucu entegrasyonu ve API anahtarı gerekir."));
+  $("settingsNav").addEventListener("click",()=>openWorkspace("Ayarlar","Tema ayarını üst menüden değiştirebilirsin. API sağlayıcıları, ses ve kullanım limitleri için güvenli ayar ekranı sonraki aşamada kurulacak."));
+  $("workspaceDialogClose").addEventListener("click",()=>$("workspaceDialog").hidden=true);
+  $("workspaceDialog").addEventListener("click",e=>{if(e.target===$("workspaceDialog"))$("workspaceDialog").hidden=true;});
 
   $("attachBtn").addEventListener("click", () => els.fileInput.click());
   els.toolsToggle.addEventListener("click", () => {
