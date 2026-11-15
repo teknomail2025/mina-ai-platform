@@ -8,7 +8,7 @@
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
     fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), githubBtn:$("githubBtn")
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
@@ -204,6 +204,22 @@
     els.input.value = "Steam'de oyun ara: " + els.input.value;
     els.input.focus();
   });
+  els.codeWorkspaceBtn.addEventListener("click", () => { els.codeWorkspacePanel.hidden = !els.codeWorkspacePanel.hidden; if (!els.codeWorkspacePanel.hidden) els.codeEditor.focus(); });
+  $("closeCodeWorkspace").addEventListener("click", () => { els.codeWorkspacePanel.hidden = true; });
+  $("sendCodeBtn").addEventListener("click", () => {
+    const code = els.codeEditor.value.trim();
+    if (!code) { alert("Önce çalışma alanına kod ekle."); return; }
+    els.input.value = "Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.\n\n" + code;
+    els.form.requestSubmit();
+  });
+  $("downloadCodeBtn").addEventListener("click", () => {
+    const code = els.codeEditor.value;
+    if (!code.trim()) { alert("İndirilecek kod yok."); return; }
+    const blob = new Blob([code], {type:"text/plain;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = "mina-code.txt"; link.click();
+    URL.revokeObjectURL(url);
+  });
   els.githubBtn.addEventListener("click", async () => {
     try {
       const r = await fetch(API_BASE + "/api/github/status");
@@ -215,7 +231,7 @@
   els.fileInput.addEventListener("change", async () => {
     const f=els.fileInput.files?.[0]; if(!f) return;
     if(f.size > 1024*1024) { alert("Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin."); els.fileInput.value=""; return; }
-    try { attachedFile={kind:"text",name:f.name,content:await f.text()}; els.fileName.textContent="📄 "+f.name; els.fileChip.hidden=false; }
+    try { attachedFile={kind:"text",name:f.name,content:await f.text()}; if (/\\.(js|ts|tsx|jsx|py|html|css|json|sql|java|cs|cpp|h|xml|yaml|yml|toml)$/i.test(f.name)) els.codeEditor.value=attachedFile.content; els.fileName.textContent="📄 "+f.name; els.fileChip.hidden=false; }
     catch { alert("Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor."); }
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
