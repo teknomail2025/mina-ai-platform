@@ -89,7 +89,7 @@
       if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
       addMessage("assistant", answer.trim());
     } catch (err) {
-      addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nBackend adresini ve Hugging Face ayarlarını kontrol et.");
+      addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nBackend adresini ve Gemini API anahtarı ve Cloudflare bağlantısını kontrol et.");
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
