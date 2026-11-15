@@ -85,3 +85,14 @@
 .message-actions button{width:25px;height:23px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted);font-size:12px;cursor:pointer}
 .message-actions button:hover{color:var(--text);border-color:#8066c7}
 @media(hover:none){.message-actions{opacity:1}}
+
+/* Gerçek zamanlı sesli sohbet penceresi */
+.live-voice[hidden]{display:none!important}.live-voice{position:fixed;inset:0;z-index:1000;display:grid;place-items:center;padding:20px;background:#080b12eF;backdrop-filter:blur(12px)}
+.live-voice-card{position:relative;width:min(440px,100%);min-height:440px;padding:38px 28px 26px;border:1px solid #3d3657;border-radius:26px;background:#171523;color:#f6f3ff;text-align:center;display:flex;flex-direction:column;align-items:center;justify-content:center;box-shadow:0 24px 90px #0009}
+.live-voice-close{position:absolute;right:16px;top:12px;border:0;background:transparent;color:#c8c1d8;font-size:30px;cursor:pointer}
+.live-voice-orb{width:132px;height:132px;border-radius:50%;display:grid;place-items:center;margin:12px auto 25px;background:radial-gradient(circle at 35% 30%,#d4c6ff,#7958d8 45%,#34215f 75%);box-shadow:0 0 0 12px #9876e51c,0 0 55px #8e68e477;transition:transform .25s}
+.live-voice-orb span{font-size:48px;color:white}.live-voice-orb[data-state="listening"]{animation:minaPulse 1.8s infinite}.live-voice-orb[data-state="speaking"]{transform:scale(1.08);box-shadow:0 0 0 18px #9876e522,0 0 70px #8e68e4aa}
+@keyframes minaPulse{0%,100%{box-shadow:0 0 0 10px #9876e51c,0 0 35px #8e68e455}50%{box-shadow:0 0 0 22px #9876e51c,0 0 65px #8e68e488}}
+.live-voice-card h2{margin:0 0 9px;font-size:22px}.live-voice-status{margin:0 0 15px;color:#c7b8f5;font-size:14px}.live-voice-transcript{min-height:42px;max-width:100%;color:#c7c5d0;font-size:13px;line-height:1.5}
+.live-voice-controls{display:flex;gap:10px;margin:20px 0 15px}.live-voice-controls button{padding:11px 16px;border:1px solid #51466c;border-radius:12px;background:#29233a;color:#fff;cursor:pointer}.live-voice-controls button:last-child{background:#642d43;border-color:#85415b}.live-voice-card small{color:#8f899f;font-size:11px}
+:root[data-theme="light"] .live-voice-card{background:#fff;color:#20283a;border-color:#ddd5f2}:root[data-theme="light"] .live-voice-transcript{color:#596277}
