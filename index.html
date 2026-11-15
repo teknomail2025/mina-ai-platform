@@ -80,6 +80,18 @@
       </section>
     </main>
   </div>
+  <section class="live-voice" id="liveVoice" hidden role="dialog" aria-modal="true" aria-labelledby="liveVoiceTitle">
+    <div class="live-voice-card">
+      <button class="live-voice-close" id="liveVoiceClose" type="button" aria-label="Sesli sohbeti kapat">×</button>
+      <div class="live-voice-orb" id="liveVoiceOrb"><span>✦</span></div>
+      <h2 id="liveVoiceTitle">Mina ile sesli sohbet</h2>
+      <p class="live-voice-status" id="liveVoiceStatus">Bağlantı hazırlanıyor…</p>
+      <p class="live-voice-transcript" id="liveVoiceTranscript" aria-live="polite">Konuşmaya başladığında burada görünecek.</p>
+      <div class="live-voice-controls"><button id="liveVoiceMute" type="button">Mikrofonu kapat</button><button id="liveVoiceEnd" type="button">Sohbeti bitir</button></div>
+      <small>Canlı ses bağlantısı · Mikrofon izni gerekir</small>
+    </div>
+  </section>
   <script src="./app.js" defer></script>
+  <script src="./voice.js" defer></script>
 </body>
 </html>
