@@ -42,13 +42,33 @@
     conversations.unshift(c); activeId = c.id; persist(); return c.id;
   }
   function current() { return conversations.find(c => c.id === activeId); }
+  function deleteConversation(id) {
+    const target = conversations.find(c => c.id === id);
+    if (!target) return;
+    if (!window.confirm('"' + (target.title || "Bu sohbet") + '" sohbetini silmek istiyor musun?')) return;
+    conversations = conversations.filter(c => c.id !== id);
+    if (activeId === id) {
+      activeId = conversations[0]?.id || null;
+      if (!activeId) createConversation();
+    }
+    persist();
+    render();
+  }
   function renderList() {
     els.list.replaceChildren();
     conversations.forEach(c => {
-      const b = document.createElement("button"); b.className = "conversation-item" + (c.id === activeId ? " active" : "");
+      const item = document.createElement("div");
+      item.className = "conversation-row";
+      const b = document.createElement("button");
+      b.className = "conversation-item" + (c.id === activeId ? " active" : "");
       b.textContent = c.title || "Yeni sohbet"; b.title = c.title || "Yeni sohbet";
       b.addEventListener("click", () => { activeId = c.id; render(); els.sidebar.classList.remove("open"); });
-      els.list.append(b);
+      const del = document.createElement("button");
+      del.className = "delete-chat-btn"; del.type = "button"; del.textContent = "×";
+      del.title = "Sohbeti sil"; del.setAttribute("aria-label", (c.title || "Sohbet") + " sohbetini sil");
+      del.addEventListener("click", event => { event.stopPropagation(); deleteConversation(c.id); });
+      item.append(b, del);
+      els.list.append(item);
     });
   }
   function renderMessages() {
@@ -209,6 +229,16 @@
   });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
+  $("clearChatsBtn").addEventListener("click", () => {
+    if (!conversations.length) return;
+    if (!window.confirm("Bütün sohbet geçmişini kalıcı olarak silmek istiyor musun?")) return;
+    conversations = [];
+    activeId = null;
+    createConversation();
+    render();
+    els.input.focus();
+  });
+
   $("attachBtn").addEventListener("click", () => els.fileInput.click());
   els.toolsToggle.addEventListener("click", () => {
     const isOpen = els.toolsPanel.hidden;
