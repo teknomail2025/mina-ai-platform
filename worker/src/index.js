@@ -1,97 +1,93 @@
 const DEFAULT_MODEL = "gemini-2.5-flash";
 const COMPLEX_MODEL = "gemini-2.5-pro";
+const IMAGE_MODEL = "gemini-3.1-flash-image";
+const SYSTEM_PROMPT = "Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt.";
 
 function chooseTask(messages) {
   const latest = [...messages].reverse().find(m => m.role === "user")?.content || "";
   const s = latest.toLocaleLowerCase("tr-TR");
   const coding = /(kod|program|yazılım|debug|hata ayıkla|bug|javascript|typescript|python|html|css|sql|api|backend|frontend|react|node|terminal|script|fonksiyon|algoritma|repo|github|derle|compile|refactor)/i.test(s);
-  const reasoning = /(adım adım|karşılaştır|analiz et|detaylı|karmaşık|matematik|ispat|strateji|mimari|tasarla|planla|uzun belge|araştır|neden böyle|nasıl çalışır)/i.test(s) || latest.length > 1800;
+  const research = /(internette ara|web'de ara|webde ara|güncel bilgi|kaynak bul|araştır|son haber|bugün|şu anda|fiyatı ne|en yeni)/i.test(s);
+  const reasoning = /(adım adım|karşılaştır|analiz et|detaylı|karmaşık|matematik|ispat|strateji|mimari|tasarla|planla|uzun belge|neden böyle|nasıl çalışır)/i.test(s) || latest.length > 1800;
   const creative = /(hikâye|şiir|senaryo|karakter|yaratıcı|fikir üret|metin yaz|reklam metni)/i.test(s);
-  if (coding || reasoning) return {task:coding ? "coding" : "reasoning",model:COMPLEX_MODEL,reason:coding ? "Kodlama ve teknik görev" : "Derin analiz ve karmaşık görev"};
-  if (creative) return {task:"creative",model:DEFAULT_MODEL,reason:"Yaratıcı yazım"};
-  return {task:"chat",model:DEFAULT_MODEL,reason:"Günlük sohbet ve hızlı yanıt"};
+  if (coding || reasoning) return {task:coding ? "coding" : "reasoning",model:COMPLEX_MODEL,reason:coding ? "Kodlama ve teknik görev" : "Derin analiz ve karmaşık görev",research};
+  if (creative) return {task:"creative",model:DEFAULT_MODEL,reason:"Yaratıcı yazım",research};
+  return {task:research ? "research" : "chat",model:DEFAULT_MODEL,reason:research ? "Web araştırması" : "Günlük sohbet ve hızlı yanıt",research};
 }
 const JSON_HEADERS = {"Content-Type":"application/json; charset=utf-8"};
-
 function corsHeaders(request, env) {
   const origin = request.headers.get("Origin") || "";
   const configured = (env.ALLOWED_ORIGINS || "").split(",").map(v=>v.trim()).filter(Boolean);
   const allowed = configured.includes(origin) || origin === "http://localhost:8000" || origin === "http://127.0.0.1:8000";
-  return {
-    "Access-Control-Allow-Origin": allowed ? origin : (configured[0] || "null"),
-    "Access-Control-Allow-Methods":"GET, POST, OPTIONS",
-    "Access-Control-Allow-Headers":"Content-Type, Authorization",
-    "Access-Control-Max-Age":"86400",
-    "Vary":"Origin"
-  };
+  return {"Access-Control-Allow-Origin":allowed ? origin : (configured[0] || "null"),"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"86400","Vary":"Origin"};
 }
-function json(data, status, cors) {
-  return new Response(JSON.stringify(data), {status, headers:{...JSON_HEADERS,...cors}});
+function json(data,status,cors){return new Response(JSON.stringify(data),{status,headers:{...JSON_HEADERS,...cors}});}
+function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
+function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
+async function callGemini(env,model,payload){
+  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",{method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)});
 }
-function validMessages(messages) {
-  return Array.isArray(messages) && messages.length > 0 && messages.length <= 20 &&
-    messages.every(m => m && ["user","assistant"].includes(m.role) && typeof m.content === "string" && m.content.length <= 20000);
-}
-
 export default {
-  async fetch(request, env) {
-    const cors = corsHeaders(request, env);
-    if (request.method === "OPTIONS") return new Response(null,{status:204,headers:cors});
-    const url = new URL(request.url);
-    if (url.pathname === "/api/health" && request.method === "GET") {
-      return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY},200,cors);
-    }
-    if (url.pathname === "/api/models" && request.method === "GET") {
-      return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"}]},200,cors);
-    }
-    if (url.pathname !== "/api/chat" || request.method !== "POST") return json({error:"Uç nokta bulunamadı."},404,cors);
-    if (!env.GEMINI_API_KEY) return json({error:"Gemini API anahtarı sunucuda tanımlı değil. Cloudflare GEMINI_API_KEY sırrını ekleyin."},503,cors);
-
-    let body;
-    try { body = await request.json(); } catch { return json({error:"Geçersiz JSON isteği."},400,cors); }
-    if (!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-    const routing = chooseTask(body.messages);
-    let model = routing.model;
-    const contents = body.messages.map(m => ({
-      role: m.role === "assistant" ? "model" : "user",
-      parts: [{text:m.content}]
-    }));
-
-    try {
-      let upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
-        method:"POST",
-        headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
-        body:JSON.stringify({
-          systemInstruction:{parts:[{text:"Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt."}]},
-          contents,
-          generationConfig:{temperature:0.7,maxOutputTokens:1200}
-        })
-      });
-      if (!upstream.ok && model === COMPLEX_MODEL && [429,500,502,503,504].includes(upstream.status)) {
-        model = DEFAULT_MODEL;
-        upstream = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + model + ":generateContent", {
-          method:"POST",
-          headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
-          body:JSON.stringify({
-            systemInstruction:{parts:[{text:"Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt."}]},
-            contents,
-            generationConfig:{temperature:0.7,maxOutputTokens:1600}
-          })
-        });
-      }
-      const raw = await upstream.text();
-      let parsed = {};
-      try { parsed = JSON.parse(raw); } catch {}
-      if (!upstream.ok) {
-        const detailValue = parsed?.error?.message ?? parsed?.error ?? raw.slice(0,1000);
-        const detail = typeof detailValue === "string" ? detailValue : JSON.stringify(detailValue);
-        return json({error:"Google Gemini isteği reddetti.",provider_status:upstream.status,provider_detail:detail},upstream.status === 429 ? 429 : 502,cors);
-      }
-      const answer = parsed?.candidates?.[0]?.content?.parts?.map(p=>p.text || "").join("").trim();
-      if (!answer) return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason || "Yanıt metni bulunamadı."},502,cors);
-      return json({choices:[{message:{role:"assistant",content:answer}}],provider:"Google Gemini",model,task:routing.task,selection_reason:routing.reason},200,cors);
-    } catch (error) {
-      return json({error:"Gemini servisine bağlanılamadı: "+(error?.message || "bilinmeyen hata")},502,cors);
-    }
+ async fetch(request,env){
+  const cors=corsHeaders(request,env);
+  if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
+  const url=new URL(request.url);
+  if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY},200,cors);
+  if(url.pathname==="/api/models"&&request.method==="GET") return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"},{id:IMAGE_MODEL,role:"image"}]},200,cors);
+  if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
+  if(url.pathname==="/api/steam/search"&&request.method==="GET"){
+    const q=(url.searchParams.get("q")||"").trim().slice(0,100);
+    if(!q) return json({error:"Steam'de aranacak oyun adını yaz."},400,cors);
+    try{
+      const r=await fetch("https://store.steampowered.com/api/storesearch/?term="+encodeURIComponent(q)+"&l=turkish&cc=tr",{headers:{"Accept":"application/json","User-Agent":"MinaAI/1.0"}});
+      if(!r.ok) return json({error:"Steam araması şu anda yanıt vermiyor."},502,cors);
+      const d=await r.json();
+      return json({query:q,total:d.total||0,items:(d.items||[]).slice(0,10).map(x=>({id:x.id,name:x.name,price:x.price?.final_formatted||"Fiyat bilgisi yok",url:"https://store.steampowered.com/app/"+x.id+"/",type:x.type,discount:x.discount_percent||0}))},200,cors);
+    }catch(e){return json({error:"Steam araması yapılamadı."},502,cors);}
   }
+  if(url.pathname==="/api/image"&&request.method==="POST"){
+    if(!env.GEMINI_API_KEY) return json({error:"Görsel üretimi için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
+    let body; try{body=await request.json();}catch{return json({error:"Geçersiz JSON."},400,cors);}
+    const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
+    if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
+    try{
+      const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create an image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"]}});
+      const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
+      if(!r.ok) return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);
+      const parts=d.candidates?.[0]?.content?.parts||[];
+      const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
+      const textPart=parts.find(p=>p.text);
+      const blob=imagePart?.inlineData||imagePart?.inline_data;
+      if(!blob?.data) return json({error:"Görsel modeli metin döndürdü ancak görsel verisi gelmedi.",provider_detail:textPart?.text||"Görsel bulunamadı."},502,cors);
+      return json({image:{mimeType:blob.mimeType||blob.mime_type||"image/png",data:blob.data},caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
+    }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
+  }
+  if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
+  if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
+  if(!env.GEMINI_API_KEY) return json({error:"Gemini API anahtarı sunucuda tanımlı değil. Cloudflare GEMINI_API_KEY sırrını ekleyin."},503,cors);
+  let body;try{body=await request.json();}catch{return json({error:"Geçersiz JSON isteği."},400,cors);}
+  if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
+  if(body.image&&!imageDataIsValid(body.image)) return json({error:"Resim biçimi desteklenmiyor veya dosya çok büyük. JPG, PNG ya da WEBP ve en fazla yaklaşık 8 MB kullan."},400,cors);
+  const routing=chooseTask(body.messages);let model=body.image?DEFAULT_MODEL:routing.model;
+  const contents=body.messages.map((m,i)=>{
+    const parts=[{text:m.content}];
+    if(i===body.messages.length-1&&m.role==="user"&&body.image) parts.push({inlineData:{mimeType:body.image.mimeType,data:body.image.data}});
+    return {role:m.role==="assistant"?"model":"user",parts};
+  });
+  const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1800}};
+  if(routing.research&&!body.image) payload.tools=[{google_search:{}}];
+  try{
+    let upstream=await callGemini(env,model,payload);
+    if(!upstream.ok&&model===COMPLEX_MODEL&&[429,500,502,503,504].includes(upstream.status)){
+      model=DEFAULT_MODEL;upstream=await callGemini(env,model,payload);
+    }
+    const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
+    if(!upstream.ok){const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:"Google Gemini isteği reddetti.",provider_status:upstream.status,provider_detail:detail},upstream.status===429?429:502,cors);}
+    const parts=parsed?.candidates?.[0]?.content?.parts||[];
+    const answer=parts.map(p=>p.text||"").join("").trim();
+    if(!answer)return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);
+    const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:"Google Gemini",model,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
+  }catch(e){return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
+ }
 };
