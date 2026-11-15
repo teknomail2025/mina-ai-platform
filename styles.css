@@ -76,3 +76,12 @@
 .voice-mode-active{background:#5b2634!important;border-color:#d66b82!important;color:#fff!important}
 @media(max-width:760px){.export-chat-btn{padding:6px 7px;font-size:10px}}
 :root[data-theme="light"] .chat-search{background:#fff;color:#202536}
+
+
+.message{position:relative;padding-bottom:25px}
+.message-actions{position:absolute;bottom:0;left:42px;display:flex;gap:4px;opacity:0;transition:opacity .15s}
+.message.user .message-actions{left:auto;right:0}
+.message:hover .message-actions,.message:focus-within .message-actions{opacity:1}
+.message-actions button{width:25px;height:23px;border:1px solid var(--line);border-radius:6px;background:var(--panel2);color:var(--muted);font-size:12px;cursor:pointer}
+.message-actions button:hover{color:var(--text);border-color:#8066c7}
+@media(hover:none){.message-actions{opacity:1}}
