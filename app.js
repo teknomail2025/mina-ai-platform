@@ -69,7 +69,11 @@
         body:JSON.stringify({model:els.model.value, messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
       });
       const data = await response.json().catch(()=>({}));
-      if (!response.ok) throw new Error(data.error || "Sunucu isteği tamamlayamadı (" + response.status + ").");
+      if (!response.ok) {
+        const detail = data.provider_detail ? " Ayrıntı: " + data.provider_detail : "";
+        const providerStatus = data.provider_status ? " (sağlayıcı HTTP " + data.provider_status + ")" : "";
+        throw new Error((data.error || "Sunucu isteği tamamlayamadı.") + providerStatus + detail);
+      }
       const answer = data.choices?.[0]?.message?.content || data.reply;
       if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
       addMessage("assistant", answer.trim());
