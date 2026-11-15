@@ -210,6 +210,7 @@
   $("sendCodeBtn").addEventListener("click", () => {
     const code = els.codeEditor.value.trim();
     if (!code) { alert("Önce çalışma alanına kod ekle."); return; }
+    attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = "";
     els.input.value = "Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.\n\n" + code;
     els.form.requestSubmit();
   });
