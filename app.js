@@ -176,10 +176,10 @@
       }
       const sourceText = (data.sources || []).length ? "\n\nKaynaklar:\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
       addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
-      if (voiceMode) speakText(answer.trim());
+      if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
       addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nCloudflare Worker ve Gemini API anahtarını kontrol et.");
-    } finally { typing.remove(); setBusy(false); els.input.focus(); if (voiceMode) startRecognition(); }
+    } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
   let listening = false;
@@ -222,8 +222,8 @@
     utterance.lang = "tr-TR";
     utterance.rate = 1;
     if (button) button.textContent = "⏹";
-    utterance.onend = () => { if (button) button.textContent = "🔊"; };
-    utterance.onerror = () => { if (button) button.textContent = "🔊"; };
+    utterance.onend = () => { if (button) button.textContent = "🔊"; if (voiceMode) startRecognition(); };
+    utterance.onerror = () => { if (button) button.textContent = "🔊"; if (voiceMode) startRecognition(); };
     window.speechSynthesis.speak(utterance);
   }
   function setListening(value) {
