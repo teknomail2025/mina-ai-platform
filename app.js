@@ -180,7 +180,7 @@
     e.preventDefault();
     const v=els.input.value;
     if (!v.trim() && !attachedFile) return;
-    const steamMatch = v.match(/^Steam'de oyun ara:\\s*(.+)$/i);
+    const steamMatch = v.match(/^Steam'de oyun ara:\s*(.+)$/i);
     if (steamMatch) { els.input.value=""; searchSteam(steamMatch[1]); return; }
     els.input.value=""; els.input.style.height="auto"; sendMessage(v);
   });
