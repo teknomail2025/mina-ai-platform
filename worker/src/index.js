@@ -63,6 +63,34 @@ export default {
     }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
+  if(url.pathname==="/api/live-token"&&request.method==="POST"){
+    if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
+    try{
+      const r=await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens",{
+        method:"POST",
+        headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({
+          uses:1,
+          expireTime:new Date(Date.now()+30*60*1000).toISOString(),
+          newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
+          liveConnectConstraints:{
+            model:"models/gemini-3.8-live",
+            config:{
+              responseModalities:["AUDIO"],
+              inputAudioTranscription:{},
+              outputAudioTranscription:{},
+              sessionResumption:{},
+              systemInstruction:{parts:[{text:"Sen Mina adlı, doğal ve samimi konuşan Türkçe bir sesli yapay zekâ asistanısın. Kullanıcıyla Türkçe konuş. Kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
+            }
+          }
+        })
+      });
+      const d=await r.json().catch(()=>({}));
+      if(!r.ok) return json({error:"Gemini canlı ses oturumu başlatılamadı.",provider_status:r.status,provider_detail:d.error?.message||"Token alınamadı."},502,cors);
+      if(!d.name) return json({error:"Gemini geçici ses anahtarı döndürmedi."},502,cors);
+      return json({token:d.name,model:"models/gemini-3.8-live"},200,cors);
+    }catch(e){return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
+  }
   if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
   if(!env.GEMINI_API_KEY) return json({error:"Gemini API anahtarı sunucuda tanımlı değil. Cloudflare GEMINI_API_KEY sırrını ekleyin."},503,cors);
   let body;try{body=await request.json();}catch{return json({error:"Geçersiz JSON isteği."},400,cors);}
