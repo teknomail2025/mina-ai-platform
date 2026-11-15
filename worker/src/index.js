@@ -1,7 +1,7 @@
-const DEFAULT_MODEL = "Qwen/Qwen2.5-7B-Instruct";
+const DEFAULT_MODEL = "openai/gpt-oss-20b";
 const ALLOWED_MODELS = new Set([
-  "Qwen/Qwen2.5-7B-Instruct",
-  "mistralai/Mistral-7B-Instruct-v0.3"
+  "openai/gpt-oss-20b",
+  "openai/gpt-oss-20b"
 ]);
 const JSON_HEADERS = {"Content-Type":"application/json; charset=utf-8"};
 
