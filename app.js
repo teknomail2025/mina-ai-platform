@@ -8,7 +8,7 @@
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
     fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
@@ -204,6 +204,7 @@
     els.input.value = "Steam'de oyun ara: " + els.input.value;
     els.input.focus();
   });
+  els.webBtn.addEventListener("click", () => { els.input.value = "İnternette ara ve kaynaklarıyla açıkla: " + els.input.value; els.input.focus(); });
   els.codeWorkspaceBtn.addEventListener("click", () => { els.codeWorkspacePanel.hidden = !els.codeWorkspacePanel.hidden; if (!els.codeWorkspacePanel.hidden) els.codeEditor.focus(); });
   $("closeCodeWorkspace").addEventListener("click", () => { els.codeWorkspacePanel.hidden = true; });
   $("sendCodeBtn").addEventListener("click", () => {
