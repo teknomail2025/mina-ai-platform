@@ -15,6 +15,7 @@
       <div class="brand"><div class="brand-mark">M</div><div><strong>Mina AI</strong><span>Türkçe yapay zekâ</span></div></div>
       <button class="new-chat" id="newChatBtn">＋ Yeni sohbet</button>
       <div class="sidebar-heading"><div class="sidebar-label">SOHBETLER</div><button class="clear-chats-btn" id="clearChatsBtn" type="button" title="Tüm sohbetleri sil">Tümünü sil</button></div>
+      <input class="chat-search" id="chatSearch" type="search" placeholder="Sohbetlerde ara..." aria-label="Sohbetlerde ara">
       <div class="conversation-list" id="conversationList" aria-live="polite"></div>
       <div class="sidebar-footer"><span class="status-dot"></span><span id="connectionLabel">Bağlantı kontrol ediliyor</span></div>
     </aside>
@@ -24,6 +25,7 @@
         <button class="icon-button mobile-menu" id="menuBtn" aria-label="Menüyü aç">☰</button>
         <div class="topbar-title">Sohbet</div>
         <div class="topbar-actions">
+          <button class="export-chat-btn" type="button" id="exportChatBtn" title="Sohbeti dışa aktar">Dışa aktar</button>
           <button class="theme-toggle" type="button" id="themeToggle" aria-label="Temayı değiştir">☀ Açık tema</button>
           <span class="model-label" id="modelSelect" aria-label="Yapay zekâ modeli">Otomatik model seçimi</span>
         </div>
@@ -60,6 +62,7 @@
             <div class="tools-panel" id="toolsPanel" hidden>
               <button class="tool-button" type="button" id="fileToolBtn" title="Dosya ekle">📎 Dosya ekle</button>
               <button class="tool-button" type="button" id="voiceToolBtn" title="Sesli mesaj">🎙 Sesli mesaj</button>
+              <button class="tool-button" type="button" id="voiceModeBtn" title="Eller serbest sesli sohbeti başlat">🎧 Sesli sohbeti başlat</button>
               <button class="tool-button" type="button" id="imageBtn" title="Resim yükle">🖼 Resim ekle</button>
               <button class="tool-button" type="button" id="imageGenerateBtn" title="Yapay zekâ ile resim üret">🎨 Resim üret</button>
               <button class="tool-button" type="button" id="steamBtn" title="Steam oyunlarında ara">🎮 Steam</button>
