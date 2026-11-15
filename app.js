@@ -154,7 +154,6 @@
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
-  els.model.addEventListener("change",()=>{const c=current(); if(c){c.model=els.model.value;persist();}});
   if (!activeId) createConversation();
   render(); checkHealth(); setupVoiceInput();
 })();
