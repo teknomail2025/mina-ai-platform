@@ -278,11 +278,6 @@
       if (listening) { recognition.stop(); return; }
       try { recognition.start(); setListening(true); } catch (error) { console.warn("Mikrofon başlatılamadı:", error); setListening(false); }
     });
-    els.voiceModeBtn.addEventListener("click", () => {
-      voiceMode = !voiceMode;
-      if (!voiceMode) { try { recognition.stop(); } catch {} window.speechSynthesis?.cancel(); setListening(false); }
-      else { setListening(false); startRecognition(); }
-    });
   }
   els.form.addEventListener("submit", e => {
     e.preventDefault();
