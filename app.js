@@ -15,6 +15,23 @@
   let attachedFile = null;
   let busy = false;
 
+  const MINA_THEME_KEY = "mina-ai-theme-v1";
+  const themeToggle = $("themeToggle");
+  function applyTheme(theme) {
+    const selected = theme === "light" ? "light" : "dark";
+    document.documentElement.dataset.theme = selected;
+    if (themeToggle) {
+      themeToggle.textContent = selected === "light" ? "☾ Koyu tema" : "☀ Açık tema";
+      themeToggle.setAttribute("aria-label", selected === "light" ? "Koyu temaya geç" : "Açık temaya geç");
+    }
+    try { localStorage.setItem(MINA_THEME_KEY, selected); } catch {}
+  }
+  let savedTheme = "dark";
+  try { savedTheme = localStorage.getItem(MINA_THEME_KEY) || "dark"; } catch {}
+  applyTheme(savedTheme);
+  themeToggle?.addEventListener("click", () => applyTheme(document.documentElement.dataset.theme === "light" ? "dark" : "light"));
+
+
   function loadConversations() {
     try { const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(v) ? v : []; }
     catch { return []; }
@@ -200,6 +217,20 @@
     els.toolsToggle.textContent = isOpen ? "− Araçları gizle" : "＋ Araçlar";
   });
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  els.toolsPanel.addEventListener("click", event => {
+    if (event.target.closest("button")) {
+      els.toolsPanel.hidden = true;
+      els.toolsToggle.setAttribute("aria-expanded", "false");
+      els.toolsToggle.textContent = "＋ Araçlar";
+    }
+  });
+  document.addEventListener("click", event => {
+    if (!event.target.closest(".tools-menu") && !els.toolsPanel.hidden) {
+      els.toolsPanel.hidden = true;
+      els.toolsToggle.setAttribute("aria-expanded", "false");
+      els.toolsToggle.textContent = "＋ Araçlar";
+    }
+  });
   els.imageInput.addEventListener("change", async () => {
     const file = els.imageInput.files?.[0]; if (!file) return;
     if (file.size > 8 * 1024 * 1024) { alert("Resim en fazla 8 MB olabilir."); els.imageInput.value = ""; return; }
