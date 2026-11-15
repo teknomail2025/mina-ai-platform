@@ -3,12 +3,13 @@
   "use strict";
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
   const STORAGE_KEY = "mina-ai-conversations-v1";
+  const MEMORY_KEY = "mina-ai-user-memory-v1";
   const $ = (id) => document.getElementById(id);
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
     fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), search:$("chatSearch"), exportChat:$("exportChatBtn"), voiceModeBtn:$("voiceModeBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), search:$("chatSearch"), exportChat:$("exportChatBtn"), voiceModeBtn:$("voiceModeBtn"), memoryBtn:$("memoryBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
@@ -16,6 +17,7 @@
   let busy = false;
   let listQuery = "";
   let voiceMode = false;
+  let userMemory = ""; try { userMemory = localStorage.getItem(MEMORY_KEY) || ""; } catch {}
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
@@ -151,6 +153,7 @@
     if (attachedFile && !imageAttachment) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
+    const requestPrompt = userMemory ? "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\\n" + userMemory + "\\n\\nKullanıcının isteği: " + prompt : prompt;
     if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = "";
     setBusy(true);
@@ -158,7 +161,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? c.messages.slice(-16) : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
+        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -291,6 +294,7 @@
   });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
+  els.memoryBtn.addEventListener("click", () => { const value = window.prompt("Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir.", userMemory); if (value === null) return; userMemory = value.trim(); try { if (userMemory) localStorage.setItem(MEMORY_KEY,userMemory); else localStorage.removeItem(MEMORY_KEY); alert(userMemory ? "Hafıza notu bu tarayıcıya kaydedildi." : "Hafıza notu silindi."); } catch { alert("Hafıza notu kaydedilemedi."); } });
   els.search.addEventListener("input", () => { listQuery = els.search.value.toLocaleLowerCase("tr-TR").trim(); renderList(); });
   els.exportChat.addEventListener("click", exportConversation);
   $("clearChatsBtn").addEventListener("click", () => {
