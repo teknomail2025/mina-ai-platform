@@ -7,8 +7,8 @@
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
-    fileInput:$("fileInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn")
+    fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), githubBtn:$("githubBtn")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
@@ -68,16 +68,18 @@
     if (busy || (!text.trim() && !attachedFile)) return;
     const c = current(); const userText = text.trim();
     let prompt = userText;
-    if (attachedFile) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
+    const imageAttachment = attachedFile?.kind === "image" ? attachedFile : null;
+    if (attachedFile && !imageAttachment) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
+    if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
-    addMessage("user", userText + (attachedFile ? "\n[Dosya: " + attachedFile.name + "]" : ""));
+    addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = "";
     setBusy(true);
     const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Mina düşünüyor…"; els.messages.append(typing); els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
+        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -87,13 +89,46 @@
       }
       const answer = data.choices?.[0]?.message?.content || data.reply;
       if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
-      addMessage("assistant", answer.trim() + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
+      const sourceText = (data.sources || []).length ? "\n\nKaynaklar:\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
+      addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
     } catch (err) {
       addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nCloudflare Worker ve Gemini API anahtarını kontrol et.");
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
   let listening = false;
+  async function generateImage() {
+    const prompt = els.input.value.trim();
+    if (!prompt) { alert("Önce üretilecek resmi tarif et."); els.input.focus(); return; }
+    if (busy) return;
+    setBusy(true); els.imageGenerateBtn.disabled = true;
+    const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Mina görsel oluşturuyor…"; els.messages.append(typing);
+    try {
+      const r = await fetch(API_BASE + "/api/image", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok) throw new Error(d.error || "Görsel üretimi başarısız.");
+      const row = document.createElement("article"); row.className = "message assistant";
+      const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = "M";
+      const bubble = document.createElement("div"); bubble.className = "bubble image-result";
+      const img = document.createElement("img"); img.alt = "Mina tarafından üretilen görsel"; img.src = "data:" + d.image.mimeType + ";base64," + d.image.data;
+      bubble.append(img);
+      if (d.caption) { const caption = document.createElement("p"); caption.textContent = d.caption; bubble.append(caption); }
+      row.append(avatar,bubble); els.messages.append(row); els.input.value = ""; els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
+    } catch(e) { alert(e.message); }
+    finally { typing.remove(); setBusy(false); els.imageGenerateBtn.disabled = false; els.input.focus(); }
+  }
+  async function searchSteam(query) {
+    setBusy(true);
+    const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Steam oyunları aranıyor…"; els.messages.append(typing);
+    try {
+      const r = await fetch(API_BASE + "/api/steam/search?q=" + encodeURIComponent(query));
+      const d = await r.json().catch(()=>({}));
+      if (!r.ok) throw new Error(d.error || "Steam araması başarısız.");
+      const lines = (d.items || []).map((x,i) => (i+1)+". "+x.name+" — "+x.price+(x.discount?" (%"+x.discount+" indirim)":"")+"\n"+x.url);
+      addMessage("assistant", lines.length ? "Steam arama sonuçları ("+d.total+" sonuç):\n\n"+lines.join("\n\n") : "Steam'de eşleşen oyun bulunamadı.");
+    } catch(e) { addMessage("assistant", "Steam araması yapılamadı: "+e.message); }
+    finally { typing.remove(); setBusy(false); els.input.focus(); }
+  }
   function speakText(text, button) {
     if (!("speechSynthesis" in window) || !window.SpeechSynthesisUtterance) return;
     window.speechSynthesis.cancel();
@@ -141,16 +176,47 @@
       catch (error) { console.warn("Mikrofon başlatılamadı:", error); setListening(false); }
     });
   }
-  els.form.addEventListener("submit", e => { e.preventDefault(); const v=els.input.value; if (!v.trim() && !attachedFile) return; els.input.value=""; els.input.style.height="auto"; sendMessage(v); });
+  els.form.addEventListener("submit", e => {
+    e.preventDefault();
+    const v=els.input.value;
+    if (!v.trim() && !attachedFile) return;
+    const steamMatch = v.match(/^Steam'de oyun ara:\\s*(.+)$/i);
+    if (steamMatch) { els.input.value=""; searchSteam(steamMatch[1]); return; }
+    els.input.value=""; els.input.style.height="auto"; sendMessage(v);
+  });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
   $("attachBtn").addEventListener("click", () => els.fileInput.click());
+  els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  els.imageInput.addEventListener("change", async () => {
+    const file = els.imageInput.files?.[0]; if (!file) return;
+    if (file.size > 8 * 1024 * 1024) { alert("Resim en fazla 8 MB olabilir."); els.imageInput.value = ""; return; }
+    const reader = new FileReader();
+    reader.onload = () => {
+      attachedFile = {kind:"image",name:file.name,mimeType:file.type,data:reader.result};
+      els.fileName.textContent = "🖼 " + file.name; els.fileChip.hidden = false;
+    };
+    reader.onerror = () => alert("Resim okunamadı.");
+    reader.readAsDataURL(file);
+  });
+  els.imageGenerateBtn.addEventListener("click", generateImage);
+  els.steamBtn.addEventListener("click", () => {
+    els.input.value = "Steam'de oyun ara: " + els.input.value;
+    els.input.focus();
+  });
+  els.githubBtn.addEventListener("click", async () => {
+    try {
+      const r = await fetch(API_BASE + "/api/github/status");
+      const d = await r.json();
+      alert(d.connected ? "GitHub sunucu anahtarı tanımlı. Güvenli kullanıcı yetkilendirmesi tamamlandığında depo işlemleri açılacak." : "GitHub bağlantı altyapısı hazırlandı. Güvenli GitHub OAuth bağlantısı ve yetki ayarları sonraki bağlantı aşamasında yapılacak.");
+    } catch { alert("GitHub bağlantı durumu alınamadı."); }
+  });
   $("removeFileBtn").addEventListener("click", () => { attachedFile=null; els.fileChip.hidden=true; els.fileInput.value=""; });
   els.fileInput.addEventListener("change", async () => {
     const f=els.fileInput.files?.[0]; if(!f) return;
-    if(f.size > 1024*1024) { alert("Şimdilik en fazla 1 MB metin dosyası ekleyebilirsin."); els.fileInput.value=""; return; }
-    try { attachedFile={name:f.name,content:await f.text()}; els.fileName.textContent=f.name; els.fileChip.hidden=false; }
-    catch { alert("Dosya okunamadı."); }
+    if(f.size > 1024*1024) { alert("Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin."); els.fileInput.value=""; return; }
+    try { attachedFile={kind:"text",name:f.name,content:await f.text()}; els.fileName.textContent="📄 "+f.name; els.fileChip.hidden=false; }
+    catch { alert("Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor."); }
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
