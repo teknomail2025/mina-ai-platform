@@ -247,9 +247,8 @@
   function setupVoiceInput() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      els.voiceInput.disabled = true; els.voiceModeBtn.disabled = true;
-      els.voiceModeBtn.title = "Bu tarayıcı ses tanımayı desteklemiyor. Güncel Chrome veya Edge deneyebilirsin.";
-      els.voiceInput.title = "Bu tarayıcı ses tanımayı desteklemiyor. Güncel Chrome veya Edge deneyebilirsin.";
+      els.voiceInput.disabled = true;
+      els.voiceInput.title = "Bu tarayıcı yazıya ses tanımayı desteklemiyor. Canlı sesli sohbeti yine de deneyebilirsin.";
       return;
     }
     recognition = new SpeechRecognition();
