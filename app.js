@@ -7,6 +7,8 @@
   const PROJECTS_KEY = "mina-ai-projects-v1";
   const PINNED_KEY = "mina-ai-pinned-v1";
   const LIBRARY_KEY = "mina-ai-library-v1";
+  const AI_SETTINGS_KEY = "mina-ai-provider-settings-v1";
+  let aiSettings = readStore(AI_SETTINGS_KEY, {provider:"auto",model:"auto",capabilities:{chat:true,vision:true,web:true,code:true,voice:true}});
   const $ = (id) => document.getElementById(id);
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
@@ -188,7 +190,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:aiSettings.provider || "auto", model:aiSettings.model || "auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -335,7 +337,15 @@
   $("timersNav").addEventListener("click",()=>openWorkspace("Zamanlayıcılar","Hatırlatma ve zamanlanmış görev alanı. Şu an arayüz hazır değil; güvenilir arka plan zamanlayıcısı ayrıca kurulmalı."));
   $("libraryNav").addEventListener("click",()=>openWorkspace("Kitaplık",libraryItems.length?libraryItems.map(x=>x.name).join("\n"):"Henüz kitaplığa kaydedilmiş dosya yok. Kalıcı dosya yükleme ve arama altyapısı ayrıca bağlanmalı."));
   $("pluginsNav").addEventListener("click",()=>openWorkspace("Eklentiler","Mevcut araçlar: Web araştırması, Steam, GitHub, resim yükleme/üretme, dosya ekleme ve kod alanı. Bazı araçlar için sunucu entegrasyonu ve API anahtarı gerekir."));
-  $("settingsNav").addEventListener("click",()=>openWorkspace("Ayarlar","Tema ayarını üst menüden değiştirebilirsin. API sağlayıcıları, ses ve kullanım limitleri için güvenli ayar ekranı sonraki aşamada kurulacak."));
+  async function renderAISettings() {
+    const host=$("workspaceDialogContent");
+    host.innerHTML = '<div class="settings-intro">Mina’nın kullanacağı yapay zekâ sağlayıcısını ve görev tercihlerini yönet.</div><div id="providerStatus" class="provider-grid">Sağlayıcılar kontrol ediliyor…</div><div class="settings-field"><label for="aiProviderSelect">Varsayılan yapay zekâ</label><select id="aiProviderSelect"><option value="auto">Otomatik seçim</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="huggingface">Hugging Face</option></select><small>Seçilen sağlayıcının sunucuda API anahtarı tanımlı olmalı.</small></div><div class="settings-field"><label for="aiModelSelect">Model tercihi</label><select id="aiModelSelect"><option value="auto">Göreve göre otomatik</option><option value="fast">Hızlı model</option><option value="advanced">Gelişmiş model</option></select></div><div class="settings-capabilities"><strong>Görev yetenekleri</strong><label><input type="checkbox" data-cap="chat"> Sohbet ve soru-cevap</label><label><input type="checkbox" data-cap="vision"> Görsel anlama</label><label><input type="checkbox" data-cap="web"> Web araştırması</label><label><input type="checkbox" data-cap="code"> Kodlama ve analiz</label><label><input type="checkbox" data-cap="voice"> Sesli sohbet (Gemini)</label></div><div class="settings-key-note"><strong>API anahtarı güvenliği</strong><p>API anahtarlarını tarayıcıda saklamıyoruz. Cloudflare Worker Secrets bölümünde güvenli şekilde tutulacak.</p><p><code>GEMINI_API_KEY</code> · <code>OPENAI_API_KEY</code> · <code>ANTHROPIC_API_KEY</code> · <code>HF_TOKEN</code></p></div><div class="settings-actions"><button type="button" id="saveAISettings">Ayarları kaydet</button><span id="settingsSaveStatus"></span></div>';
+    $("aiProviderSelect").value=aiSettings.provider||"auto"; $("aiModelSelect").value=aiSettings.model||"auto";
+    host.querySelectorAll("[data-cap]").forEach(el=>el.checked=aiSettings.capabilities?.[el.dataset.cap]!==false);
+    $("saveAISettings").addEventListener("click",()=>{aiSettings={provider:$("aiProviderSelect").value,model:$("aiModelSelect").value,capabilities:Object.fromEntries([...host.querySelectorAll("[data-cap]")].map(el=>[el.dataset.cap,el.checked]))};try{localStorage.setItem(AI_SETTINGS_KEY,JSON.stringify(aiSettings));$("settingsSaveStatus").textContent="Ayarlar kaydedildi.";}catch{$("settingsSaveStatus").textContent="Kaydedilemedi.";}els.model.textContent=aiSettings.provider==="auto"?"Otomatik model seçimi":$("aiProviderSelect").selectedOptions[0].text;});
+    try { const r=await fetch(API_BASE+"/api/providers"); const d=await r.json(); const names={gemini:"Google Gemini",openai:"OpenAI",anthropic:"Claude",huggingface:"Hugging Face"}; const grid=$("providerStatus");grid.replaceChildren();Object.entries(names).forEach(([id,name])=>{const card=document.createElement("div");card.className="provider-card";const title=document.createElement("strong");title.textContent=name;const status=document.createElement("span");status.className=d.providers?.[id]?"provider-ready":"provider-missing";status.textContent=d.providers?.[id]?"Bağlı":"API anahtarı bekleniyor";card.append(title,status);grid.append(card);}); } catch { $("providerStatus").textContent="Sunucu bağlantısı kurulamadı."; }
+  }
+  $("settingsNav").addEventListener("click",()=>{$("workspaceDialogTitle").textContent="Yapay zekâ ayarları";$("workspaceDialog").hidden=false;renderAISettings();});
   $("workspaceDialogClose").addEventListener("click",()=>$("workspaceDialog").hidden=true);
   $("workspaceDialog").addEventListener("click",e=>{if(e.target===$("workspaceDialog"))$("workspaceDialog").hidden=true;});
 
