@@ -89,6 +89,12 @@
       }
       const answer = data.choices?.[0]?.message?.content || data.reply;
       if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
+      const fenceStart = answer.indexOf("```");
+      if (fenceStart >= 0) {
+        const codeStart = answer.indexOf("\n", fenceStart + 3);
+        const codeEnd = codeStart >= 0 ? answer.indexOf("```", codeStart + 1) : -1;
+        if (codeStart >= 0 && codeEnd > codeStart) { els.codeEditor.value = answer.slice(codeStart + 1, codeEnd).trim(); els.codeWorkspacePanel.hidden = false; }
+      }
       const sourceText = (data.sources || []).length ? "\n\nKaynaklar:\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
       addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
     } catch (err) {
