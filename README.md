@@ -1,13 +1,15 @@
 # Mina AI
 
-Türkçe yapay zekâ sohbet platformu. Bu depo, GitHub Pages üzerinde yayınlanabilen statik arayüzü ve Hugging Face Router API'ye güvenli istek gönderen Cloudflare Worker backend'ini içerir.
+Mina, görev türüne göre Gemini Flash (hızlı sohbet/yaratıcı işler) veya Gemini Pro (kodlama/karmaşık analiz) modelini otomatik seçer. Pro geçici kota veya servis hatası verirse Flash ile yeniden dener. Model seçimi kullanıcıya bırakılmaz.
+
+Türkçe yapay zekâ sohbet platformu. Bu depo, GitHub Pages üzerinde yayınlanabilen statik arayüzü ve Google Gemini API'ye güvenli istek gönderen Cloudflare Worker backend'ini içerir.
 
 ## İlk sürüm özellikleri
 
 - Türkçe sohbet arayüzü ve yerel sohbet geçmişi (localStorage)
 - Model seçimi
 - TXT, MD, CSV, JSON, HTML, CSS, JS, PY ve LOG metin dosyası ekleme (en fazla 1 MB)
-- Hugging Face token'ı yalnızca backend secret olarak tutulur
+- Gemini API anahtarı'ı yalnızca backend secret olarak tutulur
 
 > Kullanıcı hesabı, cihazlar arası senkronizasyon, yönetici paneli ve sunucu tarafında kalıcı sohbet saklama henüz eklenmedi. Ücretsiz model kullanımı sağlayıcı kotasına ve model erişimine bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.
 
@@ -22,7 +24,7 @@ Türkçe yapay zekâ sohbet platformu. Bu depo, GitHub Pages üzerinde yayınlan
 
 1. Cloudflare hesabında Workers & Pages bölümünden bir Worker oluştur.
 2. Bu depodaki `worker` klasörünü Wrangler ile dağıt.
-3. Worker ayarlarında `HF_TOKEN` adında **Secret** oluştur ve Hugging Face token'ını buraya gir. Token'ı bu depodaki dosyalara veya tarayıcı koduna yazma.
+3. Worker ayarlarında `GEMINI_API_KEY` adında **Secret** oluştur ve Hugging Face token'ını buraya gir. Token'ı bu depodaki dosyalara veya tarayıcı koduna yazma.
 4. `worker/wrangler.toml` içindeki `ALLOWED_ORIGINS` değerini kendi Pages alan adına göre düzenle.
 5. Worker'ı dağıt. Örnek adres: `https://mina-ai-api.<hesap-adı>.workers.dev`.
 
@@ -31,7 +33,7 @@ Komut satırı örneği:
 ```bash
 cd worker
 npx wrangler deploy
-npx wrangler secret put HF_TOKEN
+npx wrangler secret put GEMINI_API_KEY
 ```
 
 Secret komutu istediğinde token'ı güvenli terminal girişine yapıştır; sohbete veya GitHub'a gönderme.
@@ -46,11 +48,11 @@ const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.<hesap-adin>.work
 
 ## 4. Sağlık kontrolü
 
-Worker dağıtıldıktan sonra `https://<worker-adresin>/api/health` adresi JSON içinde `ok: true` döndürmelidir. `configured: true`, HF_TOKEN secret'ının tanımlı olduğunu gösterir; modelin kullanılabilirliğini garanti etmez.
+Worker dağıtıldıktan sonra `https://<worker-adresin>/api/health` adresi JSON içinde `ok: true` döndürmelidir. `configured: true`, GEMINI_API_KEY secret'ının tanımlı olduğunu gösterir; modelin kullanılabilirliğini garanti etmez.
 
 ## Güvenlik ve sınırlar
 
-- HF_TOKEN hiçbir zaman frontend'e veya Git deposuna konulmamalıdır.
+- GEMINI_API_KEY hiçbir zaman frontend'e veya Git deposuna konulmamalıdır.
 - Bu başlangıç sürümünde kullanıcı kimlik doğrulaması ve kullanıcı bazlı hız sınırı yoktur. Genel kullanıma açmadan önce Cloudflare rate limiting/Turnstile ve kötüye kullanım koruması eklenmelidir.
 - Sohbet geçmişi yalnızca tarayıcıda saklanır.
 - Dosya yükleme metin dosyalarını okur; PDF/DOCX ve ikili dosyalar desteklenmez.
