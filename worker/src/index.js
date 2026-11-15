@@ -60,8 +60,16 @@ export default {
       const raw = await upstream.text();
       if (!upstream.ok) {
         let detail = raw.slice(0,1000);
-        try { const parsed=JSON.parse(raw); detail=parsed.error || parsed.message || detail; } catch {}
-        return json({error:"Model sağlayıcısı isteği reddetti: "+detail},upstream.status===429?429:502,cors);
+        try {
+          const parsed = JSON.parse(raw);
+          const value = parsed?.error ?? parsed?.message ?? parsed?.detail ?? parsed;
+          detail = typeof value === "string" ? value : JSON.stringify(value);
+        } catch {}
+        return json({
+          error: "Model sağlayıcısı isteği reddetti.",
+          provider_status: upstream.status,
+          provider_detail: detail
+        }, upstream.status === 429 ? 429 : 502, cors);
       }
       return new Response(raw,{status:200,headers:{...cors,...JSON_HEADERS,"Cache-Control":"no-store"}});
     } catch (error) {
