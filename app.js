@@ -21,7 +21,7 @@
   }
   function persist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)); } catch (e) { console.warn("Sohbet geçmişi kaydedilemedi", e); } }
   function createConversation() {
-    const c = {id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title:"Yeni sohbet", model:els.model?.value || "openai/gpt-oss-20b", messages:[]};
+    const c = {id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title:"Yeni sohbet", model:"auto", messages:[]};
     conversations.unshift(c); activeId = c.id; persist(); return c.id;
   }
   function current() { return conversations.find(c => c.id === activeId); }
@@ -77,7 +77,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({model:els.model.value, messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
+        body:JSON.stringify({mode:"auto", messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -87,9 +87,9 @@
       }
       const answer = data.choices?.[0]?.message?.content || data.reply;
       if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
-      addMessage("assistant", answer.trim());
+      addMessage("assistant", answer.trim() + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
     } catch (err) {
-      addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nBackend adresini ve Gemini API anahtarı ve Cloudflare bağlantısını kontrol et.");
+      addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nCloudflare Worker ve Gemini API anahtarını kontrol et.");
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
