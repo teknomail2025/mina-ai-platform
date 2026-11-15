@@ -8,12 +8,14 @@
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
     fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
-    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
+    sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), search:$("chatSearch"), exportChat:$("exportChatBtn"), voiceModeBtn:$("voiceModeBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
   let busy = false;
+  let listQuery = "";
+  let voiceMode = false;
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
@@ -56,7 +58,8 @@
   }
   function renderList() {
     els.list.replaceChildren();
-    conversations.forEach(c => {
+    const visible = conversations.filter(c => ((c.title || "") + " " + (c.messages || []).map(m => m.content || "").join(" ")).toLocaleLowerCase("tr-TR").includes(listQuery));
+    visible.forEach(c => {
       const item = document.createElement("div");
       item.className = "conversation-row";
       const b = document.createElement("button");
@@ -70,6 +73,7 @@
       item.append(b, del);
       els.list.append(item);
     });
+    if (!visible.length) { const empty = document.createElement("div"); empty.className = "chat-search-empty"; empty.textContent = listQuery ? "Eşleşen sohbet bulunamadı." : "Henüz sohbet yok."; els.list.append(empty); }
   }
   function renderMessages() {
     els.messages.replaceChildren();
@@ -93,6 +97,14 @@
       els.messages.append(row);
     });
     els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
+  }
+  function exportConversation() {
+    const c = current(); if (!c) return;
+    const body = ["# " + (c.title || "Mina sohbeti"), "", ...c.messages.map(m => (m.role === "user" ? "**Sen:**" : "**Mina:**") + "\n\n" + m.content + "\n")].join("\n");
+    const blob = new Blob([body], {type:"text/markdown;charset=utf-8"});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement("a"); link.href = url; link.download = "mina-sohbet.md"; link.click();
+    URL.revokeObjectURL(url);
   }
   function render() { renderList(); renderMessages(); }
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
@@ -134,9 +146,10 @@
       }
       const sourceText = (data.sources || []).length ? "\n\nKaynaklar:\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
       addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
+      if (voiceMode) speakText(answer.trim());
     } catch (err) {
       addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nCloudflare Worker ve Gemini API anahtarını kontrol et.");
-    } finally { typing.remove(); setBusy(false); els.input.focus(); }
+    } finally { typing.remove(); setBusy(false); els.input.focus(); if (voiceMode) startRecognition(); }
   }
   let recognition = null;
   let listening = false;
@@ -188,35 +201,54 @@
     els.voiceInput.classList.toggle("listening", value);
     els.voiceInput.textContent = value ? "■" : "🎙";
     els.voiceInput.title = value ? "Dinlemeyi durdur" : "Türkçe konuşmak için tıkla";
+    if (els.voiceModeBtn) {
+      els.voiceModeBtn.textContent = voiceMode ? "⏹ Sesli sohbeti durdur" : "🎧 Sesli sohbeti başlat";
+      els.voiceModeBtn.classList.toggle("voice-mode-active", voiceMode);
+    }
+  }
+  function startRecognition() {
+    if (!recognition || !voiceMode || busy || listening || (window.speechSynthesis && window.speechSynthesis.speaking)) return;
+    try { recognition.start(); setListening(true); }
+    catch (error) { console.warn("Mikrofon başlatılamadı:", error); setListening(false); }
   }
   function setupVoiceInput() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
-      els.voiceInput.disabled = true;
+      els.voiceInput.disabled = true; els.voiceModeBtn.disabled = true;
+      els.voiceModeBtn.title = "Bu tarayıcı ses tanımayı desteklemiyor. Güncel Chrome veya Edge deneyebilirsin.";
       els.voiceInput.title = "Bu tarayıcı ses tanımayı desteklemiyor. Güncel Chrome veya Edge deneyebilirsin.";
       return;
     }
     recognition = new SpeechRecognition();
-    recognition.lang = "tr-TR";
-    recognition.interimResults = true;
-    recognition.continuous = false;
+    recognition.lang = "tr-TR"; recognition.interimResults = true; recognition.continuous = false;
     recognition.onresult = event => {
-      let transcript = "";
-      for (let i = 0; i < event.results.length; i++) transcript += event.results[i][0].transcript;
+      let transcript = ""; let finalResult = false;
+      for (let i = 0; i < event.results.length; i++) {
+        transcript += event.results[i][0].transcript;
+        if (event.results[i].isFinal) finalResult = true;
+      }
       els.input.value = transcript;
       els.input.style.height = "auto";
       els.input.style.height = Math.min(els.input.scrollHeight,180) + "px";
+      if (voiceMode && finalResult && transcript.trim() && !busy) { els.input.value = ""; els.form.requestSubmit(); }
     };
     recognition.onerror = event => {
       setListening(false);
-      if (event.error === "not-allowed") alert("Mina'nın mikrofonu kullanabilmesi için tarayıcıdan mikrofon izni vermelisin.");
+      if (event.error === "not-allowed") { voiceMode = false; setListening(false); alert("Mina'nın mikrofonu kullanabilmesi için tarayıcıdan mikrofon izni vermelisin."); }
       else if (event.error !== "aborted" && event.error !== "no-speech") console.warn("Ses tanıma hatası:", event.error);
     };
-    recognition.onend = () => setListening(false);
+    recognition.onend = () => {
+      setListening(false);
+      if (voiceMode && !busy && !(window.speechSynthesis && window.speechSynthesis.speaking)) startRecognition();
+    };
     els.voiceInput.addEventListener("click", () => {
       if (listening) { recognition.stop(); return; }
-      try { recognition.start(); setListening(true); }
-      catch (error) { console.warn("Mikrofon başlatılamadı:", error); setListening(false); }
+      try { recognition.start(); setListening(true); } catch (error) { console.warn("Mikrofon başlatılamadı:", error); setListening(false); }
+    });
+    els.voiceModeBtn.addEventListener("click", () => {
+      voiceMode = !voiceMode;
+      if (!voiceMode) { try { recognition.stop(); } catch {} window.speechSynthesis?.cancel(); setListening(false); }
+      else { setListening(false); startRecognition(); }
     });
   }
   els.form.addEventListener("submit", e => {
@@ -229,6 +261,8 @@
   });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
+  els.search.addEventListener("input", () => { listQuery = els.search.value.toLocaleLowerCase("tr-TR").trim(); renderList(); });
+  els.exportChat.addEventListener("click", exportConversation);
   $("clearChatsBtn").addEventListener("click", () => {
     if (!conversations.length) return;
     if (!window.confirm("Bütün sohbet geçmişini kalıcı olarak silmek istiyor musun?")) return;
