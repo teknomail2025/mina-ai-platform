@@ -50,3 +50,19 @@
 .tools-toggle:hover{transform:translateY(-1px)}
 .tools-toggle[aria-expanded="true"]{background:var(--accent);color:#fff;border-color:var(--accent)}
 :root[data-theme="light"] .tools-toggle[aria-expanded="true"]{background:var(--accent);color:#fff}
+
+
+/* Sohbet geçmişi silme kontrolleri */
+.sidebar-heading{display:flex;align-items:center;justify-content:space-between;margin:28px 8px 12px}
+.sidebar-heading .sidebar-label{margin:0}
+.clear-chats-btn{border:0;background:transparent;color:var(--muted);font:600 10px 'DM Sans';padding:5px 2px;cursor:pointer}
+.clear-chats-btn:hover{color:#e16c78}
+.conversation-list{gap:4px}
+.conversation-row{display:flex;align-items:center;gap:3px;min-width:0;border-radius:9px}
+.conversation-row:hover,.conversation-row:focus-within{background:var(--panel2)}
+.conversation-row .conversation-item{flex:1;min-width:0;margin:0}
+.delete-chat-btn{width:28px;height:30px;flex:0 0 28px;border:0;border-radius:7px;background:transparent;color:var(--muted);font-size:19px;line-height:1;cursor:pointer;opacity:0;transition:opacity .15s,background .15s,color .15s}
+.conversation-row:hover .delete-chat-btn,.conversation-row:focus-within .delete-chat-btn{opacity:1}
+.delete-chat-btn:hover{background:#fce8eb;color:#c43f50}
+:root[data-theme="light"] .conversation-row:hover,:root[data-theme="light"] .conversation-row:focus-within{background:#f0f1f7}
+@media(hover:none){.delete-chat-btn{opacity:1}}
