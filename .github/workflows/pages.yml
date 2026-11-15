@@ -30,12 +30,14 @@ jobs:
       - name: Validate JavaScript syntax
         run: |
           node --check app.js
+          node --check voice.js
           node --check worker/src/index.js
       - name: Verify required frontend files
         run: |
           test -s index.html
           test -s styles.css
           test -s app.js
+          test -s voice.js
           test -s worker/wrangler.toml
       - name: Configure Pages
         uses: actions/configure-pages@v5
