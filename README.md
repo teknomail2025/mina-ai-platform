@@ -60,3 +60,15 @@ GitHub Pages workflow'u yalnızca statik arayüzü dağıtır; Worker'ın ayrıc
     ├── wrangler.toml
     └── src/index.js
 ```
+
+
+## Hesap sistemi için veritabanı hazırlığı
+
+Kimlik doğrulama ve kullanıcı verilerini birbirinden ayırmak için D1 şema migration dosyası eklendi:
+`worker/migrations/0001_auth_and_user_data.sql`
+
+Bu şema kullanıcılar, oturumlar, sohbetler, projeler, kullanıcı hafızası, sabitlenmiş sohbetler, dosya kayıtları ve e-posta doğrulama/şifre sıfırlama tokenlarını kapsar. Oturumlarda ham oturum tokenı yerine yalnızca hash saklanır. Demo hesaplarının sona erme zamanı ayrı tutulur.
+
+**Önemli:** Bu commit tek başına hesap girişini etkinleştirmez. D1 veritabanı oluşturulup migration uygulanmalı; ardından Worker'a D1 binding'i ve kimlik doğrulama uç noktaları bağlanmalıdır. E-posta alan adı daha sonra doğrulanacağı için doğrulama ve şifre sıfırlama e-postaları henüz canlı gönderilemez.
+
+Demo temizliği yalnızca `role='demo'` kayıtlarını hedeflemelidir. Yönetici hesabı `role='admin'` olarak tutulur ve demo temizleme sorgusuna hiçbir zaman dahil edilmez. Mevcut tarayıcı localStorage verileri migration sırasında otomatik silinmemelidir.
