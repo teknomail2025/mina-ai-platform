@@ -84,6 +84,15 @@
       const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = m.role === "user" ? "S" : "M";
       const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = m.content;
       row.append(avatar,bubble);
+      const actions = document.createElement("div"); actions.className = "message-actions";
+      const action = (label,title,fn) => { const button=document.createElement("button"); button.type="button"; button.textContent=label; button.title=title; button.setAttribute("aria-label",title); button.addEventListener("click",fn); actions.append(button); };
+      if (m.role === "user") action("✎","Mesajı düzenle",()=>editMessage(c.id,c.messages.indexOf(m)));
+      else {
+        action("⧉","Yanıtı kopyala",()=>{ if(navigator.clipboard?.writeText) navigator.clipboard.writeText(m.content).catch(()=>alert("Kopyalama izni alınamadı.")); });
+        action("↻","Yanıtı yeniden oluştur",()=>regenerateResponse(c.id));
+      }
+      action("×","Mesajı sil",()=>deleteMessage(c.id,c.messages.indexOf(m)));
+      row.append(actions);
       if (m.role === "assistant" && ("speechSynthesis" in window) && window.SpeechSynthesisUtterance) {
         const speak = document.createElement("button");
         speak.className = "message-speak-button";
@@ -106,6 +115,27 @@
     const link = document.createElement("a"); link.href = url; link.download = "mina-sohbet.md"; link.click();
     URL.revokeObjectURL(url);
   }
+  function deleteMessage(conversationId,index) {
+    const c=conversations.find(item=>item.id===conversationId);
+    if(!c || index<0 || index>=c.messages.length || !window.confirm("Bu mesajı silmek istiyor musun?")) return;
+    c.messages.splice(index,1); persist(); render();
+  }
+  function editMessage(conversationId,index) {
+    const c=conversations.find(item=>item.id===conversationId), m=c?.messages?.[index];
+    if(!m || m.role!=="user") return;
+    const edited=window.prompt("Mesajını düzenle:",m.content);
+    if(edited===null || !edited.trim()) return;
+    m.content=edited.trim(); c.messages=c.messages.slice(0,index+1);
+    c.title=c.messages.find(item=>item.role==="user")?.content.slice(0,42)||"Yeni sohbet";
+    activeId=c.id; persist(); render(); sendMessage(m.content,{existingUser:true});
+  }
+  function regenerateResponse(conversationId) {
+    const c=conversations.find(item=>item.id===conversationId); if(!c||busy) return;
+    let index=-1; for(let i=c.messages.length-1;i>=0;i--) if(c.messages[i].role==="user"){index=i;break;}
+    if(index<0) return;
+    const prompt=c.messages[index].content; c.messages=c.messages.slice(0,index+1);
+    activeId=c.id; persist(); render(); sendMessage(prompt,{existingUser:true});
+  }
   function render() { renderList(); renderMessages(); }
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
   function setBusy(v) { busy = v; els.send.disabled = v; els.input.disabled = v; els.send.textContent = v ? "…" : "↑"; }
@@ -113,7 +143,7 @@
     try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); els.status.textContent = "Backend hazır"; els.status.previousElementSibling.classList.add("online"); }
     catch { els.status.textContent = "Backend kurulumu bekleniyor"; }
   }
-  async function sendMessage(text) {
+  async function sendMessage(text, options = {}) {
     if (busy || (!text.trim() && !attachedFile)) return;
     const c = current(); const userText = text.trim();
     let prompt = userText;
@@ -121,14 +151,14 @@
     if (attachedFile && !imageAttachment) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
-    addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
+    if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = "";
     setBusy(true);
     const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Mina düşünüyor…"; els.messages.append(typing); els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:[...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
+        body:JSON.stringify({mode:"auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? c.messages.slice(-16) : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:prompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
