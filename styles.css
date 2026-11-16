@@ -196,3 +196,6 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 @media(max-width:520px){.secret-input-row{flex-wrap:wrap}.secret-input-row input{flex-basis:100%}.secret-input-row button{flex:1}}
 :root[data-theme="light"] .session-secret-panel{background:#f7f7fb}
 :root[data-theme="light"] .secret-input-row input{background:#fff}
+
+/* Sade Mina ayarları */
+.settings-section{margin:16px 0;padding:14px;border:1px solid var(--line);border-radius:11px;background:var(--panel)}.settings-section h3{margin:0 0 8px;color:var(--text);font-size:13px}.settings-section p{margin:0 0 10px;color:var(--muted);font-size:11px;line-height:1.6}.settings-info-row{display:flex;justify-content:space-between;gap:12px;padding:8px 0;border-top:1px solid var(--line);font-size:11px}.settings-info-row strong{color:var(--text)}.settings-info-row span{color:var(--muted);text-align:right}
