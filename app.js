@@ -470,6 +470,7 @@
           <div class="settings-nav-brand"><span class="settings-brand-mark">M</span><span><strong>Mina AI</strong><small>Kontrol merkezi</small></span></div>
           <div class="settings-nav-label">GENEL</div>
           <button type="button" data-settings-section="mina"><i>✦</i><span>Mina</span></button>
+          <button type="button" data-settings-section="language"><i>文</i><span>Dil ve iletişim</span></button>
           <button type="button" data-settings-section="appearance"><i>◐</i><span>Görünüm</span></button>
           <button type="button" data-settings-section="voice"><i>♫</i><span>Ses ve mikrofon</span></button>
           <button type="button" data-settings-section="notifications"><i>♧</i><span>Bildirimler</span></button>
