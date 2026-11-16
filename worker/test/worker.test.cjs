@@ -95,7 +95,9 @@ test("tampered session token is rejected", async () => {
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
   });
-  const token = login.data.token.slice(0, -1) + (login.data.token.endsWith("a") ? "b" : "a");
+  const [payload, signature] = login.data.token.split(".");
+  const changedSignature = (signature[0] === "a" ? "b" : "a") + signature.slice(1);
+  const token = payload + "." + changedSignature;
   const result = await call(worker, "/api/providers", { token });
   assert.equal(result.status, 401);
 });
