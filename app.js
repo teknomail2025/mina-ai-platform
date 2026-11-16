@@ -269,8 +269,8 @@
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
   function setBusy(v) { busy = v; const chatDisabled=MINA_CAPABILITIES.chat===false; els.send.disabled = v || chatDisabled; els.input.disabled = v || chatDisabled; els.send.textContent = v ? "…" : "↑"; }
   async function checkHealth() {
-    try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); els.status.textContent = "Backend hazır"; els.status.previousElementSibling.classList.add("online"); }
-    catch { els.status.textContent = "Backend kurulumu bekleniyor"; }
+    try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); }
+    catch { /* Bağlantı durumu, Sistem durumu ayarlarında gösterilir. */ }
   }
   async function sendMessage(text, options = {}) {
     if (busy || MINA_CAPABILITIES.chat===false || (!text.trim() && !attachedFile)) return;
