@@ -171,3 +171,28 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 
 /* Sol alt yönetici profili */
 .sidebar-profile{display:flex;align-items:center;gap:11px;padding:13px 9px;margin-top:14px;border-top:1px solid var(--line);min-width:0}.sidebar-profile-avatar{width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#c4b5fd,#7957dc);color:#211735;font:800 14px Manrope;text-transform:uppercase}.sidebar-profile-details{display:flex;flex-direction:column;gap:3px;min-width:0}.sidebar-profile-details strong{font:700 12px Manrope;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sidebar-profile-details span{font-size:10px;color:var(--muted)}
+
+
+/* SESSION_SECRET güvenlik ayarları */
+.session-secret-panel{margin:20px 0 16px;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel2)}
+.session-secret-heading{display:flex;align-items:center;justify-content:space-between;gap:10px;flex-wrap:wrap}
+.session-secret-heading strong{font-size:13px;color:var(--text)}
+.security-badge{padding:4px 8px;border-radius:20px;background:#20372f;color:#79d7aa;font-size:10px;font-weight:700}
+.session-secret-panel>p{margin:10px 0 13px;color:var(--muted);font-size:11px;line-height:1.6}
+.secret-generate,.secret-input-row button{border:1px solid #514276;border-radius:8px;background:#30254a;color:#f0eaff;padding:9px 12px;font:600 11px 'DM Sans';cursor:pointer}
+.secret-generate:hover,.secret-input-row button:hover{border-color:#a78bfa}
+.secret-output{margin-top:14px}
+.secret-output[hidden]{display:none}
+.secret-output>label{display:block;margin-bottom:7px;color:var(--text);font-size:11px;font-weight:700}
+.secret-input-row{display:flex;gap:7px;align-items:center}
+.secret-input-row input{min-width:0;flex:1;padding:10px;border:1px solid var(--line);border-radius:8px;background:#0b0e14;color:var(--text);font:11px/1.4 Consolas,monospace}
+.secret-input-row button{padding:9px 10px;white-space:nowrap}
+#sessionSecretCopyStatus{display:block;min-height:16px;margin-top:7px;color:#79d7aa;font-size:10px}
+.secret-warning{margin-top:14px;padding:11px;border:1px solid #765b31;border-radius:9px;background:#302719;color:#f1d6a5;font-size:10px;line-height:1.6}
+.secret-cloudflare-steps{margin-top:12px;color:var(--muted);font-size:11px;line-height:1.7}
+.secret-cloudflare-steps summary{color:var(--text);cursor:pointer;font-weight:700}
+.secret-cloudflare-steps ol{padding-left:20px}
+.secret-cloudflare-steps p{margin-bottom:0}
+@media(max-width:520px){.secret-input-row{flex-wrap:wrap}.secret-input-row input{flex-basis:100%}.secret-input-row button{flex:1}}
+:root[data-theme="light"] .session-secret-panel{background:#f7f7fb}
+:root[data-theme="light"] .secret-input-row input{background:#fff}
