@@ -25,7 +25,17 @@ function json(data,status,cors){return new Response(JSON.stringify(data),{status
 function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
 function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
 async function callGemini(env,model,payload){
-  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",{method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload),signal:AbortSignal.timeout(40000)});
+  const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent";
+  const options={method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)};
+  for(let attempt=0;attempt<2;attempt++){
+    try{return await fetch(url,{...options,signal:AbortSignal.timeout(45000)});}
+    catch(error){
+      const timedOut=error?.name==="TimeoutError"||error?.name==="AbortError";
+      if(!timedOut||attempt===1) throw error;
+      await new Promise(resolve=>setTimeout(resolve,1500));
+    }
+  }
+  throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
 async function callOpenAI(env,model,payload){
   const messages=[{role:"system",content:SYSTEM_PROMPT},...payload.contents.map(m=>({role:m.role==="model"?"assistant":"user",content:m.parts.map(p=>p.text||"").join("\n")}))];
