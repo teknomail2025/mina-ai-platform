@@ -13,10 +13,14 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Kod çalışma alanı: kod yapıştırma, desteklenen metin/kod dosyalarını açma, Mina'ya inceletme ve indirme.
 - Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet.
 - PWA kurulum altyapısı: desteklenen tarayıcılarda ana ekrana ekleme ve çevrimdışı uygulama kabuğu; sohbet ve yapay zekâ API'si için internet bağlantısı gerekir.
+- Proje yönetimi: proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
+- Zamanlayıcı: sekme açıkken çalışan geri sayım; sayfa yeniden açıldığında kalan süreyi hesaplama. Tarayıcı kapalıyken sistem bildirimi garantisi yoktur.
+- Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme.
+- Eklenti merkezi: mevcut araçları listeleme ve ilgili arayüzleri açma.
 - Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
 - Yönetici oturumu 8 saat geçerlidir. Oturum tarayıcı sekmesinin sessionStorage alanında tutulur.
 
-## Henüz tamamlanmamış alanlar
+## Veri ve entegrasyon sınırları
 
 - Sohbetler, projeler, zamanlayıcı durumu, kitaplık ve hafıza şu anda tarayıcı localStorage alanında tutulur; cihazlar arası eşitleme ve sunucu tarafı kalıcı saklama yoktur.
 - Projeler: tarayıcıda proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
