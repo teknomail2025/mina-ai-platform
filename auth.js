@@ -13,6 +13,7 @@
   const token=()=>{try{return sessionStorage.getItem(TOKEN_KEY)||"";}catch{return "";}};
   const setToken=value=>{try{if(value)sessionStorage.setItem(TOKEN_KEY,value);else sessionStorage.removeItem(TOKEN_KEY);}catch{}};
   function showLogin(message=""){
+    window.dispatchEvent(new CustomEvent("mina:unauthenticated"));
     document.body.classList.remove("mina-authenticated");
     screen.hidden=false;
     errorBox.textContent=message;
