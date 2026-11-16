@@ -35,8 +35,25 @@ function createWorker() {
     }
     throw new Error("Beklenmeyen dış istek: " + target);
   };
+  const memoryStore = { row: null };
+  const mockDb = {
+    prepare(sql) {
+      return {
+        bind(...values) {
+          return {
+            first: async () => memoryStore.row,
+            run: async () => {
+              memoryStore.row = { memory_text: values[0], updated_at: values[1] };
+              return { success: true };
+            }
+          };
+        },
+        first: async () => memoryStore.row
+      };
+    }
+  };
   const worker = new Function("minaTraining", "fetch", workerSource)(training, mockFetch);
-  return { worker, requestedModels };
+  return { worker, requestedModels, mockDb };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -58,6 +75,41 @@ test("health endpoint is public and reports service status", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.data.ok, true);
   assert.equal(result.data.adminAuthConfigured, true);
+});
+
+test("MinaData memory is private and persists through the D1 binding", async () => {
+  const { worker, mockDb } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  assert.equal(login.status, 200);
+  const guest = await call(worker, "/api/memory");
+  assert.equal(guest.status, 401);
+  const initial = await call(worker, "/api/memory", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.equal(initial.status, 200);
+  assert.equal(initial.data.initialized, false);
+  const saved = await call(worker, "/api/memory", {
+    method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { memory: "Mina hafıza testi" }
+  });
+  assert.equal(saved.status, 200);
+  const loaded = await call(worker, "/api/memory", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.equal(loaded.data.initialized, true);
+  assert.equal(loaded.data.memory, "Mina hafıza testi");
+});
+
+test("MinaData rejects oversized memory and reports missing D1 configuration", async () => {
+  const { worker, mockDb } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const missing = await call(worker, "/api/memory", { token: login.data.token });
+  assert.equal(missing.status, 503);
+  const oversized = await call(worker, "/api/memory", {
+    method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { memory: "x".repeat(2001) }
+  });
+  assert.equal(oversized.status, 400);
 });
 
 test("protected API endpoints reject guests", async () => {
