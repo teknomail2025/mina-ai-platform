@@ -134,6 +134,22 @@ test("unknown questions are forwarded to Gemini instead of returning a fixed fal
   assert.equal(result.data.provider, "Google Gemini");
   assert.equal(result.data.choices[0].message.content, "Gemini test yanıtı");
   assert.equal(requestedModels.length, 1);
+  assert.ok(requestedModels[0].includes("gemini-3.1-pro-preview"), "coding tasks must use the Pro model");
+});
+
+test("ordinary chat uses the Flash model", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
+  });
+  assert.equal(result.status, 200);
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "ordinary chat must use the Flash model");
 });
 
 test("image understanding validates input and reaches Gemini", async () => {
