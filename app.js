@@ -20,6 +20,12 @@
   let projects = readStore(PROJECTS_KEY, []);
   let pinnedIds = readStore(PINNED_KEY, []);
   let libraryItems = readStore(LIBRARY_KEY, []);
+  if (!Array.isArray(projects)) projects = [];
+  if (!Array.isArray(pinnedIds)) pinnedIds = [];
+  if (!Array.isArray(libraryItems)) libraryItems = [];
+  projects = projects.filter(item => item && typeof item.id === "string" && typeof item.name === "string");
+  pinnedIds = pinnedIds.filter(id => typeof id === "string");
+  libraryItems = libraryItems.filter(item => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.content === "string");
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
   let busy = false;
@@ -60,6 +66,8 @@
     if (!target) return;
     if (!window.confirm('"' + (target.title || "Bu sohbet") + '" sohbetini silmek istiyor musun?')) return;
     conversations = conversations.filter(c => c.id !== id);
+    pinnedIds = pinnedIds.filter(pinnedId => pinnedId !== id);
+    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch {}
     if (activeId === id) {
       activeId = conversations[0]?.id || null;
       if (!activeId) createConversation();
