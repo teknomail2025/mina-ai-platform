@@ -213,6 +213,21 @@ test("expired admin sessions are rejected", async () => {
   assert.equal(result.status, 401);
 });
 
+test("oversized admin login requests are rejected", async () => {
+  const { worker } = createWorker();
+  const request = new Request("https://mina-test.workers.dev/api/auth/login", {
+    method: "POST",
+    headers: {
+      Origin: "https://teknomail2025.github.io",
+      "Content-Type": "application/json",
+      "Content-Length": "9000"
+    },
+    body: "{}"
+  });
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 413);
+});
+
 test("login stays disabled when required admin secrets are missing", async () => {
   const { worker } = createWorker();
   const result = await call(worker, "/api/auth/login", {
