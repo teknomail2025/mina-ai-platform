@@ -164,7 +164,7 @@
     const host=document.createElement("div");
     const items=pinnedIds.map(id=>conversations.find(c=>c.id===id)).filter(Boolean);
     if(!items.length)host.append(workspaceNote("Henüz sabitlenen sohbet yok. Sohbet listesindeki ☆ simgesine basarak sabitleyebilirsin."));
-    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Sohbeti aç",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton("Sabitlemeyi kaldır",()=>togglePinned(c.id)&&renderPinnedWorkspace()));row.append(title,actions);host.append(row);});
+    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Sohbeti aç",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton("Sabitlemeyi kaldır",()=>{togglePinned(c.id);renderPinnedWorkspace();}));row.append(title,actions);host.append(row);});
     openWorkspace("Sabitlenenler",host);
   }
   function renderPinnedAndProjects() {
