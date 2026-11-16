@@ -4,6 +4,7 @@
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
   const STORAGE_KEY = "mina-ai-conversations-v1";
   const MEMORY_KEY = "mina-ai-user-memory-v1";
+  const LANGUAGE_KEY = "mina-ai-language-v1";
   const PROJECTS_KEY = "mina-ai-projects-v1";
   const PINNED_KEY = "mina-ai-pinned-v1";
   const LIBRARY_KEY = "mina-ai-library-v1";
@@ -31,6 +32,8 @@
   let listQuery = "";
   let voiceMode = false;
   let userMemory = ""; try { userMemory = localStorage.getItem(MEMORY_KEY) || ""; } catch {}
+  let minaLanguage = "auto"; try { minaLanguage = localStorage.getItem(LANGUAGE_KEY) || "auto"; } catch {}
+  if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
@@ -289,7 +292,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -486,8 +489,14 @@
       <section class="settings-section" data-settings-key="mina">
         <h3>Mina</h3><p>Mina Core görevine göre sohbet, görsel, web araştırması, kod ve ses özelliklerini yönetir.</p>
         <div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div>
-        <div class="settings-info-row"><strong>Arayüz dili</strong><span>Türkçe</span></div>
+        <div class="settings-info-row"><strong>Mina'nın iletişim dili</strong><span>Türkçe ve İngilizce</span></div>
         <div class="settings-info-row"><strong>Karakter</strong><span>Samimi · Zeki · Yardımsever</span></div>
+      </section>
+      <section class="settings-section" data-settings-key="language">
+        <h3>Dil ve iletişim</h3><p>Mina otomatik olarak Türkçe veya İngilizce konuşabilir. İstersen yanıt dilini sabitleyebilirsin. Bu tercih yalnızca bu tarayıcıda saklanır.</p>
+        <label class="settings-control-label" for="minaLanguageSelect">Mina'nın yanıt dili</label>
+        <select id="minaLanguageSelect" class="settings-select"><option value="auto">Otomatik algıla (önerilen)</option><option value="tr">Türkçe</option><option value="en">English</option></select>
+        <small class="settings-status">Otomatik modda Mina, mesajının dilini algılayıp aynı dilde yanıt verir. İngilizce Ren'Py dokümantasyonu ve hata mesajlarını da anlayabilir.</small>
       </section>
       <section class="settings-section" data-settings-key="account">
         <h3>Hesap ve güvenlik</h3><p>Tek yönetici hesabı. Hesap oluşturma ve herkese açık kayıt kapalıdır.</p>
