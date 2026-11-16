@@ -34,6 +34,31 @@
   let userMemory = ""; try { userMemory = localStorage.getItem(MEMORY_KEY) || ""; } catch {}
   let minaLanguage = "auto"; try { minaLanguage = localStorage.getItem(LANGUAGE_KEY) || "auto"; } catch {}
   if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
+  const UI_LANGUAGE_KEY = "mina-ai-ui-language-v1";
+  let uiLanguage = "tr"; try { uiLanguage = localStorage.getItem(UI_LANGUAGE_KEY) || "tr"; } catch {}
+  if (!["tr","en"].includes(uiLanguage)) uiLanguage = "tr";
+  const UI_TEXT = {
+    "＋ Yeni sohbet":"＋ New chat","✦ Keşfet":"✦ Discover","SABİTLENENLER":"PINNED","PROJELER":"PROJECTS","SOHBETLER":"CHATS",
+    "Ayarlar":"Settings","Dil ve iletişim":"Language & communication","Hesap ve güvenlik":"Account & security","Görünüm":"Appearance",
+    "Bildirimler":"Notifications","Ses ve mikrofon":"Voice & microphone","Hafıza":"Memory","Veriler":"Data","Cihazlar":"Devices","Sistem durumu":"System status","Çıkış yap":"Log out",
+    "Sohbet":"Chat","Dışa aktar":"Export","Kullanıcı adı":"Username","Şifre":"Password","Giriş yap":"Sign in",
+    "Oturumumu açık tut":"Keep me signed in","Koyu tema":"Dark theme","Açık tema":"Light theme","Mina ile sesli sohbet":"Voice chat with Mina",
+    "Mina'nın yanıt dili":"Mina's response language","Otomatik algıla (önerilen)":"Detect automatically (recommended)",
+    "Hafızayı kaydet":"Save memory","Hafızayı sil":"Clear memory","Mikrofonu kapat":"Mute microphone","Sohbeti bitir":"End chat",
+    "Mina'ya bir şey sor...":"Ask Mina something...","MERHABA":"HELLO","Tema":"Theme","Kapat":"Close","Kod çalışma alanı":"Code workspace"
+  };
+  const UI_TEXT_REVERSE = Object.fromEntries(Object.entries(UI_TEXT).map(([tr,en])=>[en,tr]));
+  function applyInterfaceLanguage(root=document) {
+    const dict=uiLanguage==="en"?UI_TEXT:UI_TEXT_REVERSE;
+    const walker=document.createTreeWalker(root,NodeFilter.SHOW_TEXT);let node;
+    while((node=walker.nextNode())){const raw=node.nodeValue,key=raw.trim();if(dict[key])node.nodeValue=raw.replace(key,dict[key]);}
+    root.querySelectorAll?.("[placeholder],[title],[aria-label]").forEach(el=>["placeholder","title","aria-label"].forEach(attr=>{const value=el.getAttribute(attr);if(value&&dict[value])el.setAttribute(attr,dict[value]);}));
+    if(root===document||root===document.documentElement)document.documentElement.lang=uiLanguage;
+  }
+  function setInterfaceLanguage(value){uiLanguage=value==="en"?"en":"tr";try{localStorage.setItem(UI_LANGUAGE_KEY,uiLanguage);}catch{}applyInterfaceLanguage(document);}
+  applyInterfaceLanguage(document);
+  const uiLanguageObserver=new MutationObserver(records=>records.forEach(record=>record.addedNodes.forEach(node=>{if(node.nodeType===Node.ELEMENT_NODE)applyInterfaceLanguage(node);else if(node.nodeType===Node.TEXT_NODE){const dict=uiLanguage==="en"?UI_TEXT:UI_TEXT_REVERSE,key=node.nodeValue.trim();if(dict[key])node.nodeValue=node.nodeValue.replace(key,dict[key]);}})));
+  uiLanguageObserver.observe(document.body,{childList:true,subtree:true});
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
@@ -562,8 +587,11 @@
     };
     host.querySelectorAll(".settings-nav button").forEach(button=>button.addEventListener("click",()=>setSettingsSection(button.dataset.settingsSection)));
     setSettingsSection(activeKey);
+    $("minaUiLanguageSelect").value=uiLanguage;
+    $("minaUiLanguageSelect").addEventListener("change",e=>setInterfaceLanguage(e.target.value));
     $("minaThemeSelect").value=theme;
     $("minaMemoryEditor").value=userMemory;
+    applyInterfaceLanguage(host);
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
     $("saveMinaMemory").addEventListener("click",()=>{
       const value=$("minaMemoryEditor").value.trim();
