@@ -430,11 +430,24 @@
 
 
   $("addProjectBtn").addEventListener("click",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
-  $("pinnedNav").addEventListener("click",renderPinnedWorkspace);
-  $("projectsNav").addEventListener("click",renderProjectsWorkspace);
-  $("timersNav").addEventListener("click",renderTimerWorkspace);
-  $("libraryNav").addEventListener("click",renderLibraryWorkspace);
-  $("pluginsNav").addEventListener("click",renderPluginsWorkspace);
+  $("discoverNav").addEventListener("click",renderDiscoverWorkspace);
+  function renderDiscoverWorkspace() {
+    const host=document.createElement("div");
+    host.append(workspaceNote("Mina'nın çalışma alanları tek yerde."));
+    const items=[
+      ["☆","Sabitlenenler","Sohbetlerini hızlıca aç",renderPinnedWorkspace],
+      ["▣","Projeler","Projelerini yönet",renderProjectsWorkspace],
+      ["◷","Zamanlayıcılar","Zaman araçları",renderTimerWorkspace],
+      ["▤","Kitaplık","Kaydettiğin içerikler",renderLibraryWorkspace],
+      ["⌘","Eklentiler","Bağlı araçlar",renderPluginsWorkspace]
+    ];
+    items.forEach(([icon,title,desc,action])=>{
+      const b=document.createElement("button");b.type="button";b.className="discover-card";
+      b.innerHTML="<strong>"+icon+" &nbsp;"+title+"</strong><small>"+desc+"</small>";
+      b.addEventListener("click",()=>{$("workspaceDialog").hidden=true;action();});host.append(b);
+    });
+    openWorkspace("Keşfet",host);
+  }
   function applyAICapabilities() {
     const caps=MINA_CAPABILITIES;
     [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
@@ -449,24 +462,24 @@
     const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
     host.innerHTML = `
       <p class="settings-intro">Mina'nın temel ayarları. Harici yapay zekâ sağlayıcısı veya model seçimi sunulmaz. Bu ekrandaki ayarlar mevcut tarayıcı özellikleriyle çalışır; henüz sunucuya eşitlenmeyen veriler açıkça belirtilir.</p>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="mina">
         <h3>Mina</h3><p>Mina Core görevine göre sohbet, görsel, web araştırması, kod ve ses özelliklerini yönetir.</p>
         <div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div>
         <div class="settings-info-row"><strong>Arayüz dili</strong><span>Türkçe</span></div>
         <div class="settings-info-row"><strong>Karakter</strong><span>Samimi · Zeki · Yardımsever</span></div>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="account">
         <h3>Hesap ve güvenlik</h3><p>Tek yönetici hesabı. Hesap oluşturma ve herkese açık kayıt kapalıdır.</p>
         <div class="settings-info-row"><strong>Yönetici hesabı</strong><span>Argion</span></div>
         <div class="settings-info-row"><strong>Yönetici yapılandırması</strong><span id="adminConfigStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Oturum</strong><span>Güvenli oturum belirteci</span></div>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="appearance">
         <h3>Görünüm</h3><p>Tema tercihi bu tarayıcıda saklanır.</p>
         <label class="settings-control-label" for="minaThemeSelect">Tema</label>
         <select id="minaThemeSelect" class="settings-select"><option value="dark">Koyu tema</option><option value="light">Açık tema</option></select>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="voice">
         <h3>Ses ve mikrofon</h3><p>Ses özellikleri kullandığın tarayıcının mikrofon ve konuşma desteğine bağlıdır. Mikrofon izni yalnızca test düğmesine bastığında istenir.</p>
         <div class="settings-info-row"><strong>Canlı ses</strong><span id="voiceSupportStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Konuşmayı yazıya çevirme</strong><span id="speechSupportStatus">Kontrol ediliyor…</span></div>
@@ -474,14 +487,14 @@
         <button type="button" class="settings-action" id="checkMicPermission">Mikrofon iznini test et</button>
         <small class="settings-status" id="micTestStatus" aria-live="polite"></small>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="memory">
         <h3>Hafıza</h3><p>Mina'nın sonraki sohbetlerde kullanacağı kişisel not. Şifre veya hassas bilgi kaydetme. Şu anda yalnızca bu tarayıcıda saklanır.</p>
         <label class="settings-control-label" for="minaMemoryEditor">Mina'nın hatırlayacağı not</label>
         <textarea id="minaMemoryEditor" class="settings-textarea" rows="4" maxlength="2000" placeholder="Mina'nın hatırlamasını istediğin bilgileri yaz…"></textarea>
         <div class="settings-actions"><button type="button" class="settings-action" id="saveMinaMemory">Hafızayı kaydet</button><button type="button" class="settings-action secondary" id="clearMinaMemory">Hafızayı sil</button></div>
         <small class="settings-status" id="memorySaveStatus" aria-live="polite"></small>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="data">
         <h3>Sohbetler ve veriler</h3><p>Sohbetler, projeler, kitaplık ve hafıza şu anda bu tarayıcının yerel depolamasında tutulur. Tarayıcı verilerini temizlemeden önce dışa aktar.</p>
         <div class="settings-actions"><button type="button" class="settings-action" id="exportMinaData">Mina verilerini dışa aktar</button><button type="button" class="settings-action secondary" id="openClearChats">Sohbet geçmişini yönet</button></div>
         <small class="settings-status" id="dataExportStatus" aria-live="polite"></small>
@@ -491,12 +504,12 @@
         <div class="settings-info-row"><strong>Tarayıcı bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
         <button type="button" class="settings-action" id="requestNotificationPermission">Bildirim iznini ayarla</button>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="devices">
         <h3>Cihazlar ve senkronizasyon</h3><p>Android, Windows, macOS ve web için ortak Mina hesabı ve cihazlar arası senkronizasyon henüz etkin değil. Yerel veriler cihazlar arasında otomatik aktarılmaz.</p>
         <div class="settings-info-row"><strong>Bu cihaz</strong><span>Web tarayıcısı</span></div>
         <div class="settings-info-row"><strong>Bulut senkronizasyonu</strong><span>Henüz kullanıma açık değil</span></div>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="system">
         <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
         <div class="settings-info-row"><strong>API bağlantısı</strong><span id="minaApiStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Yapay zekâ servisi</strong><span id="minaProviderStatus">Kontrol ediliyor…</span></div>
@@ -561,7 +574,22 @@
     $("toggleSessionSecret").addEventListener("click",()=>{const field=$("generatedSessionSecret"),visible=field.type==="password";field.type=visible?"text":"password";$("toggleSessionSecret").textContent=visible?"Gizle":"Göster";$("toggleSessionSecret").setAttribute("aria-label",visible?"Anahtarı gizle":"Anahtarı göster");});
     $("copySessionSecret").addEventListener("click",async()=>{const value=$("generatedSessionSecret").value;if(!value)return;try{await navigator.clipboard.writeText(value);$("sessionSecretCopyStatus").textContent="Anahtar panoya kopyalandı.";}catch{$("sessionSecretCopyStatus").textContent="Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.";$("generatedSessionSecret").focus();$("generatedSessionSecret").select();}});
   }
-  $("settingsNav").addEventListener("click",()=>{$("workspaceDialogTitle").textContent="Mina ayarları";$("workspaceDialog").hidden=false;renderAISettings();});
+  function openSettings(section) {
+    $("profileMenu").hidden=true;$("sidebarProfile").setAttribute("aria-expanded","false");
+    $("workspaceDialogTitle").textContent="Mina ayarları";$("workspaceDialog").hidden=false;renderAISettings();
+    if(section) requestAnimationFrame(()=>document.querySelector('[data-settings-key="'+section+'"]')?.scrollIntoView({behavior:"smooth",block:"start"}));
+  }
+  $("sidebarProfile").addEventListener("click",()=>{
+    const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
+  });
+  $("profileMenu").addEventListener("click",event=>{
+    const item=event.target.closest("[data-settings-section]");
+    if(item){openSettings(item.dataset.settingsSection);return;}
+    if(event.target.closest("#profileLogout"))$("minaLogoutBtn").click();
+  });
+  document.addEventListener("click",event=>{
+    if(!event.target.closest(".sidebar-profile-wrap")){$("profileMenu").hidden=true;$("sidebarProfile").setAttribute("aria-expanded","false");}
+  });
   $("workspaceDialogClose").addEventListener("click",()=>$("workspaceDialog").hidden=true);
   $("workspaceDialog").addEventListener("click",e=>{if(e.target===$("workspaceDialog"))$("workspaceDialog").hidden=true;});
 
