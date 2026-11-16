@@ -3,9 +3,9 @@ const assert = require("node:assert/strict");
 const fs = require("node:fs");
 const path = require("node:path");
 
-const root = path.resolve(__dirname, "../..");
-const training = JSON.parse(fs.readFileSync(path.join(root, "src/training.json"), "utf8"));
-const workerSource = fs.readFileSync(path.join(root, "src/index.js"), "utf8")
+const workerDir = path.resolve(__dirname, "..");
+const training = JSON.parse(fs.readFileSync(path.join(workerDir, "src/training.json"), "utf8"));
+const workerSource = fs.readFileSync(path.join(workerDir, "src/index.js"), "utf8")
   .replace(/^import minaTraining from "\.\/training\.json";\s*/, "")
   .replace("export default {", "return {");
 
