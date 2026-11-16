@@ -41,6 +41,7 @@ jobs:
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
           cd worker
+          npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.toml
           npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
@@ -66,6 +67,7 @@ jobs:
           const healthData = await health.json();
           assert.equal(healthData.ok, true);
           assert.equal(healthData.adminAuthConfigured, true);
+          assert.equal(healthData.memoryConfigured, true);
           const guest = await fetch(base + "/api/providers");
           assert.equal(guest.status, 401, "protected API must reject guests");
           const login = await fetch(base + "/api/auth/login", {
@@ -82,7 +84,12 @@ jobs:
           assert.equal(profile.status, 200);
           const profileData = await profile.json();
           assert.equal(profileData.user.username, "Argion");
-          console.log("Worker startup, health, guest rejection, admin login, session validation and shutdown trap: passed");
+          const memorySave = await fetch(base + "/api/memory", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + loginData.token }, body: JSON.stringify({ memory: "CI MinaData persistence check" }) });
+          assert.equal(memorySave.status, 200, "authenticated D1 memory write must work");
+          const memoryLoad = await fetch(base + "/api/memory", { headers: { Authorization: "Bearer " + loginData.token } });
+          assert.equal(memoryLoad.status, 200, "authenticated D1 memory read must work");
+          assert.equal((await memoryLoad.json()).memory, "CI MinaData persistence check");
+          console.log("Worker startup, health, guest rejection, admin login, session validation, D1 memory read/write and shutdown trap: passed");
           NODE
           cat /tmp/mina-wrangler.log
       - name: Verify required frontend files
@@ -98,6 +105,7 @@ jobs:
           test -s worker/wrangler.toml
           test -s worker/test/worker.test.cjs
           test -s worker/migrations/0001_auth_and_user_data.sql
+          test -s worker/migrations/0002_mina_admin_memory.sql
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
