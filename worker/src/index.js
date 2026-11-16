@@ -51,7 +51,7 @@ const AUTH_TOKEN_TTL_SECONDS = 8 * 60 * 60;
 function base64UrlEncode(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
-  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+  return btoa(binary).replace(/=/g, "").replace(/\+/g, "-").replace(/\//g, "_");
 }
 function base64UrlDecode(value) {
   const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
