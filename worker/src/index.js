@@ -67,6 +67,7 @@ async function callAnthropic(env,model,payload){
 }
 
 const AUTH_TOKEN_TTL_SECONDS = 8 * 60 * 60;
+const REMEMBERED_TOKEN_TTL_SECONDS = 30 * 24 * 60 * 60;
 function base64UrlEncode(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -125,8 +126,10 @@ export default {
     const password=typeof credentials.password==="string"?credentials.password:"";
     if(username.length>64||password.length>256||!safeEqual(username,env.ADMIN_USERNAME)||!safeEqual(password,env.ADMIN_PASSWORD)) return json({error:"Kullanıcı adı veya şifre hatalı."},401,cors);
     const now=Math.floor(Date.now()/1000);
-    const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:now+AUTH_TOKEN_TTL_SECONDS},env.SESSION_SECRET);
-    return json({token,expires_in:AUTH_TOKEN_TTL_SECONDS,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
+    const rememberMe=credentials.rememberMe===true;
+    const expiresIn=rememberMe?REMEMBERED_TOKEN_TTL_SECONDS:AUTH_TOKEN_TTL_SECONDS;
+    const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:now+expiresIn},env.SESSION_SECRET);
+    return json({token,expires_in:expiresIn,remembered:rememberMe,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET)},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
