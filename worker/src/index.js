@@ -130,9 +130,29 @@ export default {
     const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:expiresIn===null?null:now+expiresIn,remembered:rememberMe},env.SESSION_SECRET);
     return json({token,expires_in:expiresIn,remembered:rememberMe,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   }
-  if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET)},200,cors);
+  if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
-  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
+  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});  if(url.pathname==="/api/memory"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
+    try{
+      const row=await env.MINA_DB.prepare("SELECT memory_text, updated_at FROM mina_admin_memory WHERE id = 1").first();
+      return json({memory:row?.memory_text||"",initialized:!!row,updatedAt:row?.updated_at||null},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"MinaData hafızası okunamadı. Veritabanı geçişini kontrol edin."},503,cors);}
+  }
+  if(url.pathname==="/api/memory"&&request.method==="PUT"){
+    if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
+    const parsedMemory=await readJsonLimited(request,8192);
+    if(parsedMemory.tooLarge)return json({error:"Hafıza isteği çok büyük."},413,cors);
+    if(parsedMemory.invalid||!parsedMemory.value||typeof parsedMemory.value.memory!=="string")return json({error:"Geçersiz hafıza verisi."},400,cors);
+    const memoryText=parsedMemory.value.memory.trim();
+    if(memoryText.length>2000)return json({error:"Hafıza notu en fazla 2000 karakter olabilir."},400,cors);
+    try{
+      const updatedAt=Date.now();
+      await env.MINA_DB.prepare("INSERT INTO mina_admin_memory (id, memory_text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET memory_text = excluded.memory_text, updated_at = excluded.updated_at").bind(memoryText,updatedAt).run();
+      return json({saved:true,memory:memoryText,updatedAt},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"MinaData hafızası kaydedilemedi. Veritabanı geçişini kontrol edin."},503,cors);}
+  }
+
   if(url.pathname==="/api/providers"&&request.method==="GET") return json({providers:{gemini:!!env.GEMINI_API_KEY,openai:!!env.OPENAI_API_KEY,anthropic:!!env.ANTHROPIC_API_KEY,huggingface:!!env.HF_TOKEN}},200,cors);
   if(url.pathname==="/api/models"&&request.method==="GET") return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"},{id:IMAGE_MODEL,role:"image"}]},200,cors);
   if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
