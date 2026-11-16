@@ -1,74 +1,75 @@
 # Mina AI
 
-Mina, görev türüne göre Gemini Flash (hızlı sohbet/günlük işler) veya Gemini Pro (kodlama/karmaşık analiz) modelini otomatik seçer. Pro geçici kota ya da servis hatası verirse Flash ile yeniden dener. Model seçimi kullanıcıya bırakılmaz.
+Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştiren bir yapay zekâ sohbet uygulamasıdır. Ön yüz GitHub Pages, API ise Cloudflare Worker üzerinde çalışır.
 
-Türkçe yapay zekâ sohbet platformu. Statik arayüz GitHub Pages üzerinde, API ise Cloudflare Worker üzerinde çalışır.
+## Şu anda bulunan özellikler
 
-## Özellikler ve mevcut durum
-
-- Türkçe sohbet, tarayıcıda sohbet geçmişi ve sesli okuma/mikrofon.
-- Otomatik görev yönlendirmesi: Gemini Flash / Gemini Pro.
+- Türkçe sohbet ve tarayıcıda yerel sohbet geçmişi.
+- Göreve göre otomatik yönlendirme: Gemini 3.8 Flash; kodlama ve karmaşık analiz isteklerinde yüksek düşünme seviyesi.
 - JPG, PNG ve WEBP görsel yükleme ve Gemini ile görsel anlama (en fazla 8 MB).
-- Gemini 3.1 Flash Image ile görsel üretimi.
-- Web araştırması: araştırma niyeti algılandığında Gemini Google Search grounding.
-- Steam mağazasında oyun arama (Steam Store arama servisi).
-- Kod çalışma alanı: kod yapıştırma, kod dosyası yükleme, Mina'ya inceletme ve metin dosyası olarak indirme.
-- GitHub bağlantı düğmesi ve bağlantı durumu kontrol uç noktası eklendi. Güvenli GitHub OAuth ve depo üzerinde okuma/yazma işlemleri henüz tamamlanmadı; GitHub token'ını doğrudan tarayıcıya koymayın.
+- Nano Banana 2.1 ile görsel üretimi.
+- Araştırma niyeti algılandığında Gemini Google Search grounding ile web araştırması ve kaynak bağlantıları.
+- Steam mağazasında oyun arama.
+- Kod çalışma alanı: kod yapıştırma, desteklenen metin/kod dosyalarını açma, Mina'ya inceletme ve indirme.
+- Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet.
+- Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
+- Yönetici oturumu 8 saat geçerlidir. Oturum tarayıcı sekmesinin sessionStorage alanında tutulur.
 
-## API anahtarları
+## Henüz tamamlanmamış alanlar
 
-Cloudflare Worker > Settings > Variables and Secrets altında:
+- Sohbetler, projeler ve hafıza şu anda tarayıcı localStorage alanında tutulur; cihazlar arası eşitleme ve sunucu tarafı kalıcı saklama yoktur.
+- Projeler, zamanlayıcılar, kitaplık ve eklentiler menülerinin bazıları şimdilik arayüz/ön hazırlık düzeyindedir.
+- GitHub düğmesi yalnızca bağlantı durumunu gösterir; OAuth ve depo üzerinde güvenli okuma/yazma henüz etkin değildir.
+- PDF/DOCX dosyalarının içeriğini çıkarma henüz desteklenmez.
+- APK paketleme ve mağaza dağıtımı henüz yapılmamıştır.
+- Ren'Py odaklı özel eğitim, mevcut temel özellikler tamamlandıktan sonraki aşamadır.
 
-- `GEMINI_API_KEY`: sohbet, görsel anlama, görsel üretme ve Gemini tabanlı web araştırması için zorunlu.
-- `GITHUB_TOKEN`: yalnızca sonraki GitHub OAuth entegrasyonu için planlanan sunucu tarafı değişkendir; henüz depo işlemleri açılmaz.
+## Cloudflare Worker Secrets
 
-Anahtarları GitHub deposuna, HTML/JS dosyalarına veya localStorage'a koymayın. Sohbette paylaşmayın.
+Worker üzerinde aşağıdaki gizli değişkenler gerekir:
+
+- `ADMIN_USERNAME`: Yönetici kullanıcı adı (şu an belirlenen değer: `Argion`).
+- `ADMIN_PASSWORD`: Yönetici parolası; en az 12 karakter olmalıdır. Sohbette veya GitHub deposunda paylaşılmamalıdır.
+- `SESSION_SECRET`: Oturum imzalama anahtarı; en az 32 karakter olmalıdır.
+- `GEMINI_API_KEY`: Gemini sohbeti, görsel anlama, görsel üretimi ve web araştırması için API anahtarı.
+
+İsteğe bağlı sağlayıcı anahtarları:
+
+- `OPENAI_API_KEY`
+- `ANTHROPIC_API_KEY`
+- `HF_TOKEN` (Hugging Face sohbet yolu henüz etkin değildir)
+- `GITHUB_TOKEN` (OAuth ve depo işlemleri henüz tamamlanmamıştır)
+
+Anahtarları HTML/JS dosyalarına, GitHub deposuna veya tarayıcı localStorage alanına koymayın. Anahtarları sohbet mesajı olarak da göndermeyin.
 
 ## Dağıtım
 
 ### GitHub Pages
 
-Depoda Settings > Pages > Build and deployment > Source alanında GitHub Actions seçili olmalıdır. `main` dalına gönderilen değişiklikler `.github/workflows/pages.yml` ile yayınlanır.
+Depoda **Settings → Pages → Build and deployment → Source** alanında GitHub Actions seçili olmalıdır. `main` dalına gönderilen değişiklikler `.github/workflows/pages.yml` ile doğrulanır ve yayınlanır.
+
+İş akışı JavaScript sözdizimini kontrol eder, Worker için otomatik testleri çalıştırır ve statik siteyi yayınlar. Bu testler sağlayıcıya gerçek API isteği göndermez; Gemini, mikrofon ve canlı Worker davranışının uçtan uca canlı testi yerine geçmez.
 
 ### Cloudflare Worker
 
-Cloudflare Worker'ın kök dizini `worker`, giriş dosyası `src/index.js`, dağıtım komutu `npx wrangler deploy` olmalıdır. `GEMINI_API_KEY` secret'ını ekledikten sonra Worker'ı yeniden dağıtın.
+Worker yapılandırması `worker/wrangler.toml` dosyasındadır. Cloudflare dağıtımı GitHub Pages iş akışından ayrıdır; Worker değişiklikleri ayrıca `worker` dizininden dağıtılmalıdır.
 
-Worker sağlık kontrolü: `/api/health`
-Araç durumu: `/api/tools/status`
-Steam araması: `/api/steam/search?q=oyun-adı`
+Sağlık kontrolü: `/api/health`
 
-GitHub Pages workflow'u yalnızca statik arayüzü dağıtır; Worker'ın ayrıca Cloudflare üzerinden dağıtılması gerekir.
+Worker, kimlik doğrulama yapılandırılmadığında yönetici girişini reddeder. Genel kullanıma açılmadan önce Cloudflare tarafında giriş uç noktası için rate limiting ve kötüye kullanım koruması da etkinleştirilmelidir.
+
+## Veritabanı hazırlığı
+
+`worker/migrations/0001_auth_and_user_data.sql` dosyası D1 için kullanıcılar, oturumlar, sohbetler, projeler, hafıza, sabitlenmiş sohbetler, kitaplık dosyaları ve e-posta tokenları tablolarını tanımlar.
+
+Bu migration henüz canlı veritabanına uygulanmış değildir ve Worker'da D1 binding'i kullanılmamaktadır. Mevcut yönetici girişi D1 yerine Cloudflare Worker Secrets ve imzalı 8 saatlik oturum tokenı kullanır.
 
 ## Güvenlik ve sınırlar
 
-- Şu an kullanıcı hesabı, kullanıcı bazlı kota ve sunucu tarafında kalıcı sohbet saklama yoktur.
-- Worker uç noktaları genel internetten erişilebilir. Genel kullanıma açılmadan önce kimlik doğrulama, rate limiting ve kötüye kullanım koruması zorunludur.
-- Kod çalışma alanı yerel bir editör/inceleme alanıdır; kullanıcının bilgisayarındaki dosyaları otomatik değiştirmez veya kod çalıştırmaz.
-- PDF/DOCX içeriği çıkarımı henüz desteklenmez.
-- GitHub depo işlemleri OAuth ve yetki sınırları tamamlanana kadar kapalıdır.
+- Kayıt ve genel kullanıcı girişi kapalıdır; tek yönetici kimliği kullanılır.
+- Yönetici dışındaki API istekleri reddedilir; yalnızca sağlık kontrolü ve CORS preflight herkese açıktır.
+- Oturum tokenları HMAC-SHA256 ile imzalanır. Tarayıcı çıkış yaptığında yerel token silinir; sunucu tarafında token iptal listesi yoktur, bu nedenle çalınmış bir token süresi dolana kadar geçerli kalabilir.
+- Giriş denemeleri için Cloudflare rate limiting kuralı henüz kurulmamıştır.
+- Sohbet geçmişi ve hafıza yereldir; tarayıcı verileri silinirse kaybolabilir.
+- Kod alanı yerel bir editördür; kullanıcının bilgisayarındaki dosyaları otomatik değiştirmez veya kod çalıştırmaz.
 - Ücretsiz model kullanımı sağlayıcının güncel kota ve şartlarına bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.
-
-## Proje yapısı
-
-```text
-.
-├── index.html
-├── styles.css
-├── app.js
-└── worker/
-    ├── wrangler.toml
-    └── src/index.js
-```
-
-
-## Hesap sistemi için veritabanı hazırlığı
-
-Kimlik doğrulama ve kullanıcı verilerini birbirinden ayırmak için D1 şema migration dosyası eklendi:
-`worker/migrations/0001_auth_and_user_data.sql`
-
-Bu şema kullanıcılar, oturumlar, sohbetler, projeler, kullanıcı hafızası, sabitlenmiş sohbetler, dosya kayıtları ve e-posta doğrulama/şifre sıfırlama tokenlarını kapsar. Oturumlarda ham oturum tokenı yerine yalnızca hash saklanır. Demo hesaplarının sona erme zamanı ayrı tutulur.
-
-**Önemli:** Bu commit tek başına hesap girişini etkinleştirmez. D1 veritabanı oluşturulup migration uygulanmalı; ardından Worker'a D1 binding'i ve kimlik doğrulama uç noktaları bağlanmalıdır. E-posta alan adı daha sonra doğrulanacağı için doğrulama ve şifre sıfırlama e-postaları henüz canlı gönderilemez.
-
-Demo temizliği yalnızca `role='demo'` kayıtlarını hedeflemelidir. Yönetici hesabı `role='admin'` olarak tutulur ve demo temizleme sorgusuna hiçbir zaman dahil edilmez. Mevcut tarayıcı localStorage verileri migration sırasında otomatik silinmemelidir.
