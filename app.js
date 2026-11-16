@@ -32,6 +32,39 @@
   let listQuery = "";
   let voiceMode = false;
   let userMemory = ""; try { userMemory = localStorage.getItem(MEMORY_KEY) || ""; } catch {}
+  let memorySyncPromise = Promise.resolve();
+  async function saveCloudMemory(value) {
+    const response = await fetch(API_BASE + "/api/memory", {
+      method:"PUT", headers:{"Content-Type":"application/json"}, body:JSON.stringify({memory:value})
+    });
+    const data = await response.json().catch(()=>({}));
+    if (!response.ok) throw new Error(data.error || "Sunucu hafızası kaydedilemedi.");
+    return data;
+  }
+  async function syncCloudMemory() {
+    try {
+      const response = await fetch(API_BASE + "/api/memory", {headers:{Accept:"application/json","Cache-Control":"no-store"}});
+      const data = await response.json().catch(()=>({}));
+      if (!response.ok) throw new Error(data.error || "MinaData bağlantısı kurulamadı.");
+      if (data.initialized) {
+        userMemory = typeof data.memory === "string" ? data.memory : "";
+      } else {
+        const legacyMemory = userMemory;
+        const saved = await saveCloudMemory(legacyMemory);
+        userMemory = saved.memory;
+      }
+      try { if(userMemory)localStorage.setItem(MEMORY_KEY,userMemory);else localStorage.removeItem(MEMORY_KEY); } catch {}
+      const editor=$("minaMemoryEditor");
+      if(editor)editor.value=userMemory;
+      const status=$("memorySaveStatus");
+      if(status)status.textContent="MinaData hafızası hesabınla eşitlendi.";
+      return true;
+    } catch(error) {
+      const status=$("memorySaveStatus");
+      if(status)status.textContent="Bulut hafızası şu anda erişilemiyor; mevcut tarayıcı notun korundu.";
+      return false;
+    }
+  }
   let minaLanguage = "auto"; try { minaLanguage = localStorage.getItem(LANGUAGE_KEY) || "auto"; } catch {}
   if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
   const UI_LANGUAGE_KEY = "mina-ai-ui-language-v1";
@@ -355,6 +388,7 @@
     if (attachedFile && !imageAttachment) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
+    await memorySyncPromise;
     const requestPrompt = userMemory ? "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\n" + userMemory + "\n\nKullanıcının isteği: " + prompt : prompt;
     if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = ""; els.imageInput.value = "";
@@ -490,7 +524,14 @@
   });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
-  els.memoryBtn.addEventListener("click", () => { const value = window.prompt("Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir.", userMemory); if (value === null) return; userMemory = value.trim(); try { if (userMemory) localStorage.setItem(MEMORY_KEY,userMemory); else localStorage.removeItem(MEMORY_KEY); alert(userMemory ? "Hafıza notu bu tarayıcıya kaydedildi." : "Hafıza notu silindi."); } catch { alert("Hafıza notu kaydedilemedi."); } });
+  els.memoryBtn.addEventListener("click", async () => {
+    const value=window.prompt("Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir.",userMemory);
+    if(value===null)return;
+    userMemory=value.trim();
+    try{if(userMemory)localStorage.setItem(MEMORY_KEY,userMemory);else localStorage.removeItem(MEMORY_KEY);}catch{}
+    try{await saveCloudMemory(userMemory);alert(userMemory?"Hafıza Mina hesabına güvenli şekilde kaydedildi.":"Hafıza notu silindi.");}
+    catch{alert("Not bu tarayıcıda korundu ancak MinaData sunucusuna kaydedilemedi.");}
+  });
   els.search.addEventListener("input", () => { listQuery = els.search.value.toLocaleLowerCase("tr-TR").trim(); renderList(); });
   els.exportChat.addEventListener("click", exportConversation);
   $("clearChatsBtn").addEventListener("click", () => {
@@ -624,14 +665,20 @@
     $("minaMemoryEditor").value=userMemory;
     applyInterfaceLanguage(host);
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
-    $("saveMinaMemory").addEventListener("click",()=>{
+    $("saveMinaMemory").addEventListener("click",async()=>{
       const value=$("minaMemoryEditor").value.trim();
-      try{userMemory=value;if(value)localStorage.setItem(MEMORY_KEY,value);else localStorage.removeItem(MEMORY_KEY);$("memorySaveStatus").textContent="Hafıza bu tarayıcıya kaydedildi.";}
-      catch{$("memorySaveStatus").textContent="Hafıza kaydedilemedi. Tarayıcı depolama alanını kontrol et.";}
+      userMemory=value;
+      try{if(value)localStorage.setItem(MEMORY_KEY,value);else localStorage.removeItem(MEMORY_KEY);}
+      catch{$("memorySaveStatus").textContent="Tarayıcı hafızası kaydedilemedi.";return;}
+      try{await saveCloudMemory(value);$("memorySaveStatus").textContent="MinaData hafızası hesabına güvenli şekilde kaydedildi.";}
+      catch{$("memorySaveStatus").textContent="Not bu tarayıcıda korundu; sunucuya kaydedilemedi.";}
     });
-    $("clearMinaMemory").addEventListener("click",()=>{
-      if(!confirm("Mina'nın bu tarayıcıda tuttuğu hafıza notunu silmek istiyor musun?"))return;
-      userMemory="";try{localStorage.removeItem(MEMORY_KEY);$("minaMemoryEditor").value="";$("memorySaveStatus").textContent="Hafıza notu silindi.";}catch{$("memorySaveStatus").textContent="Hafıza silinemedi.";}
+    $("clearMinaMemory").addEventListener("click",async()=>{
+      if(!confirm("Mina'nın hesabında tuttuğu hafıza notunu silmek istiyor musun?"))return;
+      userMemory="";
+      try{localStorage.removeItem(MEMORY_KEY);$("minaMemoryEditor").value="";}catch{}
+      try{await saveCloudMemory("");$("memorySaveStatus").textContent="MinaData hafızası silindi.";}
+      catch{$("memorySaveStatus").textContent="Not bu tarayıcıdan silindi; sunucu kaydı güncellenemedi.";}
     });
     $("exportMinaData").addEventListener("click",()=>{
       try{
@@ -771,4 +818,6 @@
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
   if (!activeId) createConversation();
   render(); checkHealth(); setupVoiceInput();
+  window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();});
+  if(document.body.classList.contains("mina-authenticated"))memorySyncPromise=syncCloudMemory();
 })();
