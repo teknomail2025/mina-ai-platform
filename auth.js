@@ -59,8 +59,10 @@
     if(!current)return;
     try{
       const response=await nativeFetch(API_BASE+"/api/auth/me",{headers:{Authorization:"Bearer "+current}});
+      if(token()!==current)return;
       if(response.ok){enterApp();return;}
     }catch{}
+    if(token()!==current)return;
     setToken("");
     showLogin("Oturum doğrulanamadı. Lütfen yeniden giriş yap.");
   }
