@@ -7,3 +7,9 @@ compatibility_date = "2026-10-01"
 ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
 # Add GEMINI_API_KEY with: npx wrangler secret put GEMINI_API_KEY
 GEMINI_MODEL = "gemini-3.8-flash"
+
+[[d1_databases]]
+binding = "MINA_DB"
+database_name = "mina-ai-db"
+database_id = "bdf7737f-b4b2-4158-982b-b7c7483ca702"
+migrations_dir = "migrations"
