@@ -275,7 +275,7 @@ test("projects workspace supports project assignment and linked conversation nav
   assert.match(frontendSource, /function renderProjectsWorkspace\(/);
   assert.match(frontendSource, /c\.projectId=project\.id/);
   assert.match(frontendSource, /conversations\.filter\(c=>c\.projectId===project\.id\)/);
-  assert.match(frontendSource, /projectsNav.*renderProjectsWorkspace/s);
+  assert.match(frontendSource, /\["▣","Projeler".*renderProjectsWorkspace/s);
 });
 
 test("timer workspace persists an end timestamp and recalculates remaining time", () => {
@@ -303,7 +303,7 @@ test("conversation pin and unpin controls persist and refresh the pinned workspa
   assert.match(frontendSource, /localStorage\.setItem\(PINNED_KEY,JSON\.stringify\(pinnedIds\)\)/);
   assert.match(frontendSource, /pin\.addEventListener\("click"/);
   assert.match(frontendSource, /function renderPinnedWorkspace\(/);
-  assert.match(frontendSource, /pinnedNav.*renderPinnedWorkspace/s);
+  assert.match(frontendSource, /\["☆","Sabitlenenler".*renderPinnedWorkspace/s);
 });
 
 test("PWA shell is installable and never caches API or authorization requests", () => {
