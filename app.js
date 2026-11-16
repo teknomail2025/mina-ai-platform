@@ -7,8 +7,7 @@
   const PROJECTS_KEY = "mina-ai-projects-v1";
   const PINNED_KEY = "mina-ai-pinned-v1";
   const LIBRARY_KEY = "mina-ai-library-v1";
-  const AI_SETTINGS_KEY = "mina-ai-provider-settings-v1";
-  let aiSettings = readStore(AI_SETTINGS_KEY, {provider:"auto",model:"auto",capabilities:{chat:true,vision:true,web:true,code:true,voice:true}});
+  const MINA_CAPABILITIES = Object.freeze({chat:true,vision:true,web:true,code:true,voice:true});
   const $ = (id) => document.getElementById(id);
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
@@ -268,13 +267,13 @@
 
   function render() { renderList(); renderMessages(); }
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
-  function setBusy(v) { busy = v; const chatDisabled=aiSettings.capabilities?.chat===false; els.send.disabled = v || chatDisabled; els.input.disabled = v || chatDisabled; els.send.textContent = v ? "…" : "↑"; }
+  function setBusy(v) { busy = v; const chatDisabled=MINA_CAPABILITIES.chat===false; els.send.disabled = v || chatDisabled; els.input.disabled = v || chatDisabled; els.send.textContent = v ? "…" : "↑"; }
   async function checkHealth() {
     try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); els.status.textContent = "Backend hazır"; els.status.previousElementSibling.classList.add("online"); }
     catch { els.status.textContent = "Backend kurulumu bekleniyor"; }
   }
   async function sendMessage(text, options = {}) {
-    if (busy || aiSettings.capabilities?.chat===false || (!text.trim() && !attachedFile)) return;
+    if (busy || MINA_CAPABILITIES.chat===false || (!text.trim() && !attachedFile)) return;
     const c = current(); const userText = text.trim();
     let prompt = userText;
     const imageAttachment = attachedFile?.kind === "image" ? attachedFile : null;
@@ -289,7 +288,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:aiSettings.provider || "auto", model:aiSettings.model || "auto", capabilities:aiSettings.capabilities || {}, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -437,7 +436,7 @@
   $("libraryNav").addEventListener("click",renderLibraryWorkspace);
   $("pluginsNav").addEventListener("click",renderPluginsWorkspace);
   function applyAICapabilities() {
-    const caps=aiSettings.capabilities||{};
+    const caps=MINA_CAPABILITIES;
     [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
     if(caps.code===false)els.codeWorkspacePanel.hidden=true;
     const chatDisabled=caps.chat===false;
@@ -447,57 +446,15 @@
   applyAICapabilities();
   async function renderAISettings() {
     const host=$("workspaceDialogContent");
-    host.innerHTML = '<div class="settings-intro">Mina’nın kullanacağı yapay zekâ sağlayıcısını ve görev tercihlerini yönet.</div><div id="providerStatus" class="provider-grid">Sağlayıcılar kontrol ediliyor…</div><div class="settings-field"><label for="aiProviderSelect">Varsayılan yapay zekâ</label><select id="aiProviderSelect"><option value="auto">Otomatik seçim</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="huggingface" disabled>Hugging Face (sonraki aşama)</option></select><small>Seçilen sağlayıcının sunucuda API anahtarı tanımlı olmalı.</small></div><div class="settings-field"><label for="aiModelSelect">Model tercihi</label><select id="aiModelSelect"><option value="auto">Göreve göre otomatik</option><option value="fast">Hızlı model</option><option value="advanced">Gelişmiş model</option></select></div><div class="settings-capabilities"><strong>Görev yetenekleri</strong><label><input type="checkbox" data-cap="chat"> Sohbet ve soru-cevap</label><label><input type="checkbox" data-cap="vision"> Görsel anlama</label><label><input type="checkbox" data-cap="web"> Web araştırması</label><label><input type="checkbox" data-cap="code"> Kodlama ve analiz</label><label><input type="checkbox" data-cap="voice"> Sesli sohbet (Gemini)</label></div><div class="settings-key-note"><strong>API anahtarı güvenliği</strong><p>API anahtarlarını tarayıcıda saklamıyoruz. Cloudflare Worker Secrets bölümünde güvenli şekilde tutulacak.</p><p><code>GEMINI_API_KEY</code> · <code>OPENAI_API_KEY</code> · <code>ANTHROPIC_API_KEY</code> · <code>HF_TOKEN</code></p></div><section class="session-secret-panel" aria-labelledby="sessionSecretTitle"><div class="session-secret-heading"><strong id="sessionSecretTitle">Güvenlik · SESSION_SECRET</strong><span class="security-badge">Oturum anahtarı</span></div><p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p><button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button><div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div><div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div><details class="secret-cloudflare-steps"><summary>Cloudflare üzerinde nasıl değiştiririm?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Gerekli dağıtımın tamamlanmasını bekle, ardından Mina AI sistemine yeniden giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan anahtar etkinleşmiş sayılmaz.</p></details></section><div class="settings-actions"><button type="button" id="saveAISettings">Ayarları kaydet</button><span id="settingsSaveStatus"></span></div>';
-    $("aiProviderSelect").value=aiSettings.provider||"auto"; $("aiModelSelect").value=aiSettings.model||"auto";
-    host.querySelectorAll("[data-cap]").forEach(el=>el.checked=aiSettings.capabilities?.[el.dataset.cap]!==false);
-    $("saveAISettings").addEventListener("click",()=>{aiSettings={provider:$("aiProviderSelect").value,model:$("aiModelSelect").value,capabilities:Object.fromEntries([...host.querySelectorAll("[data-cap]")].map(el=>[el.dataset.cap,el.checked]))};try{localStorage.setItem(AI_SETTINGS_KEY,JSON.stringify(aiSettings));$("settingsSaveStatus").textContent="Ayarlar kaydedildi.";}catch{$("settingsSaveStatus").textContent="Kaydedilemedi.";}applyAICapabilities();els.model.textContent=aiSettings.provider==="auto"?"Otomatik model seçimi":$("aiProviderSelect").selectedOptions[0].text;});
-    const generateSecretButton=$("generateSessionSecret");
-    generateSecretButton.addEventListener("click",()=>{
+    host.innerHTML = '<p class="settings-intro">Mina’nın temel ayarları. Harici yapay zekâ sağlayıcısı veya model seçimi seçenekleri burada bulunmaz.</p><section class="settings-section"><h3>Mina</h3><p>Mina Core sohbet, görsel, web araştırması, kod ve ses özelliklerini görevine göre otomatik yönetir. Sağlayıcı ve model seçimi kullanıcıya bırakılmaz.</p><div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div><div class="settings-info-row"><strong>Arayüz dili</strong><span>Türkçe</span></div></section><section class="settings-section"><h3>Hesap ve güvenlik</h3><p>Yönetici hesabı ve oturum güvenliği.</p><div class="settings-info-row"><strong>Yönetici hesabı</strong><span>Argion</span></div><div class="settings-info-row"><strong>Giriş yöntemi</strong><span>Tek yönetici hesabı</span></div></section><section class="session-secret-panel" aria-labelledby="sessionSecretTitle"><div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div><p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p><button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button><div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div><div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div><details class="secret-cloudflare-steps"><summary>Oturum anahtarı nasıl değiştirilir?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Dağıtım tamamlandıktan sonra Mina AI sistemine yeniden giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan yeni anahtar etkinleşmiş sayılmaz.</p></details></section><section class="settings-section"><h3>Görünüm ve veriler</h3><p>Açık/koyu tema üst menüden değiştirilebilir. Sohbet geçmişi ve kişisel notlar şu anda bu tarayıcıda saklanır.</p></section>';
+    $("generateSessionSecret").addEventListener("click",()=>{
       if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent="Bu tarayıcı güvenli anahtar üretimini desteklemiyor.";return;}
-      try{
-        const bytes=new Uint8Array(48);
-        globalThis.crypto.getRandomValues(bytes);
-        let binary="";
-        for(const byte of bytes)binary+=String.fromCharCode(byte);
-        const generated=btoa(binary).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
-        const field=$("generatedSessionSecret");
-        field.value=generated;
-        field.type="password";
-        $("toggleSessionSecret").textContent="Göster";
-        $("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");
-        $("sessionSecretCopyStatus").textContent="Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.";
-        $("sessionSecretOutput").hidden=false;
-      }catch{
-        $("sessionSecretCopyStatus").textContent="Güvenli anahtar oluşturulamadı.";
-      }
+      try{const bytes=new Uint8Array(48);globalThis.crypto.getRandomValues(bytes);let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);const generated=btoa(binary).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");const field=$("generatedSessionSecret");field.value=generated;field.type="password";$("toggleSessionSecret").textContent="Göster";$("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");$("sessionSecretCopyStatus").textContent="Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.";$("sessionSecretOutput").hidden=false;}catch{$("sessionSecretCopyStatus").textContent="Güvenli anahtar oluşturulamadı.";}
     });
-    $("toggleSessionSecret").addEventListener("click",()=>{
-      const field=$("generatedSessionSecret"),visible=field.type==="password";
-      field.type=visible?"text":"password";
-      $("toggleSessionSecret").textContent=visible?"Gizle":"Göster";
-      $("toggleSessionSecret").setAttribute("aria-label",visible?"Anahtarı gizle":"Anahtarı göster");
-    });
-    $("copySessionSecret").addEventListener("click",async()=>{
-      const value=$("generatedSessionSecret").value;
-      if(!value)return;
-      try{
-        await navigator.clipboard.writeText(value);
-        $("sessionSecretCopyStatus").textContent="Anahtar panoya kopyalandı.";
-      }catch{
-        $("sessionSecretCopyStatus").textContent="Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.";
-        $("generatedSessionSecret").focus();
-        $("generatedSessionSecret").select();
-      }
-    });
-    try { const r=await fetch(API_BASE+"/api/providers"); const d=await r.json(); const names={gemini:"Google Gemini",openai:"OpenAI",anthropic:"Claude",huggingface:"Hugging Face"}; const grid=$("providerStatus");grid.replaceChildren();Object.entries(names).forEach(([id,name])=>{const card=document.createElement("div");card.className="provider-card";const title=document.createElement("strong");title.textContent=name;const status=document.createElement("span");status.className=d.providers?.[id]?"provider-ready":"provider-missing";status.textContent=d.providers?.[id]?"Bağlı":"API anahtarı bekleniyor";card.append(title,status);grid.append(card);}); } catch {
-      try {
-        const r=await fetch(API_BASE+"/api/health"); const d=await r.json();
-        const grid=$("providerStatus"); grid.replaceChildren();
-        [["Google Gemini",d.configured?"Bağlı":"API anahtarı bekleniyor"],["OpenAI","Worker güncellemesi bekleniyor"],["Claude","Worker güncellemesi bekleniyor"],["Hugging Face","Sonraki aşama"]].forEach(([name,state])=>{const card=document.createElement("div");card.className="provider-card";const title=document.createElement("strong");title.textContent=name;const status=document.createElement("span");status.className=state==="Bağlı"?"provider-ready":"provider-missing";status.textContent=state;card.append(title,status);grid.append(card);});
-      } catch { $("providerStatus").textContent="Sunucu bağlantısı kurulamadı."; }
-    }
+    $("toggleSessionSecret").addEventListener("click",()=>{const field=$("generatedSessionSecret"),visible=field.type==="password";field.type=visible?"text":"password";$("toggleSessionSecret").textContent=visible?"Gizle":"Göster";$("toggleSessionSecret").setAttribute("aria-label",visible?"Anahtarı gizle":"Anahtarı göster");});
+    $("copySessionSecret").addEventListener("click",async()=>{const value=$("generatedSessionSecret").value;if(!value)return;try{await navigator.clipboard.writeText(value);$("sessionSecretCopyStatus").textContent="Anahtar panoya kopyalandı.";}catch{$("sessionSecretCopyStatus").textContent="Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.";$("generatedSessionSecret").focus();$("generatedSessionSecret").select();}});
   }
-  $("settingsNav").addEventListener("click",()=>{$("workspaceDialogTitle").textContent="Yapay zekâ ayarları";$("workspaceDialog").hidden=false;renderAISettings();});
+  $("settingsNav").addEventListener("click",()=>{$("workspaceDialogTitle").textContent="Mina ayarları";$("workspaceDialog").hidden=false;renderAISettings();});
   $("workspaceDialogClose").addEventListener("click",()=>$("workspaceDialog").hidden=true);
   $("workspaceDialog").addEventListener("click",e=>{if(e.target===$("workspaceDialog"))$("workspaceDialog").hidden=true;});
 
