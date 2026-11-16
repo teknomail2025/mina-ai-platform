@@ -32,8 +32,11 @@ jobs:
           node --check auth.js
           node --check app.js
           node --check voice.js
+          node --check pwa.js
+          node --check sw.js
           node --check worker/src/index.js
           node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest', 'utf8'))"
           node --test worker/test/*.test.cjs
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
@@ -88,6 +91,10 @@ jobs:
           test -s styles.css
           test -s app.js
           test -s voice.js
+          test -s pwa.js
+          test -s sw.js
+          test -s manifest.webmanifest
+          test -s app-icon.svg
           test -s worker/wrangler.toml
           test -s worker/test/worker.test.cjs
           test -s worker/migrations/0001_auth_and_user_data.sql
