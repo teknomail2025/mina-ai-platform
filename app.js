@@ -447,10 +447,48 @@
   applyAICapabilities();
   async function renderAISettings() {
     const host=$("workspaceDialogContent");
-    host.innerHTML = '<div class="settings-intro">Mina’nın kullanacağı yapay zekâ sağlayıcısını ve görev tercihlerini yönet.</div><div id="providerStatus" class="provider-grid">Sağlayıcılar kontrol ediliyor…</div><div class="settings-field"><label for="aiProviderSelect">Varsayılan yapay zekâ</label><select id="aiProviderSelect"><option value="auto">Otomatik seçim</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="huggingface" disabled>Hugging Face (sonraki aşama)</option></select><small>Seçilen sağlayıcının sunucuda API anahtarı tanımlı olmalı.</small></div><div class="settings-field"><label for="aiModelSelect">Model tercihi</label><select id="aiModelSelect"><option value="auto">Göreve göre otomatik</option><option value="fast">Hızlı model</option><option value="advanced">Gelişmiş model</option></select></div><div class="settings-capabilities"><strong>Görev yetenekleri</strong><label><input type="checkbox" data-cap="chat"> Sohbet ve soru-cevap</label><label><input type="checkbox" data-cap="vision"> Görsel anlama</label><label><input type="checkbox" data-cap="web"> Web araştırması</label><label><input type="checkbox" data-cap="code"> Kodlama ve analiz</label><label><input type="checkbox" data-cap="voice"> Sesli sohbet (Gemini)</label></div><div class="settings-key-note"><strong>API anahtarı güvenliği</strong><p>API anahtarlarını tarayıcıda saklamıyoruz. Cloudflare Worker Secrets bölümünde güvenli şekilde tutulacak.</p><p><code>GEMINI_API_KEY</code> · <code>OPENAI_API_KEY</code> · <code>ANTHROPIC_API_KEY</code> · <code>HF_TOKEN</code></p></div><div class="settings-actions"><button type="button" id="saveAISettings">Ayarları kaydet</button><span id="settingsSaveStatus"></span></div>';
+    host.innerHTML = '<div class="settings-intro">Mina’nın kullanacağı yapay zekâ sağlayıcısını ve görev tercihlerini yönet.</div><div id="providerStatus" class="provider-grid">Sağlayıcılar kontrol ediliyor…</div><div class="settings-field"><label for="aiProviderSelect">Varsayılan yapay zekâ</label><select id="aiProviderSelect"><option value="auto">Otomatik seçim</option><option value="gemini">Google Gemini</option><option value="openai">OpenAI</option><option value="anthropic">Anthropic Claude</option><option value="huggingface" disabled>Hugging Face (sonraki aşama)</option></select><small>Seçilen sağlayıcının sunucuda API anahtarı tanımlı olmalı.</small></div><div class="settings-field"><label for="aiModelSelect">Model tercihi</label><select id="aiModelSelect"><option value="auto">Göreve göre otomatik</option><option value="fast">Hızlı model</option><option value="advanced">Gelişmiş model</option></select></div><div class="settings-capabilities"><strong>Görev yetenekleri</strong><label><input type="checkbox" data-cap="chat"> Sohbet ve soru-cevap</label><label><input type="checkbox" data-cap="vision"> Görsel anlama</label><label><input type="checkbox" data-cap="web"> Web araştırması</label><label><input type="checkbox" data-cap="code"> Kodlama ve analiz</label><label><input type="checkbox" data-cap="voice"> Sesli sohbet (Gemini)</label></div><div class="settings-key-note"><strong>API anahtarı güvenliği</strong><p>API anahtarlarını tarayıcıda saklamıyoruz. Cloudflare Worker Secrets bölümünde güvenli şekilde tutulacak.</p><p><code>GEMINI_API_KEY</code> · <code>OPENAI_API_KEY</code> · <code>ANTHROPIC_API_KEY</code> · <code>HF_TOKEN</code></p></div><section class="session-secret-panel" aria-labelledby="sessionSecretTitle"><div class="session-secret-heading"><strong id="sessionSecretTitle">Güvenlik · SESSION_SECRET</strong><span class="security-badge">Oturum anahtarı</span></div><p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p><button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button><div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div><div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare'daki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div><details class="secret-cloudflare-steps"><summary>Cloudflare'da nasıl değiştiririm?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Gerekli dağıtımın tamamlanmasını bekle, ardından Mina AI'ye yeniden giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan anahtar etkinleşmiş sayılmaz.</p></details></section><div class="settings-actions"><button type="button" id="saveAISettings">Ayarları kaydet</button><span id="settingsSaveStatus"></span></div>';
     $("aiProviderSelect").value=aiSettings.provider||"auto"; $("aiModelSelect").value=aiSettings.model||"auto";
     host.querySelectorAll("[data-cap]").forEach(el=>el.checked=aiSettings.capabilities?.[el.dataset.cap]!==false);
     $("saveAISettings").addEventListener("click",()=>{aiSettings={provider:$("aiProviderSelect").value,model:$("aiModelSelect").value,capabilities:Object.fromEntries([...host.querySelectorAll("[data-cap]")].map(el=>[el.dataset.cap,el.checked]))};try{localStorage.setItem(AI_SETTINGS_KEY,JSON.stringify(aiSettings));$("settingsSaveStatus").textContent="Ayarlar kaydedildi.";}catch{$("settingsSaveStatus").textContent="Kaydedilemedi.";}applyAICapabilities();els.model.textContent=aiSettings.provider==="auto"?"Otomatik model seçimi":$("aiProviderSelect").selectedOptions[0].text;});
+    const generateSecretButton=$("generateSessionSecret");
+    generateSecretButton.addEventListener("click",()=>{
+      if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent="Bu tarayıcı güvenli anahtar üretimini desteklemiyor.";return;}
+      try{
+        const bytes=new Uint8Array(48);
+        globalThis.crypto.getRandomValues(bytes);
+        let binary="";
+        for(const byte of bytes)binary+=String.fromCharCode(byte);
+        const generated=btoa(binary).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+        const field=$("generatedSessionSecret");
+        field.value=generated;
+        field.type="password";
+        $("toggleSessionSecret").textContent="Göster";
+        $("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");
+        $("sessionSecretCopyStatus").textContent="Yeni anahtar oluşturuldu. Henüz Cloudflare'a uygulanmadı.";
+        $("sessionSecretOutput").hidden=false;
+      }catch{
+        $("sessionSecretCopyStatus").textContent="Güvenli anahtar oluşturulamadı.";
+      }
+    });
+    $("toggleSessionSecret").addEventListener("click",()=>{
+      const field=$("generatedSessionSecret"),visible=field.type==="password";
+      field.type=visible?"text":"password";
+      $("toggleSessionSecret").textContent=visible?"Gizle":"Göster";
+      $("toggleSessionSecret").setAttribute("aria-label",visible?"Anahtarı gizle":"Anahtarı göster");
+    });
+    $("copySessionSecret").addEventListener("click",async()=>{
+      const value=$("generatedSessionSecret").value;
+      if(!value)return;
+      try{
+        await navigator.clipboard.writeText(value);
+        $("sessionSecretCopyStatus").textContent="Anahtar panoya kopyalandı.";
+      }catch{
+        $("sessionSecretCopyStatus").textContent="Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.";
+        $("generatedSessionSecret").focus();
+        $("generatedSessionSecret").select();
+      }
+    });
     try { const r=await fetch(API_BASE+"/api/providers"); const d=await r.json(); const names={gemini:"Google Gemini",openai:"OpenAI",anthropic:"Claude",huggingface:"Hugging Face"}; const grid=$("providerStatus");grid.replaceChildren();Object.entries(names).forEach(([id,name])=>{const card=document.createElement("div");card.className="provider-card";const title=document.createElement("strong");title.textContent=name;const status=document.createElement("span");status.className=d.providers?.[id]?"provider-ready":"provider-missing";status.textContent=d.providers?.[id]?"Bağlı":"API anahtarı bekleniyor";card.append(title,status);grid.append(card);}); } catch {
       try {
         const r=await fetch(API_BASE+"/api/health"); const d=await r.json();
