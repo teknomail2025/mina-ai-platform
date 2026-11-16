@@ -520,7 +520,7 @@
       </section>
       <section class="settings-section" data-settings-key="language">
         <h3>Dil ve iletişim</h3><p>Mina otomatik olarak Türkçe veya İngilizce konuşabilir. İstersen yanıt dilini sabitleyebilirsin. Bu tercih yalnızca bu tarayıcıda saklanır.</p>
-        <label class="settings-control-label" for="minaLanguageSelect">Mina'nın yanıt dili</label>
+        <label class="settings-control-label" for="minaUiLanguageSelect">Arayüz dili</label><select id="minaUiLanguageSelect" class="settings-select"><option value="tr">Türkçe</option><option value="en">English</option></select><small class="settings-status">Menüler, düğmeler ve uygulama metinleri seçtiğin dile geçer.</small><label class="settings-control-label" for="minaLanguageSelect">Mina'nın yanıt dili</label>
         <select id="minaLanguageSelect" class="settings-select"><option value="auto">Otomatik algıla (önerilen)</option><option value="tr">Türkçe</option><option value="en">English</option></select>
         <small class="settings-status">Otomatik modda Mina, mesajının dilini algılayıp aynı dilde yanıt verir. İngilizce Ren'Py dokümantasyonu ve hata mesajlarını da anlayabilir.</small>
       </section>
