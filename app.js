@@ -78,11 +78,17 @@
       b.className = "conversation-item" + (c.id === activeId ? " active" : "");
       b.textContent = c.title || "Yeni sohbet"; b.title = c.title || "Yeni sohbet";
       b.addEventListener("click", () => { activeId = c.id; render(); els.sidebar.classList.remove("open"); });
+      const pin = document.createElement("button");
+      pin.className = "pin-chat-btn" + (pinnedIds.includes(c.id) ? " is-pinned" : "");
+      pin.type = "button"; pin.textContent = pinnedIds.includes(c.id) ? "★" : "☆";
+      pin.title = pinnedIds.includes(c.id) ? "Sabitlemeyi kaldır" : "Sohbeti sabitle";
+      pin.setAttribute("aria-label", pin.title);
+      pin.addEventListener("click", event => { event.stopPropagation(); togglePinned(c.id); });
       const del = document.createElement("button");
       del.className = "delete-chat-btn"; del.type = "button"; del.textContent = "×";
       del.title = "Sohbeti sil"; del.setAttribute("aria-label", (c.title || "Sohbet") + " sohbetini sil");
       del.addEventListener("click", event => { event.stopPropagation(); deleteConversation(c.id); });
-      item.append(b, del);
+      item.append(b, pin, del);
       els.list.append(item);
     });
     if (!visible.length) { const empty = document.createElement("div"); empty.className = "chat-search-empty"; empty.textContent = listQuery ? "Eşleşen sohbet bulunamadı." : "Henüz sohbet yok."; els.list.append(empty); }
@@ -149,6 +155,18 @@
     activeId=c.id; persist(); render(); sendMessage(prompt,{existingUser:true});
   }
 
+  function togglePinned(id) {
+    pinnedIds = pinnedIds.includes(id) ? pinnedIds.filter(value=>value!==id) : [id,...pinnedIds];
+    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch { alert("Sabitlenenler kaydedilemedi."); }
+    renderList();
+  }
+  function renderPinnedWorkspace() {
+    const host=document.createElement("div");
+    const items=pinnedIds.map(id=>conversations.find(c=>c.id===id)).filter(Boolean);
+    if(!items.length)host.append(workspaceNote("Henüz sabitlenen sohbet yok. Sohbet listesindeki ☆ simgesine basarak sabitleyebilirsin."));
+    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Sohbeti aç",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton("Sabitlemeyi kaldır",()=>togglePinned(c.id)&&renderPinnedWorkspace()));row.append(title,actions);host.append(row);});
+    openWorkspace("Sabitlenenler",host);
+  }
   function renderPinnedAndProjects() {
     const pinned=$("pinnedList"), projectList=$("projectsList");
     if(!pinned||!projectList)return;
@@ -403,7 +421,7 @@
 
 
   $("addProjectBtn").addEventListener("click",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
-  $("pinnedNav").addEventListener("click",()=>openWorkspace("Sabitlenenler",pinnedIds.map(id=>conversations.find(c=>c.id===id)?.title).filter(Boolean).join("\n")||"Henüz sabitlenen sohbet yok. Sohbetlerin yanındaki ☆ simgesine basarak sabitleyebilirsin."));
+  $("pinnedNav").addEventListener("click",renderPinnedWorkspace);
   $("projectsNav").addEventListener("click",renderProjectsWorkspace);
   $("timersNav").addEventListener("click",renderTimerWorkspace);
   $("libraryNav").addEventListener("click",renderLibraryWorkspace);
