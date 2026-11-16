@@ -69,6 +69,22 @@ async function call(worker, endpoint, options = {}) {
   return { response, status: response.status, data: await response.json() };
 }
 
+test("CORS preflight allows MinaData PUT with authorization", async () => {
+  const { worker } = createWorker();
+  const request = new Request("https://mina-test.workers.dev/api/memory", {
+    method: "OPTIONS",
+    headers: {
+      Origin: "https://teknomail2025.github.io",
+      "Access-Control-Request-Method": "PUT",
+      "Access-Control-Request-Headers": "authorization,content-type"
+    }
+  });
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 204);
+  assert.match(response.headers.get("Access-Control-Allow-Methods") || "", /PUT/);
+  assert.match(response.headers.get("Access-Control-Allow-Headers") || "", /Authorization/i);
+});
+
 test("health endpoint is public and reports service status", async () => {
   const { worker } = createWorker();
   const result = await call(worker, "/api/health");
