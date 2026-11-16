@@ -439,6 +439,7 @@
   function applyAICapabilities() {
     const caps=aiSettings.capabilities||{};
     [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
+    if(caps.code===false)els.codeWorkspacePanel.hidden=true;
     const chatDisabled=caps.chat===false;
     els.input.disabled=chatDisabled||busy;els.send.disabled=chatDisabled||busy;
     els.input.placeholder=chatDisabled?"Sohbet yeteneği ayarlardan kapalı":"Mina'ya bir şey sor...";
