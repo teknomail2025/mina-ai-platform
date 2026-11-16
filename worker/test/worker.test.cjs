@@ -89,6 +89,26 @@ test("admin can log in and access protected endpoints", async () => {
   assert.equal(profile.data.user.username, "Argion");
 });
 
+test("remember-me login issues a 30-day session while default login remains 8 hours", async () => {
+  const { worker } = createWorker();
+  const normal = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  assert.equal(normal.status, 200);
+  assert.equal(normal.data.expires_in, 8 * 60 * 60);
+  assert.equal(normal.data.remembered, false);
+  const remembered = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD, rememberMe: true }
+  });
+  assert.equal(remembered.status, 200);
+  assert.equal(remembered.data.expires_in, 30 * 24 * 60 * 60);
+  assert.equal(remembered.data.remembered, true);
+  const profile = await call(worker, "/api/auth/me", { token: remembered.data.token });
+  assert.equal(profile.status, 200);
+});
+
 test("tampered session token is rejected", async () => {
   const { worker } = createWorker();
   const login = await call(worker, "/api/auth/login", {
