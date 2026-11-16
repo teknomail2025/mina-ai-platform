@@ -25,7 +25,7 @@ function json(data,status,cors){return new Response(JSON.stringify(data),{status
 function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
 function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
 async function callGemini(env,model,payload){
-  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",{method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)});
+  return fetch("https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent",{method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload),signal:AbortSignal.timeout(40000)});
 }
 async function callOpenAI(env,model,payload){
   const messages=[{role:"system",content:SYSTEM_PROMPT},...payload.contents.map(m=>({role:m.role==="model"?"assistant":"user",content:m.parts.map(p=>p.text||"").join("\n")}))];
@@ -114,7 +114,7 @@ export default {
     if(i===body.messages.length-1&&m.role==="user"&&body.image) parts.push({inlineData:{mimeType:body.image.mimeType,data:body.image.data}});
     return {role:m.role==="assistant"?"model":"user",parts};
   });
-  const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1800}};
+  const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel:"LOW"}}};
   if(routing.research&&!body.image) payload.tools=[{google_search:{}}];
   try{
     let upstream;
@@ -122,8 +122,10 @@ export default {
     else if(provider==="openai") upstream=await callOpenAI(env,body.model==="advanced"?"advanced":"fast",payload);
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
     else return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);
-    if(!upstream.ok&&model===COMPLEX_MODEL&&[429,500,502,503,504].includes(upstream.status)){
-      model=DEFAULT_MODEL;upstream=await callGemini(env,model,payload);
+    if(!upstream.ok&&provider==="gemini"&&[429,500,502,503,504,524].includes(upstream.status)){
+      await new Promise(resolve=>setTimeout(resolve,1200));
+      upstream=await callGemini(env,DEFAULT_MODEL,payload);
+      model=DEFAULT_MODEL;
     }
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
     if(!upstream.ok){const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:"Google Gemini isteği reddetti.",provider_status:upstream.status,provider_detail:detail},upstream.status===429?429:502,cors);}
