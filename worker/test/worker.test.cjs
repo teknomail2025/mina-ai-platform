@@ -374,5 +374,5 @@ test("disabled coding capability routes technical prompts to Flash", async () =>
 test("frontend applies chat capability to the composer and sends capability settings", () => {
   assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
   assert.match(frontendSource, /aiSettings\.capabilities\?\.chat===false/);
-  assert.match(frontendSource, /capabilities:aiSettings\.capabilities\|\|\{\}/);
+  assert.match(frontendSource, /capabilities:\s*aiSettings\.capabilities\s*\|\|\s*\{\}/);
 });
