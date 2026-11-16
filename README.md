@@ -4,7 +4,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 
 ## Şu anda bulunan özellikler
 
-- Türkçe sohbet ve tarayıcıda yerel sohbet geçmişi.
+- Türkçe sohbet ve tarayıcıda yerel sohbet geçmişi; sohbet silme, mesaj düzenleme/silme, dışa aktarma ve sabitleme.
 - Göreve göre otomatik model yönlendirmesi: günlük sohbetlerde Gemini 3.8 Flash; kodlama ve karmaşık analizlerde Gemini 3.1 Pro Preview. Pro isteği kota veya geçici servis hatası alırsa Flash ile yeniden denenir.
 - JPG, PNG ve WEBP görsel yükleme ve Gemini ile görsel anlama (en fazla 8 MB).
 - Nano Banana 2.1 ile görsel üretimi.
