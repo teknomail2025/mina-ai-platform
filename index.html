@@ -23,7 +23,7 @@
       <input id="minaUsername" name="username" autocomplete="username" value="Argion" required maxlength="64">
       <label for="minaPassword">Şifre</label>
       <input id="minaPassword" name="password" type="password" autocomplete="current-password" required maxlength="256">
-      <label class="mina-remember-option" for="minaRememberMe"><input id="minaRememberMe" name="rememberMe" type="checkbox" checked> <span>Oturumumu açık tut (30 gün)</span></label>
+      <label class="mina-remember-option" for="minaRememberMe"><input id="minaRememberMe" name="rememberMe" type="checkbox" checked> <span>Oturumumu açık tut</span></label>
       <button id="minaLoginSubmit" type="submit">Giriş yap</button>
       <p id="minaLoginError" role="alert" aria-live="polite"></p>
       <small>Hesap oluşturma kapalıdır. Yalnızca yönetici erişebilir.</small>
@@ -46,6 +46,7 @@
       <div class="sidebar-heading"><div class="sidebar-label">SOHBETLER</div><button class="clear-chats-btn" id="clearChatsBtn" type="button" title="Tüm sohbetleri sil">Tümünü sil</button></div>
       <input class="chat-search" id="chatSearch" type="search" placeholder="Sohbetlerde ara..." aria-label="Sohbetlerde ara">
       <div class="conversation-list" id="conversationList" aria-live="polite"></div>
+      <section class="sidebar-profile" id="sidebarProfile" aria-label="Yönetici profili"><div class="sidebar-profile-avatar" id="sidebarProfileAvatar">A</div><div class="sidebar-profile-details"><strong id="sidebarProfileName">Argion</strong><span id="sidebarProfileRole">Kurucu · Yönetici</span></div></section>
       <div class="sidebar-footer"><span class="status-dot"></span><span id="connectionLabel">Bağlantı kontrol ediliyor</span></div>
     </aside>
 
