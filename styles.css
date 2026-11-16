@@ -150,3 +150,18 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .logout-btn{padding:8px 11px;border:1px solid var(--line);border-radius:8px;background:transparent;color:var(--muted);font:600 11px 'DM Sans';cursor:pointer}
 .logout-btn:hover{color:var(--text);background:var(--panel2)}
 @media(max-width:520px){.mina-login-card{padding:26px 22px}}
+
+/* Çalışma alanı araçları */
+.workspace-note{margin:0 0 14px;color:var(--muted);font-size:12px;line-height:1.6}
+.workspace-item{display:flex;flex-direction:column;gap:7px;padding:12px;margin:9px 0;border:1px solid var(--line);border-radius:11px;background:var(--panel)}
+.workspace-item strong{font-size:13px;color:var(--text)}
+.workspace-item small{font-size:11px;color:var(--muted);line-height:1.5}
+.workspace-item-actions{display:flex;flex-wrap:wrap;gap:7px;margin-top:5px}
+.workspace-item-actions button,.workspace-dialog-content button,#workspaceDialogContent>button{border:1px solid var(--line);border-radius:8px;padding:8px 11px;background:var(--panel2);color:var(--text);font:600 11px 'DM Sans';cursor:pointer}
+.workspace-item-actions button:hover,.workspace-dialog-content button:hover,#workspaceDialogContent>button:hover{border-color:#9478df}
+.workspace-subitem{padding:7px 10px;margin-top:5px;border-radius:7px;background:var(--panel2);color:var(--muted);font-size:11px;cursor:pointer}
+.workspace-subitem:hover{color:var(--text)}
+.workspace-number{width:100%;margin:6px 0 12px;padding:11px;border:1px solid var(--line);border-radius:9px;background:var(--panel2);color:var(--text);font:inherit}
+.timer-display{display:block;margin:12px 0;text-align:center;color:var(--text);font-size:42px;font-variant-numeric:tabular-nums;letter-spacing:2px}
+#workspaceDialogContent input[type=file]{display:none}
+:root[data-theme="light"] .workspace-item{background:#fff}
