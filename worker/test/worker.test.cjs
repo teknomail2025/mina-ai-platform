@@ -298,3 +298,9 @@ test("PWA shell is installable and never caches API or authorization requests", 
   assert.match(serviceWorker, /fetch\(request\).*catch/s);
   assert.match(registration, /navigator\.serviceWorker\.register/);
 });
+
+test("timer can request browser notification permission and preserves its finished state", () => {
+  assert.match(frontendSource, /Notification\.requestPermission\(\)/);
+  assert.match(frontendSource, /let timerFinished=false/);
+  assert.match(frontendSource, /timerFinished\?"Süre doldu!"/);
+});
