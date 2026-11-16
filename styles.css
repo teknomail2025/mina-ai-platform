@@ -210,3 +210,23 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .settings-action.secondary{background:var(--panel2);border-color:var(--line);color:var(--text)}
 .settings-status{display:block;min-height:16px;margin-top:8px;color:var(--muted);font-size:10px;line-height:1.5}
 :root[data-theme="light"] .settings-select,:root[data-theme="light"] .settings-textarea{background:#fff}
+
+/* Mina sade gezinme: keşfet ve profil menüsü */
+.workspace-nav{display:block;margin:12px 4px 16px}
+.discover-nav-item{display:flex;flex-direction:column;align-items:flex-start;gap:4px;width:100%;min-height:52px}
+.discover-nav-item small{padding-left:22px;color:var(--muted);font-size:10px;font-weight:400}
+.sidebar-profile-wrap{position:relative;margin-top:12px;border-top:1px solid var(--line);padding-top:8px}
+.sidebar-profile-wrap .sidebar-profile{width:100%;margin:0;border:0;background:transparent;text-align:left;cursor:pointer}
+.sidebar-profile-chevron{margin-left:auto;color:var(--muted);transition:transform .2s}
+.sidebar-profile[aria-expanded="true"] .sidebar-profile-chevron{transform:rotate(180deg)}
+.profile-menu{position:absolute;left:0;right:0;bottom:calc(100% + 8px);z-index:1100;display:grid;grid-template-columns:1fr 1fr;gap:4px;padding:10px;border:1px solid var(--line);border-radius:13px;background:var(--panel);box-shadow:0 16px 40px #0007}
+.profile-menu[hidden]{display:none}
+.profile-menu-heading{grid-column:1/-1;padding:4px 6px 7px;color:var(--muted);font-size:10px;font-weight:800;text-transform:uppercase;letter-spacing:.7px}
+.profile-menu button{display:flex;align-items:center;gap:7px;min-width:0;padding:9px 7px;border:1px solid transparent;border-radius:8px;background:transparent;color:var(--text);font:600 10px 'DM Sans';text-align:left;cursor:pointer}
+.profile-menu button:hover{background:var(--panel2);border-color:var(--line)}
+.profile-menu button span{overflow:hidden;text-overflow:ellipsis}
+.profile-menu button#profileLogout{grid-column:1/-1;color:#e58c99}
+.discover-card{display:flex;flex-direction:column;gap:5px;width:100%;margin:7px 0;padding:13px!important;text-align:left}
+.discover-card strong{color:var(--text);font-size:12px}.discover-card small{color:var(--muted);font-size:10px}
+.settings-section[data-settings-key]{scroll-margin-top:16px}
+@media(max-width:520px){.profile-menu{max-height:60vh;overflow:auto}}
