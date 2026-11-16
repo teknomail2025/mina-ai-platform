@@ -89,7 +89,7 @@ test("admin can log in and access protected endpoints", async () => {
   assert.equal(profile.data.user.username, "Argion");
 });
 
-test("remember-me login issues a 30-day session while default login remains 8 hours", async () => {
+test("remember-me login creates a session without a time limit", async () => {
   const { worker } = createWorker();
   const normal = await call(worker, "/api/auth/login", {
     method: "POST",
@@ -103,7 +103,7 @@ test("remember-me login issues a 30-day session while default login remains 8 ho
     body: { username: "Argion", password: env.ADMIN_PASSWORD, rememberMe: true }
   });
   assert.equal(remembered.status, 200);
-  assert.equal(remembered.data.expires_in, 30 * 24 * 60 * 60);
+  assert.equal(remembered.data.expires_in, null);
   assert.equal(remembered.data.remembered, true);
   const profile = await call(worker, "/api/auth/me", { token: remembered.data.token });
   assert.equal(profile.status, 200);
