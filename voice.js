@@ -83,6 +83,7 @@
     if(hide)panel.hidden=true;
     openBtn.disabled=false;
   }
+  window.addEventListener("mina:unauthenticated",()=>cleanup(true));
   openBtn.addEventListener("click",()=>{panel.hidden=false;start();});
   closeBtn.addEventListener("click",()=>cleanup(true));
   endBtn.addEventListener("click",()=>cleanup(true));
