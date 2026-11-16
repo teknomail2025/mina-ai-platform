@@ -104,7 +104,7 @@
     if (record.type === "characterData") translateTextNode(record.target);
     if (record.type === "childList") record.addedNodes.forEach(node => node.nodeType === Node.ELEMENT_NODE ? applyInterfaceLanguage(node) : translateTextNode(node));
   }));
-
+  uiLanguageObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
