@@ -12,6 +12,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Steam mağazasında oyun arama.
 - Kod çalışma alanı: kod yapıştırma, desteklenen metin/kod dosyalarını açma, Mina'ya inceletme ve indirme.
 - Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet.
+- PWA kurulum altyapısı: desteklenen tarayıcılarda ana ekrana ekleme ve çevrimdışı uygulama kabuğu; sohbet ve yapay zekâ API'si için internet bağlantısı gerekir.
 - Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
 - Yönetici oturumu 8 saat geçerlidir. Oturum tarayıcı sekmesinin sessionStorage alanında tutulur.
 
@@ -24,7 +25,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Eklentiler: kullanılabilir araçları tek ekranda listeler ve ilgili arayüzü açar; GitHub OAuth/depo işlemleri henüz etkin değildir.
 - GitHub düğmesi yalnızca bağlantı durumunu gösterir; OAuth ve depo üzerinde güvenli okuma/yazma henüz etkin değildir.
 - PDF/DOCX dosyalarının içeriğini çıkarma henüz desteklenmez.
-- APK paketleme ve mağaza dağıtımı henüz yapılmamıştır.
+- Android APK paketleme ve mağaza dağıtımı henüz yapılmamıştır; PWA altyapısı sonraki Capacitor paketlemesine hazırlık sağlar.
 - Ren'Py odaklı özel eğitim, mevcut temel özellikler tamamlandıktan sonraki aşamadır.
 
 ## Cloudflare Worker Secrets
