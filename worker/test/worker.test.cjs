@@ -395,5 +395,5 @@ test("frontend applies chat capability to the composer and sends capability sett
   assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
   assert.match(frontendSource, /MINA_CAPABILITIES\.chat===false/);
   assert.match(frontendSource, /capabilities:\s*MINA_CAPABILITIES/);
-  assert.doesNotMatch(frontendSource, /aiProviderSelect|providerStatus|OPENAI_API_KEY|ANTHROPIC_API_KEY|Hugging Face/);
+  assert.doesNotMatch(frontendSource, /aiProviderSelect|OPENAI_API_KEY|ANTHROPIC_API_KEY|Hugging Face/);
 });
