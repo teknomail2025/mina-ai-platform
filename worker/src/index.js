@@ -23,6 +23,25 @@ function corsHeaders(request, env) {
   return {"Access-Control-Allow-Origin":allowed ? origin : (configured[0] || "null"),"Access-Control-Allow-Methods":"GET, POST, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"86400","Vary":"Origin"};
 }
 function json(data,status,cors){return new Response(JSON.stringify(data),{status,headers:{...JSON_HEADERS,...cors}});}
+async function readJsonLimited(request,maxBytes){
+  const declared=Number(request.headers.get("Content-Length")||0);
+  if(declared>maxBytes)return {tooLarge:true};
+  if(!request.body)return {invalid:true};
+  const reader=request.body.getReader(),chunks=[];
+  let total=0;
+  try{
+    while(true){
+      const {done,value}=await reader.read();
+      if(done)break;
+      total+=value.byteLength;
+      if(total>maxBytes){await reader.cancel();return {tooLarge:true};}
+      chunks.push(value);
+    }
+    const bytes=new Uint8Array(total);let offset=0;
+    for(const chunk of chunks){bytes.set(chunk,offset);offset+=chunk.byteLength;}
+    return {value:JSON.parse(new TextDecoder().decode(bytes))};
+  }catch{return {invalid:true};}
+}
 function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
 function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
 async function callGemini(env,model,payload){
@@ -97,9 +116,10 @@ export default {
 
   if(url.pathname==="/api/auth/login"&&request.method==="POST"){
     if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||env.ADMIN_PASSWORD.length<12||!env.SESSION_SECRET||env.SESSION_SECRET.length<32) return json({error:"Yönetici girişi henüz güvenli biçimde yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
-    const loginContentLength=Number(request.headers.get("Content-Length")||0);
-    if(loginContentLength>8192) return json({error:"Giriş isteği çok büyük."},413,cors);
-    let credentials;try{credentials=await request.json();}catch{return json({error:"Geçersiz giriş isteği."},400,cors);}
+    const parsedLogin=await readJsonLimited(request,8192);
+    if(parsedLogin.tooLarge)return json({error:"Giriş isteği çok büyük."},413,cors);
+    if(parsedLogin.invalid)return json({error:"Geçersiz giriş isteği."},400,cors);
+    const credentials=parsedLogin.value;
     if(!credentials||typeof credentials!=="object") return json({error:"Geçersiz giriş bilgileri."},400,cors);
     const username=typeof credentials.username==="string"?credentials.username.trim():"";
     const password=typeof credentials.password==="string"?credentials.password:"";
@@ -126,7 +146,10 @@ export default {
   }
   if(url.pathname==="/api/image"&&request.method==="POST"){
     if(!env.GEMINI_API_KEY) return json({error:"Görsel üretimi için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
-    let body; try{body=await request.json();}catch{return json({error:"Geçersiz JSON."},400,cors);}
+    const parsedImage=await readJsonLimited(request,8192);
+    if(parsedImage.tooLarge)return json({error:"Görsel isteği çok büyük."},413,cors);
+    if(parsedImage.invalid)return json({error:"Geçersiz JSON."},400,cors);
+    const body=parsedImage.value;
     const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
     try{
@@ -171,7 +194,10 @@ export default {
     }catch(e){return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
-  let body;try{body=await request.json();}catch{return json({error:"Geçersiz JSON isteği."},400,cors);}
+  const parsedChat=await readJsonLimited(request,13_500_000);
+  if(parsedChat.tooLarge)return json({error:"Sohbet isteği çok büyük."},413,cors);
+  if(parsedChat.invalid)return json({error:"Geçersiz JSON isteği."},400,cors);
+  const body=parsedChat.value;
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
   if(!body.image){
