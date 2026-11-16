@@ -35,6 +35,50 @@ jobs:
           node --check worker/src/index.js
           node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
           node --test worker/test/*.test.cjs
+      - name: Worker runtime smoke test (startup, auth, shutdown)
+        run: |
+          npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
+            --var ADMIN_USERNAME:Argion \
+            --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
+            --var SESSION_SECRET:ci-session-secret-at-least-32-characters-long \
+            --var GEMINI_API_KEY:ci-fake-gemini-key > /tmp/mina-wrangler.log 2>&1 &
+          WRANGLER_PID=$!
+          trap 'kill "$WRANGLER_PID" 2>/dev/null || true; wait "$WRANGLER_PID" 2>/dev/null || true' EXIT
+          node --input-type=module <<'NODE'
+          import assert from "node:assert/strict";
+          const base = "http://127.0.0.1:8787";
+          let ready = false;
+          for (let i = 0; i < 60; i++) {
+            try {
+              const response = await fetch(base + "/api/health");
+              if (response.ok) { ready = true; break; }
+            } catch {}
+            await new Promise(resolve => setTimeout(resolve, 1000));
+          }
+          assert.ok(ready, "Wrangler Worker did not start within 60 seconds");
+          const health = await fetch(base + "/api/health");
+          const healthData = await health.json();
+          assert.equal(healthData.ok, true);
+          assert.equal(healthData.adminAuthConfigured, true);
+          const guest = await fetch(base + "/api/providers");
+          assert.equal(guest.status, 401, "protected API must reject guests");
+          const login = await fetch(base + "/api/auth/login", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ username: "Argion", password: "ci-test-password-at-least-12" })
+          });
+          assert.equal(login.status, 200, "admin login must work in the real Worker runtime");
+          const loginData = await login.json();
+          assert.ok(loginData.token);
+          const profile = await fetch(base + "/api/auth/me", {
+            headers: { Authorization: "Bearer " + loginData.token }
+          });
+          assert.equal(profile.status, 200);
+          const profileData = await profile.json();
+          assert.equal(profileData.user.username, "Argion");
+          console.log("Worker startup, health, guest rejection, admin login, session validation and shutdown trap: passed");
+          NODE
+          cat /tmp/mina-wrangler.log
       - name: Verify required frontend files
         run: |
           test -s index.html
