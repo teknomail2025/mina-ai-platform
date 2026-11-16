@@ -393,6 +393,6 @@ test("disabled coding capability routes technical prompts to Flash", async () =>
 
 test("frontend applies chat capability to the composer and sends capability settings", () => {
   assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
-  assert.match(frontendSource, /aiSettings\.capabilities\?\.chat===false/);
-  assert.match(frontendSource, /capabilities:\s*aiSettings\.capabilities\s*\|\|\s*\{\}/);
+  assert.match(frontendSource, /MINA_CAPABILITIES\.chat===false/);
+  assert.match(frontendSource, /capabilities:\s*MINA_CAPABILITIES/);\n  assert.doesNotMatch(frontendSource, /aiProviderSelect|providerStatus|OPENAI_API_KEY|ANTHROPIC_API_KEY|Hugging Face/);
 });
