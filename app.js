@@ -446,7 +446,114 @@
   applyAICapabilities();
   async function renderAISettings() {
     const host=$("workspaceDialogContent");
-    host.innerHTML = '<p class="settings-intro">Mina’nın temel ayarları. Harici yapay zekâ sağlayıcısı veya model seçimi seçenekleri burada bulunmaz.</p><section class="settings-section"><h3>Mina</h3><p>Mina Core sohbet, görsel, web araştırması, kod ve ses özelliklerini görevine göre otomatik yönetir. Sağlayıcı ve model seçimi kullanıcıya bırakılmaz.</p><div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div><div class="settings-info-row"><strong>Arayüz dili</strong><span>Türkçe</span></div></section><section class="settings-section"><h3>Hesap ve güvenlik</h3><p>Yönetici hesabı ve oturum güvenliği.</p><div class="settings-info-row"><strong>Yönetici hesabı</strong><span>Argion</span></div><div class="settings-info-row"><strong>Giriş yöntemi</strong><span>Tek yönetici hesabı</span></div></section><section class="session-secret-panel" aria-labelledby="sessionSecretTitle"><div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div><p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p><button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button><div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div><div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div><details class="secret-cloudflare-steps"><summary>Oturum anahtarı nasıl değiştirilir?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Dağıtım tamamlandıktan sonra Mina AI sistemine yeniden giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan yeni anahtar etkinleşmiş sayılmaz.</p></details></section><section class="settings-section"><h3>Görünüm ve veriler</h3><p>Açık/koyu tema üst menüden değiştirilebilir. Sohbet geçmişi ve kişisel notlar şu anda bu tarayıcıda saklanır.</p></section>';
+    const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
+    host.innerHTML = `
+      <p class="settings-intro">Mina'nın temel ayarları. Harici yapay zekâ sağlayıcısı veya model seçimi sunulmaz. Bu ekrandaki ayarlar mevcut tarayıcı özellikleriyle çalışır; henüz sunucuya eşitlenmeyen veriler açıkça belirtilir.</p>
+      <section class="settings-section">
+        <h3>Mina</h3><p>Mina Core görevine göre sohbet, görsel, web araştırması, kod ve ses özelliklerini yönetir.</p>
+        <div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div>
+        <div class="settings-info-row"><strong>Arayüz dili</strong><span>Türkçe</span></div>
+        <div class="settings-info-row"><strong>Karakter</strong><span>Samimi · Zeki · Yardımsever</span></div>
+      </section>
+      <section class="settings-section">
+        <h3>Hesap ve güvenlik</h3><p>Tek yönetici hesabı. Hesap oluşturma ve herkese açık kayıt kapalıdır.</p>
+        <div class="settings-info-row"><strong>Yönetici hesabı</strong><span>Argion</span></div>
+        <div class="settings-info-row"><strong>Yönetici yapılandırması</strong><span id="adminConfigStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Oturum</strong><span>Güvenli oturum belirteci</span></div>
+      </section>
+      <section class="settings-section">
+        <h3>Görünüm</h3><p>Tema tercihi bu tarayıcıda saklanır.</p>
+        <label class="settings-control-label" for="minaThemeSelect">Tema</label>
+        <select id="minaThemeSelect" class="settings-select"><option value="dark">Koyu tema</option><option value="light">Açık tema</option></select>
+      </section>
+      <section class="settings-section">
+        <h3>Ses ve mikrofon</h3><p>Ses özellikleri kullandığın tarayıcının mikrofon ve konuşma desteğine bağlıdır. Mikrofon izni yalnızca test düğmesine bastığında istenir.</p>
+        <div class="settings-info-row"><strong>Canlı ses</strong><span id="voiceSupportStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Konuşmayı yazıya çevirme</strong><span id="speechSupportStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Mikrofon izni</strong><span id="micPermissionStatus">Kontrol ediliyor…</span></div>
+        <button type="button" class="settings-action" id="checkMicPermission">Mikrofon iznini test et</button>
+        <small class="settings-status" id="micTestStatus" aria-live="polite"></small>
+      </section>
+      <section class="settings-section">
+        <h3>Hafıza</h3><p>Mina'nın sonraki sohbetlerde kullanacağı kişisel not. Şifre veya hassas bilgi kaydetme. Şu anda yalnızca bu tarayıcıda saklanır.</p>
+        <label class="settings-control-label" for="minaMemoryEditor">Mina'nın hatırlayacağı not</label>
+        <textarea id="minaMemoryEditor" class="settings-textarea" rows="4" maxlength="2000" placeholder="Mina'nın hatırlamasını istediğin bilgileri yaz…"></textarea>
+        <div class="settings-actions"><button type="button" class="settings-action" id="saveMinaMemory">Hafızayı kaydet</button><button type="button" class="settings-action secondary" id="clearMinaMemory">Hafızayı sil</button></div>
+        <small class="settings-status" id="memorySaveStatus" aria-live="polite"></small>
+      </section>
+      <section class="settings-section">
+        <h3>Sohbetler ve veriler</h3><p>Sohbetler, projeler, kitaplık ve hafıza şu anda bu tarayıcının yerel depolamasında tutulur. Tarayıcı verilerini temizlemeden önce dışa aktar.</p>
+        <div class="settings-actions"><button type="button" class="settings-action" id="exportMinaData">Mina verilerini dışa aktar</button><button type="button" class="settings-action secondary" id="openClearChats">Sohbet geçmişini yönet</button></div>
+        <small class="settings-status" id="dataExportStatus" aria-live="polite"></small>
+      </section>
+      <section class="settings-section">
+        <h3>Bildirimler</h3><p>Bildirim izni tarayıcı tarafından yönetilir. Mina yalnızca izin verdiğinde bildirim gösterebilir.</p>
+        <div class="settings-info-row"><strong>Tarayıcı bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
+        <button type="button" class="settings-action" id="requestNotificationPermission">Bildirim iznini ayarla</button>
+      </section>
+      <section class="settings-section">
+        <h3>Cihazlar ve senkronizasyon</h3><p>Android, Windows, macOS ve web için ortak Mina hesabı ve cihazlar arası senkronizasyon henüz etkin değil. Yerel veriler cihazlar arasında otomatik aktarılmaz.</p>
+        <div class="settings-info-row"><strong>Bu cihaz</strong><span>Web tarayıcısı</span></div>
+        <div class="settings-info-row"><strong>Bulut senkronizasyonu</strong><span>Henüz kullanıma açık değil</span></div>
+      </section>
+      <section class="settings-section">
+        <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
+        <div class="settings-info-row"><strong>API bağlantısı</strong><span id="minaApiStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Yapay zekâ servisi</strong><span id="minaProviderStatus">Kontrol ediliyor…</span></div>
+        <button type="button" class="settings-action secondary" id="refreshMinaHealth">Durumu yenile</button>
+      </section>
+      <section class="session-secret-panel" aria-labelledby="sessionSecretTitle">
+        <div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div>
+        <p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p>
+        <button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button>
+        <div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div>
+        <div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div>
+        <details class="secret-cloudflare-steps"><summary>Oturum anahtarı nasıl değiştirilir?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Dağıtım tamamlandıktan sonra tekrar giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan yeni anahtar etkinleşmiş sayılmaz.</p></details>
+      </section>`;
+    $("minaThemeSelect").value=theme;
+    $("minaMemoryEditor").value=userMemory;
+    $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
+    $("saveMinaMemory").addEventListener("click",()=>{
+      const value=$("minaMemoryEditor").value.trim();
+      try{userMemory=value;if(value)localStorage.setItem(MEMORY_KEY,value);else localStorage.removeItem(MEMORY_KEY);$("memorySaveStatus").textContent="Hafıza bu tarayıcıya kaydedildi.";}
+      catch{$("memorySaveStatus").textContent="Hafıza kaydedilemedi. Tarayıcı depolama alanını kontrol et.";}
+    });
+    $("clearMinaMemory").addEventListener("click",()=>{
+      if(!confirm("Mina'nın bu tarayıcıda tuttuğu hafıza notunu silmek istiyor musun?"))return;
+      userMemory="";try{localStorage.removeItem(MEMORY_KEY);$("minaMemoryEditor").value="";$("memorySaveStatus").textContent="Hafıza notu silindi.";}catch{$("memorySaveStatus").textContent="Hafıza silinemedi.";}
+    });
+    $("exportMinaData").addEventListener("click",()=>{
+      try{
+        const payload={exportedAt:new Date().toISOString(),format:"mina-ai-local-data-v1",conversations,projects,pinnedIds,libraryItems,memory:userMemory,theme:document.documentElement.dataset.theme||"dark"};
+        const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
+        const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="mina-ai-verilerim.json";link.click();URL.revokeObjectURL(url);
+        $("dataExportStatus").textContent="Mina'nın yerel verileri dışa aktarıldı.";
+      }catch{$("dataExportStatus").textContent="Veriler dışa aktarılamadı.";}
+    });
+    $("openClearChats").addEventListener("click",()=>{$("workspaceDialog").hidden=true;$("clearChatsBtn").click();});
+    $("requestNotificationPermission").addEventListener("click",async()=>{
+      const status=$("notificationPermissionStatus");
+      if(!("Notification"in window)){status.textContent="Bu tarayıcı bildirimleri desteklemiyor.";return;}
+      try{status.textContent=await Notification.requestPermission();}catch{status.textContent="İzin isteği başarısız.";}
+    });
+    const refreshHealth=async()=>{
+      $("minaApiStatus").textContent="Kontrol ediliyor…";$("minaProviderStatus").textContent="Kontrol ediliyor…";$("adminConfigStatus").textContent="Kontrol ediliyor…";
+      try{const response=await fetch(API_BASE+"/api/health",{cache:"no-store"});const data=await response.json();$("minaApiStatus").textContent=response.ok&&data.ok?"Bağlı":"Yanıt hatası";$("minaProviderStatus").textContent=data.configured?"Hazır": "Yapılandırılmamış";$("adminConfigStatus").textContent=data.adminAuthConfigured?"Etkin":"Yapılandırılmamış";}
+      catch{$("minaApiStatus").textContent="Bağlantı kurulamadı";$("minaProviderStatus").textContent="Bilinmiyor";$("adminConfigStatus").textContent="Kontrol edilemedi";}
+    };
+    $("refreshMinaHealth").addEventListener("click",refreshHealth);
+    refreshHealth();
+    const liveAudio=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.WebSocket);
+    $("voiceSupportStatus").textContent=liveAudio?"Tarayıcı destekliyor":"Desteklenmiyor";
+    $("speechSupportStatus").textContent=(window.SpeechRecognition||window.webkitSpeechRecognition)?"Destekleniyor":"Desteklenmiyor";
+    $("micPermissionStatus").textContent="Henüz kontrol edilmedi";
+    if(navigator.permissions?.query){navigator.permissions.query({name:"microphone"}).then(p=>{$("micPermissionStatus").textContent=p.state==="granted"?"İzin verildi":p.state==="denied"?"Engellendi":"İzin bekleniyor";}).catch(()=>{});}
+    $("checkMicPermission").addEventListener("click",async()=>{
+      const status=$("micTestStatus");
+      if(!navigator.mediaDevices?.getUserMedia){status.textContent="Bu tarayıcı mikrofon erişimini desteklemiyor.";return;}
+      try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());$("micPermissionStatus").textContent="İzin verildi";status.textContent="Mikrofon erişimi başarılı. Test tamamlandı; mikrofon kapatıldı.";}
+      catch(error){status.textContent=error.name==="NotAllowedError"?"Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et.":"Mikrofon testi başarısız: "+error.message;}
+    });
     $("generateSessionSecret").addEventListener("click",()=>{
       if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent="Bu tarayıcı güvenli anahtar üretimini desteklemiyor.";return;}
       try{const bytes=new Uint8Array(48);globalThis.crypto.getRandomValues(bytes);let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);const generated=btoa(binary).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");const field=$("generatedSessionSecret");field.value=generated;field.type="password";$("toggleSessionSecret").textContent="Göster";$("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");$("sessionSecretCopyStatus").textContent="Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.";$("sessionSecretOutput").hidden=false;}catch{$("sessionSecretCopyStatus").textContent="Güvenli anahtar oluşturulamadı.";}
