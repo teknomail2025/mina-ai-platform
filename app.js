@@ -186,7 +186,7 @@
     projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title="Projeyi sil";del.addEventListener("click",()=>{if(confirm('"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
     if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
   }
-  function openWorkspace(title,content) {
+  function openWorkspace(title,content) {\n    $("workspaceDialog").classList.remove("settings-mode");
     $("workspaceDialogTitle").textContent=title;
     const host=$("workspaceDialogContent");
     host.replaceChildren();
@@ -457,11 +457,31 @@
     els.input.placeholder=chatDisabled?"Sohbet yeteneği ayarlardan kapalı":"Mina'ya bir şey sor...";
   }
   applyAICapabilities();
-  async function renderAISettings() {
+  async function renderAISettings(initialSection="mina") {
     const host=$("workspaceDialogContent");
     const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
     host.innerHTML = `
-      <p class="settings-intro">Mina'nın temel ayarları. Harici yapay zekâ sağlayıcısı veya model seçimi sunulmaz. Bu ekrandaki ayarlar mevcut tarayıcı özellikleriyle çalışır; henüz sunucuya eşitlenmeyen veriler açıkça belirtilir.</p>
+      <div class="settings-layout">
+        <aside class="settings-nav" aria-label="Ayar kategorileri">
+          <div class="settings-nav-brand"><span class="settings-brand-mark">M</span><span><strong>Mina AI</strong><small>Kontrol merkezi</small></span></div>
+          <div class="settings-nav-label">GENEL</div>
+          <button type="button" data-settings-section="mina"><i>✦</i><span>Mina</span></button>
+          <button type="button" data-settings-section="appearance"><i>◐</i><span>Görünüm</span></button>
+          <button type="button" data-settings-section="voice"><i>♫</i><span>Ses ve mikrofon</span></button>
+          <button type="button" data-settings-section="notifications"><i>♧</i><span>Bildirimler</span></button>
+          <button type="button" data-settings-section="memory"><i>◈</i><span>Hafıza</span></button>
+          <div class="settings-nav-label">HESAP</div>
+          <button type="button" data-settings-section="account"><i>♙</i><span>Hesap ve güvenlik</span></button>
+          <button type="button" data-settings-section="data"><i>▤</i><span>Veriler</span></button>
+          <button type="button" data-settings-section="devices"><i>▣</i><span>Cihazlar</span></button>
+          <button type="button" data-settings-section="system"><i>⌁</i><span>Sistem durumu</span></button>
+          <div class="settings-nav-foot"><span class="settings-nav-foot-dot"></span> Mina kontrol merkezi</div>
+        </aside>
+        <div class="settings-main">
+          <header class="settings-hero">
+            <div><span class="settings-eyebrow">MINA AI · KONTROL MERKEZİ</span><h3>Mina'yı kendine göre düzenle</h3><p>Karakterinden güvenliğine kadar Mina'nın tercihlerini tek bir yerden yönet.</p></div>
+            <div class="settings-hero-symbol" aria-hidden="true">✳</div>
+          </header>
       <section class="settings-section" data-settings-key="mina">
         <h3>Mina</h3><p>Mina Core görevine göre sohbet, görsel, web araştırması, kod ve ses özelliklerini yönetir.</p>
         <div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div>
@@ -515,14 +535,22 @@
         <div class="settings-info-row"><strong>Yapay zekâ servisi</strong><span id="minaProviderStatus">Kontrol ediliyor…</span></div>
         <button type="button" class="settings-action secondary" id="refreshMinaHealth">Durumu yenile</button>
       </section>
-      <section class="session-secret-panel" aria-labelledby="sessionSecretTitle">
+      <section class="session-secret-panel" data-settings-extra="account" aria-labelledby="sessionSecretTitle">
         <div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div>
         <p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p>
         <button type="button" class="secret-generate" id="generateSessionSecret">Yeni SESSION_SECRET oluştur</button>
         <div class="secret-output" id="sessionSecretOutput" hidden><label for="generatedSessionSecret">Yeni oluşturulan anahtar</label><div class="secret-input-row"><input id="generatedSessionSecret" type="password" readonly autocomplete="off" spellcheck="false"><button type="button" id="toggleSessionSecret" aria-label="Anahtarı göster">Göster</button><button type="button" id="copySessionSecret">Kopyala</button></div><small id="sessionSecretCopyStatus" aria-live="polite"></small></div>
         <div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div>
         <details class="secret-cloudflare-steps"><summary>Oturum anahtarı nasıl değiştirilir?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Dağıtım tamamlandıktan sonra tekrar giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan yeni anahtar etkinleşmiş sayılmaz.</p></details>
-      </section>`;
+      </section>\n        </div>\n      </div>`;
+    const activeKey=host.querySelector('[data-settings-key="'+initialSection+'"]')?initialSection:"mina";
+    const setSettingsSection=key=>{
+      host.querySelectorAll("[data-settings-key]").forEach(panel=>{panel.hidden=panel.dataset.settingsKey!==key;});
+      host.querySelectorAll("[data-settings-extra]").forEach(panel=>{panel.hidden=panel.dataset.settingsExtra!==key;});
+      host.querySelectorAll(".settings-nav button").forEach(button=>{const active=button.dataset.settingsSection===key;button.classList.toggle("active",active);button.setAttribute("aria-current",active?"page":"false");});
+    };
+    host.querySelectorAll(".settings-nav button").forEach(button=>button.addEventListener("click",()=>setSettingsSection(button.dataset.settingsSection)));
+    setSettingsSection(activeKey);
     $("minaThemeSelect").value=theme;
     $("minaMemoryEditor").value=userMemory;
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
@@ -576,8 +604,8 @@
   }
   function openSettings(section) {
     $("profileMenu").hidden=true;$("sidebarProfile").setAttribute("aria-expanded","false");
-    $("workspaceDialogTitle").textContent="Mina ayarları";$("workspaceDialog").hidden=false;renderAISettings();
-    if(section) requestAnimationFrame(()=>document.querySelector('[data-settings-key="'+section+'"]')?.scrollIntoView({behavior:"smooth",block:"start"}));
+    $("workspaceDialog").classList.add("settings-mode");
+    $("workspaceDialogTitle").textContent="Ayarlar";$("workspaceDialog").hidden=false;renderAISettings(section||"mina");
   }
   $("sidebarProfile").addEventListener("click",()=>{
     const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
