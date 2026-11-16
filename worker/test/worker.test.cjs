@@ -285,3 +285,16 @@ test("conversation pin and unpin controls persist and refresh the pinned workspa
   assert.match(frontendSource, /function renderPinnedWorkspace\(/);
   assert.match(frontendSource, /pinnedNav.*renderPinnedWorkspace/s);
 });
+
+test("PWA shell is installable and never caches API or authorization requests", () => {
+  const manifest = fs.readFileSync(path.join(workerDir, "..", "manifest.webmanifest"), "utf8");
+  const serviceWorker = fs.readFileSync(path.join(workerDir, "..", "sw.js"), "utf8");
+  const registration = fs.readFileSync(path.join(workerDir, "..", "pwa.js"), "utf8");
+  const parsed = JSON.parse(manifest);
+  assert.equal(parsed.display, "standalone");
+  assert.equal(parsed.scope, "./");
+  assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
+  assert.match(serviceWorker, /request\.headers\.has\("Authorization"\)/);
+  assert.match(serviceWorker, /fetch\(request\).*catch/s);
+  assert.match(registration, /navigator\.serviceWorker\.register/);
+});
