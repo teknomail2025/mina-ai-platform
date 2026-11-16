@@ -17,8 +17,11 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 
 ## Henüz tamamlanmamış alanlar
 
-- Sohbetler, projeler ve hafıza şu anda tarayıcı localStorage alanında tutulur; cihazlar arası eşitleme ve sunucu tarafı kalıcı saklama yoktur.
-- Projeler, zamanlayıcılar, kitaplık ve eklentiler menülerinin bazıları şimdilik arayüz/ön hazırlık düzeyindedir.
+- Sohbetler, projeler, zamanlayıcı durumu, kitaplık ve hafıza şu anda tarayıcı localStorage alanında tutulur; cihazlar arası eşitleme ve sunucu tarafı kalıcı saklama yoktur.
+- Projeler: tarayıcıda proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
+- Zamanlayıcılar: sekme açıkken çalışan geri sayım; sayfa yeniden açıldığında bitiş zamanından kalan süre hesaplanır. Tarayıcı kapalıyken sistem bildirimi garantisi yoktur.
+- Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme. Sunucuya yükleme ve cihazlar arası eşitleme yoktur.
+- Eklentiler: kullanılabilir araçları tek ekranda listeler ve ilgili arayüzü açar; GitHub OAuth/depo işlemleri henüz etkin değildir.
 - GitHub düğmesi yalnızca bağlantı durumunu gösterir; OAuth ve depo üzerinde güvenli okuma/yazma henüz etkin değildir.
 - PDF/DOCX dosyalarının içeriğini çıkarma henüz desteklenmez.
 - APK paketleme ve mağaza dağıtımı henüz yapılmamıştır.
