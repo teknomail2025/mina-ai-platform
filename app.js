@@ -268,13 +268,13 @@
 
   function render() { renderList(); renderMessages(); }
   function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
-  function setBusy(v) { busy = v; els.send.disabled = v; els.input.disabled = v; els.send.textContent = v ? "…" : "↑"; }
+  function setBusy(v) { busy = v; const chatDisabled=aiSettings.capabilities?.chat===false; els.send.disabled = v || chatDisabled; els.input.disabled = v || chatDisabled; els.send.textContent = v ? "…" : "↑"; }
   async function checkHealth() {
     try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); els.status.textContent = "Backend hazır"; els.status.previousElementSibling.classList.add("online"); }
     catch { els.status.textContent = "Backend kurulumu bekleniyor"; }
   }
   async function sendMessage(text, options = {}) {
-    if (busy || (!text.trim() && !attachedFile)) return;
+    if (busy || aiSettings.capabilities?.chat===false || (!text.trim() && !attachedFile)) return;
     const c = current(); const userText = text.trim();
     let prompt = userText;
     const imageAttachment = attachedFile?.kind === "image" ? attachedFile : null;
@@ -289,7 +289,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:aiSettings.provider || "auto", model:aiSettings.model || "auto", image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:aiSettings.provider || "auto", model:aiSettings.model || "auto", capabilities:aiSettings.capabilities || {}, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
@@ -439,6 +439,9 @@
   function applyAICapabilities() {
     const caps=aiSettings.capabilities||{};
     [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
+    const chatDisabled=caps.chat===false;
+    els.input.disabled=chatDisabled||busy;els.send.disabled=chatDisabled||busy;
+    els.input.placeholder=chatDisabled?"Sohbet yeteneği ayarlardan kapalı":"Mina'ya bir şey sor...";
   }
   applyAICapabilities();
   async function renderAISettings() {
