@@ -10,6 +10,21 @@
   <link rel="stylesheet" href="./styles.css">
 </head>
 <body>
+  <section class="mina-login" id="minaLogin" aria-label="Mina AI yönetici girişi">
+    <form class="mina-login-card" id="minaLoginForm">
+      <div class="brand-mark">M</div>
+      <p class="eyebrow">ÖZEL YÖNETİCİ ALANI</p>
+      <h1>Mina AI</h1>
+      <p class="mina-login-copy">Devam etmek için yönetici hesabınla giriş yap.</p>
+      <label for="minaUsername">Kullanıcı adı</label>
+      <input id="minaUsername" name="username" autocomplete="username" value="Argion" required maxlength="64">
+      <label for="minaPassword">Şifre</label>
+      <input id="minaPassword" name="password" type="password" autocomplete="current-password" required maxlength="256">
+      <button id="minaLoginSubmit" type="submit">Giriş yap</button>
+      <p id="minaLoginError" role="alert" aria-live="polite"></p>
+      <small>Hesap oluşturma kapalıdır. Yalnızca yönetici erişebilir.</small>
+    </form>
+  </section>
   <div class="app-shell">
     <aside class="sidebar" id="sidebar">
       <div class="brand"><div class="brand-mark">M</div><div><strong>Mina AI</strong><span>Türkçe yapay zekâ</span></div></div>
@@ -35,6 +50,7 @@
         <button class="icon-button mobile-menu" id="menuBtn" aria-label="Menüyü aç">☰</button>
         <div class="topbar-title">Sohbet</div>
         <div class="topbar-actions">
+          <button class="logout-btn" type="button" id="minaLogoutBtn">Çıkış yap</button>
           <button class="export-chat-btn" type="button" id="exportChatBtn" title="Sohbeti dışa aktar">Dışa aktar</button>
           <button class="theme-toggle" type="button" id="themeToggle" aria-label="Temayı değiştir">☀ Açık tema</button>
           <span class="model-label" id="modelSelect" aria-label="Yapay zekâ modeli">Otomatik model seçimi</span>
@@ -102,6 +118,7 @@
       <small>Canlı ses bağlantısı · Mikrofon izni gerekir</small>
     </div>
   </section>
+  <script src="./auth.js" defer></script>
   <script src="./app.js" defer></script>
   <script src="./voice.js" defer></script>
 </body>
