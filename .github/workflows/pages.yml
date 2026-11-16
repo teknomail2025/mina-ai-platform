@@ -34,6 +34,7 @@ jobs:
           node --check voice.js
           node --check worker/src/index.js
           node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
+          node --test worker/test/*.test.cjs
       - name: Verify required frontend files
         run: |
           test -s index.html
@@ -41,6 +42,7 @@ jobs:
           test -s app.js
           test -s voice.js
           test -s worker/wrangler.toml
+          test -s worker/test/worker.test.cjs
           test -s worker/migrations/0001_auth_and_user_data.sql
       - name: Configure Pages
         uses: actions/configure-pages@v5
