@@ -326,3 +326,15 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .sidebar-settings-button svg{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
 .sidebar-settings-button:hover{background:#211b34;border-color:#40365f;color:#d9ccff}
 :root[data-theme="light"] .sidebar-settings-button:hover{background:#f1edff;border-color:#d8cdf8;color:#654bb0}
+
+
+/* Refined bottom settings card */
+.sidebar-settings-button{flex:0 0 auto;min-height:58px;display:flex;align-items:center;gap:12px;margin:14px 0 12px;padding:9px 11px;border:1px solid #37304f;border-radius:13px;background:linear-gradient(135deg,#211b34 0%,#191d2a 100%);color:var(--text);box-shadow:0 5px 16px #0002;transition:transform .18s,border-color .18s,background .18s}
+.sidebar-settings-button svg{width:34px;height:34px;flex:0 0 34px;padding:8px;border-radius:10px;background:linear-gradient(145deg,#c4b5fd,#8b6ce5);color:#211735;stroke:#211735;stroke-width:1.65}
+.sidebar-settings-copy{display:flex;flex-direction:column;gap:3px;min-width:0}
+.sidebar-settings-copy strong{font:700 12px Manrope;color:var(--text)}
+.sidebar-settings-copy small{font:10px 'DM Sans';color:var(--muted)}
+.sidebar-settings-button:hover{transform:translateY(-1px);border-color:#8066c7;background:linear-gradient(135deg,#2b2342 0%,#1d2231 100%)}
+:root[data-theme="light"] .sidebar-settings-button{background:linear-gradient(135deg,#f5f0ff,#fff);border-color:#e0d7f7;box-shadow:0 4px 14px #6e55a51a}
+:root[data-theme="light"] .sidebar-settings-button svg{background:linear-gradient(145deg,#d9ccff,#b9a4f4);color:#49347e;stroke:#49347e}
+:root[data-theme="light"] .sidebar-settings-button:hover{background:#f1edff;border-color:#b9a4f4}
