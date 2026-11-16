@@ -96,18 +96,19 @@ export default {
   const url=new URL(request.url);
 
   if(url.pathname==="/api/auth/login"&&request.method==="POST"){
-    if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||!env.SESSION_SECRET) return json({error:"Yönetici girişi henüz sunucu tarafında yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
+    if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||env.ADMIN_PASSWORD.length<12||!env.SESSION_SECRET||env.SESSION_SECRET.length<32) return json({error:"Yönetici girişi henüz güvenli biçimde yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
     let credentials;try{credentials=await request.json();}catch{return json({error:"Geçersiz giriş isteği."},400,cors);}
+    if(!credentials||typeof credentials!=="object") return json({error:"Geçersiz giriş bilgileri."},400,cors);
     const username=typeof credentials.username==="string"?credentials.username.trim():"";
     const password=typeof credentials.password==="string"?credentials.password:"";
     if(username.length>64||password.length>256||!safeEqual(username,env.ADMIN_USERNAME)||!safeEqual(password,env.ADMIN_PASSWORD)) return json({error:"Kullanıcı adı veya şifre hatalı."},401,cors);
     const now=Math.floor(Date.now()/1000);
     const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:now+AUTH_TOKEN_TTL_SECONDS},env.SESSION_SECRET);
-    return json({token,expires_in:AUTH_TOKEN_TTL_SECONDS,user:{username:env.ADMIN_USERNAME}},200,cors);
+    return json({token,expires_in:AUTH_TOKEN_TTL_SECONDS,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET)},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
-  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,cors);
+  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   if(url.pathname==="/api/providers"&&request.method==="GET") return json({providers:{gemini:!!env.GEMINI_API_KEY,openai:!!env.OPENAI_API_KEY,anthropic:!!env.ANTHROPIC_API_KEY,huggingface:!!env.HF_TOKEN}},200,cors);
   if(url.pathname==="/api/models"&&request.method==="GET") return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"},{id:IMAGE_MODEL,role:"image"}]},200,cors);
   if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
