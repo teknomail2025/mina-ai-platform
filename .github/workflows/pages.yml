@@ -46,6 +46,7 @@ jobs:
           trap 'kill "$WRANGLER_PID" 2>/dev/null || true; wait "$WRANGLER_PID" 2>/dev/null || true' EXIT
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
+          import { readFile } from "node:fs/promises";
           const base = "http://127.0.0.1:8787";
           let ready = false;
           for (let i = 0; i < 60; i++) {
@@ -55,6 +56,7 @@ jobs:
             } catch {}
             await new Promise(resolve => setTimeout(resolve, 1000));
           }
+          if (!ready) console.error(await readFile("/tmp/mina-wrangler.log", "utf8").catch(() => "Wrangler log unavailable"));
           assert.ok(ready, "Wrangler Worker did not start within 60 seconds");
           const health = await fetch(base + "/api/health");
           const healthData = await health.json();
