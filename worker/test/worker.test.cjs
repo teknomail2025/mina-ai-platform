@@ -325,3 +325,54 @@ test("admin login rejects oversized streamed bodies even without Content-Length"
   const response = await worker.fetch(request, env);
   assert.equal(response.status, 413);
 });
+
+test("disabled chat and vision capabilities are rejected by the Worker", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const chat = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Merhaba" }],
+      capabilities: { chat: false }
+    }
+  });
+  assert.equal(chat.status, 403);
+  const vision = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu resimde ne var?" }],
+      image: { mimeType: "image/png", data: "aGVsbG8=" },
+      capabilities: { vision: false }
+    }
+  });
+  assert.equal(vision.status, 403);
+});
+
+test("disabled coding capability routes technical prompts to Flash", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "JavaScript kodu yaz." }],
+      capabilities: { code: false }
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
+});
+
+test("frontend applies chat capability to the composer and sends capability settings", () => {
+  assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
+  assert.match(frontendSource, /aiSettings\.capabilities\?\.chat===false/);
+  assert.match(frontendSource, /capabilities:aiSettings\.capabilities\|\|\{\}/);
+});
