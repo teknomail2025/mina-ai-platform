@@ -608,6 +608,7 @@
     $("workspaceDialog").classList.add("settings-mode");
     $("workspaceDialogTitle").textContent="Ayarlar";$("workspaceDialog").hidden=false;renderAISettings(section||"mina");
   }
+  $("sidebarSettingsBtn").addEventListener("click",()=>openSettings());
   $("sidebarProfile").addEventListener("click",()=>{
     const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
   });
