@@ -459,7 +459,7 @@
         globalThis.crypto.getRandomValues(bytes);
         let binary="";
         for(const byte of bytes)binary+=String.fromCharCode(byte);
-        const generated=btoa(binary).replace(/=/g,"").replace(/\\+/g,"-").replace(/\\//g,"_");
+        const generated=btoa(binary).replace(/=/g,"").replace(/\+/g,"-").replace(/\//g,"_");
         const field=$("generatedSessionSecret");
         field.value=generated;
         field.type="password";
