@@ -319,3 +319,10 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
  .settings-section .settings-info-row{gap:7px;align-items:flex-start;flex-direction:column}
  .settings-section .settings-info-row span{text-align:left}
 }
+
+
+/* Dedicated settings shortcut beside the account control */
+.sidebar-settings-button{width:100%;min-height:42px;display:flex;align-items:center;gap:12px;margin-top:auto;padding:0 12px;border:1px solid transparent;border-radius:10px;background:transparent;color:var(--muted);font:600 12px 'DM Sans';text-align:left;cursor:pointer;transition:background .18s,border-color .18s,color .18s}
+.sidebar-settings-button svg{width:19px;height:19px;flex:0 0 19px;fill:none;stroke:currentColor;stroke-width:1.7;stroke-linecap:round;stroke-linejoin:round}
+.sidebar-settings-button:hover{background:#211b34;border-color:#40365f;color:#d9ccff}
+:root[data-theme="light"] .sidebar-settings-button:hover{background:#f1edff;border-color:#d8cdf8;color:#654bb0}
