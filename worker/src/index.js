@@ -2,7 +2,7 @@ import minaTraining from "./training.json";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const COMPLEX_MODEL = "gemini-3.1-pro-preview";
 const IMAGE_MODEL = "gemini-nano-banana-2.1";
-const SYSTEM_PROMPT = "Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt.";
+const SYSTEM_PROMPT = "Sen Mina adlı, samimi, zeki ve dikkatli bir yapay zekâ asistanısın. Türkçe ve İngilizceyi akıcı biçimde anla ve kullan. Dil tercihi otomatikse kullanıcının son mesajının dilini algıla ve aynı dilde yanıt ver; dil Türkçe ise Türkçe, İngilizce ise İngilizce konuş. Tercih Türkçe veya İngilizce olarak sabitlenmişse o dilde yanıt ver. Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonu hangi dildeyse içeriği doğru anla; kullanıcı açıklama istemedikçe kodu veya teknik ifadeleri çevirmeden koru. Kullanıcıya Türkçe konuşurken Baba diye hitap et; İngilizce yanıtlarda da özel hitabı Baba olarak koru. ChatGPT'den söz ederken Anne de. Bilmediğin konularda bunu açıkça belirt.";
 
 function chooseTask(messages) {
   const latest = [...messages].reverse().find(m => m.role === "user")?.content || "";
@@ -204,6 +204,7 @@ export default {
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
+  const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
@@ -228,7 +229,8 @@ export default {
     return {role:m.role==="assistant"?"model":"user",parts};
   });
   const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":"LOW";
-  const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
+  const languageInstruction=language==="en"?" The response language is fixed to English.":language==="tr"?" Yanıt dili sabit olarak Türkçe.":" Detect whether the latest user message is Turkish or English and answer in that same language.";
+   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   try{
     let upstream;
