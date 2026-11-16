@@ -34,19 +34,30 @@
       <div class="brand"><div class="brand-mark">M</div><div><strong>Mina AI</strong><span>Türkçe yapay zekâ</span></div></div>
       <button class="new-chat" id="newChatBtn">＋ Yeni sohbet</button>
       <nav class="workspace-nav" aria-label="Mina çalışma alanı">
-        <button type="button" class="workspace-nav-item" id="pinnedNav">☆ Sabitlenenler</button>
-        <button type="button" class="workspace-nav-item" id="projectsNav">▣ Projeler</button>
-        <button type="button" class="workspace-nav-item" id="timersNav">◷ Zamanlayıcılar</button>
-        <button type="button" class="workspace-nav-item" id="libraryNav">▤ Kitaplık</button>
-        <button type="button" class="workspace-nav-item" id="pluginsNav">⌘ Eklentiler</button>
-        <button type="button" class="workspace-nav-item" id="settingsNav">⚙ Ayarlar</button>
+        <button type="button" class="workspace-nav-item discover-nav-item" id="discoverNav">✦ Keşfet <small>Projeler, araçlar ve kitaplık</small></button>
       </nav>
       <section class="sidebar-section" id="pinnedSection"><div class="sidebar-label">SABİTLENENLER</div><div id="pinnedList" class="mini-item-list"></div></section>
       <section class="sidebar-section" id="projectsSection"><div class="sidebar-heading"><div class="sidebar-label">PROJELER</div><button class="clear-chats-btn" id="addProjectBtn" type="button" title="Proje oluştur">＋ Ekle</button></div><div id="projectsList" class="mini-item-list"></div></section>
       <div class="sidebar-heading"><div class="sidebar-label">SOHBETLER</div><button class="clear-chats-btn" id="clearChatsBtn" type="button" title="Tüm sohbetleri sil">Tümünü sil</button></div>
       <input class="chat-search" id="chatSearch" type="search" placeholder="Sohbetlerde ara..." aria-label="Sohbetlerde ara">
       <div class="conversation-list" id="conversationList" aria-live="polite"></div>
-      <section class="sidebar-profile" id="sidebarProfile" aria-label="Yönetici profili"><div class="sidebar-profile-avatar" id="sidebarProfileAvatar">A</div><div class="sidebar-profile-details"><strong id="sidebarProfileName">Argion</strong><span id="sidebarProfileRole">Kurucu · Yönetici</span></div></section>
+      <section class="sidebar-profile-wrap">
+        <button class="sidebar-profile" id="sidebarProfile" type="button" aria-label="Profil ve ayarları aç" aria-expanded="false">
+          <span class="sidebar-profile-avatar" id="sidebarProfileAvatar">A</span><span class="sidebar-profile-details"><strong id="sidebarProfileName">Argion</strong><span id="sidebarProfileRole">Kurucu · Yönetici</span></span><span class="sidebar-profile-chevron">⌃</span>
+        </button>
+        <div class="profile-menu" id="profileMenu" hidden>
+          <div class="profile-menu-heading">Hesap ve ayarlar</div>
+          <button type="button" data-settings-section="mina">✦ <span>Mina</span></button>
+          <button type="button" data-settings-section="account">♙ <span>Hesap ve güvenlik</span></button>
+          <button type="button" data-settings-section="appearance">◐ <span>Görünüm</span></button>
+          <button type="button" data-settings-section="voice">♫ <span>Ses ve mikrofon</span></button>
+          <button type="button" data-settings-section="memory">🧠 <span>Hafıza</span></button>
+          <button type="button" data-settings-section="data">▤ <span>Veriler</span></button>
+          <button type="button" data-settings-section="devices">▣ <span>Cihazlar</span></button>
+          <button type="button" data-settings-section="system">⌁ <span>Sistem durumu</span></button>
+          <button type="button" id="profileLogout">↪ <span>Çıkış yap</span></button>
+        </div>
+      </section>
       <div class="sidebar-footer"><span class="status-dot"></span><span id="connectionLabel">Bağlantı kontrol ediliyor</span></div>
     </aside>
 
