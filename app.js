@@ -536,23 +536,7 @@
     const host=$("workspaceDialogContent");
     const theme=document.documentElement.dataset.theme==="light"?"light":"dark";
     host.innerHTML = `
-      <div class="settings-layout">
-        <aside class="settings-nav" aria-label="Ayar kategorileri">
-          <div class="settings-nav-brand"><span class="settings-brand-mark">M</span><span><strong>Mina AI</strong><small>Kontrol merkezi</small></span></div>
-          <div class="settings-nav-label">GENEL</div>
-          <button type="button" data-settings-section="mina"><i>✦</i><span>Mina</span></button>
-          <button type="button" data-settings-section="language"><i>文</i><span>Dil ve iletişim</span></button>
-          <button type="button" data-settings-section="appearance"><i>◐</i><span>Görünüm</span></button>
-          <button type="button" data-settings-section="voice"><i>♫</i><span>Ses ve mikrofon</span></button>
-          <button type="button" data-settings-section="notifications"><i>♧</i><span>Bildirimler</span></button>
-          <button type="button" data-settings-section="memory"><i>◈</i><span>Hafıza</span></button>
-          <div class="settings-nav-label">HESAP</div>
-          <button type="button" data-settings-section="account"><i>♙</i><span>Hesap ve güvenlik</span></button>
-          <button type="button" data-settings-section="data"><i>▤</i><span>Veriler</span></button>
-          <button type="button" data-settings-section="devices"><i>▣</i><span>Cihazlar</span></button>
-          <button type="button" data-settings-section="system"><i>⌁</i><span>Sistem durumu</span></button>
-          <div class="settings-nav-foot"><span class="settings-nav-foot-dot"></span> Mina kontrol merkezi</div>
-        </aside>
+      <div class="settings-layout settings-single-page">
         <div class="settings-main">
           <header class="settings-hero">
             <div><span class="settings-eyebrow">MINA AI · KONTROL MERKEZİ</span><h3>Mina'yı kendine göre düzenle</h3><p>Karakterinden güvenliğine kadar Mina'nın tercihlerini tek bir yerden yönet.</p></div>
@@ -625,13 +609,14 @@
         <div class="secret-warning"><strong>Önemli:</strong> Yeni anahtarı Cloudflare tarafındaki SESSION_SECRET Secret değerine elle kaydetmeden önce mevcut oturumların etkilenebileceğini unutma. Değişiklikten sonra tekrar giriş yapman gerekebilir.</div>
         <details class="secret-cloudflare-steps"><summary>Oturum anahtarı nasıl değiştirilir?</summary><ol><li>Yeni anahtarı oluştur ve kopyala.</li><li>Cloudflare → Workers & Pages → <code>mina-ai-platform</code> bölümünü aç.</li><li>Settings → Variables and Secrets alanına gir.</li><li><code>SESSION_SECRET</code> Secret değerini yeni anahtarla değiştir ve kaydet.</li><li>Dağıtım tamamlandıktan sonra tekrar giriş yap.</li></ol><p>Mina bu işlemi kendiliğinden yapmaz; Cloudflare tarafındaki değişiklik tamamlanmadan yeni anahtar etkinleşmiş sayılmaz.</p></details>
       </section>\n        </div>\n      </div>`;
-    const activeKey=host.querySelector('[data-settings-key="'+initialSection+'"]')?initialSection:"mina";
+    const activeKey=host.querySelector('[data-settings-key="'+initialSection+'"],[data-settings-extra="'+initialSection+'"]')?initialSection:"mina";
     const setSettingsSection=key=>{
-      host.querySelectorAll("[data-settings-key]").forEach(panel=>{panel.hidden=panel.dataset.settingsKey!==key;});
-      host.querySelectorAll("[data-settings-extra]").forEach(panel=>{panel.hidden=panel.dataset.settingsExtra!==key;});
-      host.querySelectorAll(".settings-nav button").forEach(button=>{const active=button.dataset.settingsSection===key;button.classList.toggle("active",active);button.setAttribute("aria-current",active?"page":"false");});
+      host.querySelectorAll("[data-settings-key],[data-settings-extra]").forEach(panel=>{panel.hidden=false;});
+      if(key && key!=="mina"){
+        const target=host.querySelector('[data-settings-key="'+key+'"],[data-settings-extra="'+key+'"]');
+        if(target) requestAnimationFrame(()=>target.scrollIntoView({block:"start",behavior:"smooth"}));
+      }
     };
-    host.querySelectorAll(".settings-nav button").forEach(button=>button.addEventListener("click",()=>setSettingsSection(button.dataset.settingsSection)));
     setSettingsSection(activeKey);
     $("minaUiLanguageSelect").value=uiLanguage;
     $("minaUiLanguageSelect").addEventListener("change",e=>setInterfaceLanguage(e.target.value));
