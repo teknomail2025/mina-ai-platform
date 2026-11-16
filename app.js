@@ -232,10 +232,12 @@
     const display=document.createElement("strong");display.className="timer-display";
     const status=document.createElement("p");status.className="workspace-note";
     const controls=document.createElement("div");controls.className="workspace-item-actions";
-    const start=workspaceButton("Zamanlayıcıyı başlat",()=>{const minutes=Math.max(1,Math.min(1440,Number(input.value)||25));localStorage.setItem(TIMER_KEY,JSON.stringify({endsAt:Date.now()+minutes*60000,label:minutes+" dakikalık sayaç"}));update();});
-    const stop=workspaceButton("Durdur",()=>{localStorage.removeItem(TIMER_KEY);update();});
-    controls.append(start,stop);host.append(input,display,status,controls);
-    function update(){const timer=readStore(TIMER_KEY,null);if(!timer){display.textContent="00:00";status.textContent="Aktif zamanlayıcı yok.";return;}const remaining=timer.endsAt-Date.now();if(remaining<=0){localStorage.removeItem(TIMER_KEY);display.textContent="00:00";status.textContent="Süre doldu!";if("Notification"in window&&Notification.permission==="granted")new Notification("Mina AI zamanlayıcısı",{body:timer.label+" tamamlandı."});return;}const total=Math.ceil(remaining/1000);display.textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");status.textContent=timer.label+" devam ediyor."; }
+    let timerFinished=false;
+    const start=workspaceButton("Zamanlayıcıyı başlat",()=>{const minutes=Math.max(1,Math.min(1440,Number(input.value)||25));timerFinished=false;localStorage.setItem(TIMER_KEY,JSON.stringify({endsAt:Date.now()+minutes*60000,label:minutes+" dakikalık sayaç"}));update();});
+    const stop=workspaceButton("Durdur",()=>{timerFinished=false;localStorage.removeItem(TIMER_KEY);update();});
+    const notify=workspaceButton("Bildirim izni ver",async()=>{if(!("Notification"in window)){status.textContent="Bu tarayıcı bildirimleri desteklemiyor.";return;}const permission=await Notification.requestPermission();status.textContent=permission==="granted"?"Bildirim izni verildi.":"Bildirim izni verilmedi.";});
+    controls.append(start,stop,notify);host.append(input,display,status,controls);
+    function update(){const timer=readStore(TIMER_KEY,null);if(!timer){display.textContent="00:00";status.textContent=timerFinished?"Süre doldu!":"Aktif zamanlayıcı yok.";return;}const remaining=timer.endsAt-Date.now();if(remaining<=0){localStorage.removeItem(TIMER_KEY);timerFinished=true;display.textContent="00:00";status.textContent="Süre doldu!";if("Notification"in window&&Notification.permission==="granted")new Notification("Mina AI zamanlayıcısı",{body:timer.label+" tamamlandı."});return;}timerFinished=false;const total=Math.ceil(remaining/1000);display.textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");status.textContent=timer.label+" devam ediyor."; }
     if(timerInterval)clearInterval(timerInterval);update();timerInterval=setInterval(update,1000);
     openWorkspace("Zamanlayıcılar",host);
   }
