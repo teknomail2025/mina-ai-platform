@@ -248,3 +248,32 @@ test("CORS does not authorize an unlisted website origin", async () => {
   assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), "https://example.invalid");
 });
 
+
+const frontendSource = fs.readFileSync(path.join(workerDir, "..", "app.js"), "utf8");
+
+test("projects workspace supports project assignment and linked conversation navigation", () => {
+  assert.match(frontendSource, /function renderProjectsWorkspace\(/);
+  assert.match(frontendSource, /c\.projectId=project\.id/);
+  assert.match(frontendSource, /conversations\.filter\(c=>c\.projectId===project\.id\)/);
+  assert.match(frontendSource, /projectsNav.*renderProjectsWorkspace/s);
+});
+
+test("timer workspace persists an end timestamp and recalculates remaining time", () => {
+  assert.match(frontendSource, /const TIMER_KEY="mina-ai-active-timer-v1"/);
+  assert.match(frontendSource, /endsAt:Date\.now\(\)\+minutes\*60000/);
+  assert.match(frontendSource, /timer\.endsAt-Date\.now\(\)/);
+});
+
+test("library supports bounded text file import, download and deletion", () => {
+  assert.match(frontendSource, /file\.size>500000/);
+  assert.match(frontendSource, /await file\.text\(\)/);
+  assert.match(frontendSource, /a\.download=item\.name/);
+  assert.match(frontendSource, /libraryItems=libraryItems\.filter/);
+});
+
+test("plugins workspace opens the existing tool entry points", () => {
+  assert.match(frontendSource, /function renderPluginsWorkspace\(/);
+  assert.match(frontendSource, /\$\("webBtn"\)\.click\(\)/);
+  assert.match(frontendSource, /\$\("steamBtn"\)\.click\(\)/);
+  assert.match(frontendSource, /\$\("codeWorkspaceBtn"\)\.click\(\)/);
+});
