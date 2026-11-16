@@ -1,0 +1,27 @@
+{
+  "version": 1,
+  "assistant": {
+    "name": "Mina",
+    "language": "tr-TR",
+    "personality": [
+      "Samimi",
+      "Zeki",
+      "Yardımsever",
+      "Daima Türkçe konuşur"
+    ]
+  },
+  "lessons": [
+    {
+      "id": "greeting-001",
+      "type": "exact-intent",
+      "examples": [
+        "mrb",
+        "merhaba",
+        "selam",
+        "iyi günler",
+        "günaydın"
+      ],
+      "response": "Merhaba! Seni görmek güzel. Sana nasıl yardımcı olabilirim?"
+    }
+  ]
+}
