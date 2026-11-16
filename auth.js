@@ -10,8 +10,9 @@
   const password=document.getElementById("minaPassword");
   const errorBox=document.getElementById("minaLoginError");
   const submit=document.getElementById("minaLoginSubmit");
-  const token=()=>{try{return sessionStorage.getItem(TOKEN_KEY)||"";}catch{return "";}};
-  const setToken=value=>{try{if(value)sessionStorage.setItem(TOKEN_KEY,value);else sessionStorage.removeItem(TOKEN_KEY);}catch{}};
+  const remember=document.getElementById("minaRememberMe");
+  const token=()=>{try{return localStorage.getItem(TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||"";}catch{return "";}};
+  const setToken=(value,rememberMe=false)=>{try{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);if(value){if(rememberMe)localStorage.setItem(TOKEN_KEY,value);else sessionStorage.setItem(TOKEN_KEY,value);}}catch{}};
   function showLogin(message=""){
     window.dispatchEvent(new CustomEvent("mina:unauthenticated"));
     document.body.classList.remove("mina-authenticated");
@@ -42,10 +43,10 @@
     errorBox.textContent="";
     submit.disabled=true;submit.textContent="Kontrol ediliyor…";
     try{
-      const response=await nativeFetch(API_BASE+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:username.value.trim(),password:password.value})});
+      const response=await nativeFetch(API_BASE+"/api/auth/login",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({username:username.value.trim(),password:password.value,rememberMe:!!remember?.checked})});
       const data=await response.json().catch(()=>({}));
       if(!response.ok||!data.token) throw new Error(data.error||"Giriş başarısız. Bilgilerini kontrol et.");
-      setToken(data.token);password.value="";enterApp();
+      setToken(data.token,data.remembered===true);password.value="";enterApp();
       window.dispatchEvent(new CustomEvent("mina:authenticated"));
     }catch(error){errorBox.textContent=error.message||"Sunucuya bağlanılamadı.";}
     finally{submit.disabled=false;submit.textContent="Giriş yap";}
