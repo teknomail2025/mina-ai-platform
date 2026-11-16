@@ -338,3 +338,13 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 :root[data-theme="light"] .sidebar-settings-button{background:linear-gradient(135deg,#f5f0ff,#fff);border-color:#e0d7f7;box-shadow:0 4px 14px #6e55a51a}
 :root[data-theme="light"] .sidebar-settings-button svg{background:linear-gradient(145deg,#d9ccff,#b9a4f4);color:#49347e;stroke:#49347e}
 :root[data-theme="light"] .sidebar-settings-button:hover{background:#f1edff;border-color:#b9a4f4}
+
+
+/* Ayarlar tek sayfa: sol kategori menüsü yok, bütün bölümler akış içinde görünür. */
+.settings-layout.settings-single-page{display:block;height:100%;min-height:0}
+.settings-single-page .settings-main{height:100%;min-height:0;overflow:auto;padding:28px clamp(16px,4vw,42px) 40px}
+.settings-single-page .settings-section{display:block!important;margin:16px 0;padding:16px;border:1px solid var(--line);border-radius:12px;background:var(--panel)}
+.settings-single-page .settings-section[hidden],.settings-single-page .session-secret-panel[hidden]{display:block!important}
+.settings-single-page .session-secret-panel{margin:16px 0}
+.settings-single-page .settings-section,.settings-single-page .session-secret-panel{scroll-margin-top:18px}
+@media(max-width:720px){.settings-single-page .settings-main{padding:22px 14px 32px}}
