@@ -113,6 +113,14 @@ export default {
   if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
   let body;try{body=await request.json();}catch{return json({error:"Geçersiz JSON isteği."},400,cors);}
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
+  // Mina çekirdek v0.0.1: Harici yapay zekâ sağlayıcısı kullanmadan çalışan başlangıç yanıtlayıcısı.
+  if(!body.image){
+    const latest=[...body.messages].reverse().find(m=>m.role==="user")?.content||"";
+    const normalized=latest.trim().toLocaleLowerCase("tr-TR").replace(/[.!?]+$/g,"");
+    const answer=/^(mrb|merhaba|selam)$/.test(normalized)?"mrb":"Şimdilik yalnızca mrb diyebiliyorum.";
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:"Mina Core",task:"starter"},200,cors);
+  }
+  if(body.image) return json({error:"Mina Core başlangıç sürümünde görsel desteği henüz etkin değil."},501,cors);
   if(body.image&&!imageDataIsValid(body.image)) return json({error:"Resim biçimi desteklenmiyor veya dosya çok büyük. JPG, PNG ya da WEBP ve en fazla yaklaşık 8 MB kullan."},400,cors);
   const provider=["gemini","openai","anthropic","huggingface"].includes(body.provider)?body.provider:"gemini";
   const apiKey={gemini:env.GEMINI_API_KEY,openai:env.OPENAI_API_KEY,anthropic:env.ANTHROPIC_API_KEY,huggingface:env.HF_TOKEN}[provider];
