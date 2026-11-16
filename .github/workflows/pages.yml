@@ -44,7 +44,7 @@ jobs:
             --var SESSION_SECRET:ci-session-secret-at-least-32-characters-long \
             --var GEMINI_API_KEY:ci-fake-gemini-key > /tmp/mina-wrangler.log 2>&1 &
           WRANGLER_PID=$!
-          trap 'kill "$WRANGLER_PID" 2>/dev/null || true; wait "$WRANGLER_PID" 2>/dev/null || true' EXIT
+          trap 'kill "$WRANGLER_PID" 2>/dev/null || true; wait "$WRANGLER_PID" 2>/dev/null || true; rm -rf .wrangler' EXIT
           node --input-type=module <<'NODE'
           import assert from "node:assert/strict";
           import { readFile } from "node:fs/promises";
