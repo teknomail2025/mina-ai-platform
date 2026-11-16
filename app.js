@@ -163,8 +163,79 @@
   }
   function openWorkspace(title,content) {
     $("workspaceDialogTitle").textContent=title;
-    $("workspaceDialogContent").textContent=content;
+    const host=$("workspaceDialogContent");
+    host.replaceChildren();
+    if (content instanceof Node) host.append(content);
+    else host.textContent=content;
     $("workspaceDialog").hidden=false;
+  }
+  function workspaceButton(label, action, className="") {
+    const button=document.createElement("button"); button.type="button"; button.textContent=label;
+    if(className) button.className=className;
+    button.addEventListener("click",action); return button;
+  }
+  function workspaceNote(text) { const p=document.createElement("p"); p.className="workspace-note"; p.textContent=text; return p; }
+  function renderProjectsWorkspace() {
+    const host=document.createElement("div");
+    host.append(workspaceNote("Projelerini oluştur, sohbetleri projelere bağla ve proje içindeki konuşmaları görüntüle. Veriler bu tarayıcıda saklanır."));
+    const create=workspaceButton("＋ Yeni proje",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();renderProjectsWorkspace();});
+    host.append(create);
+    projects.forEach(project=>{
+      const card=document.createElement("div");card.className="workspace-item";
+      const title=document.createElement("strong");title.textContent=project.name;
+      const linked=conversations.filter(c=>c.projectId===project.id);
+      const info=document.createElement("small");info.textContent=linked.length+" sohbet";
+      card.append(title,info);
+      const actions=document.createElement("div");actions.className="workspace-item-actions";
+      actions.append(workspaceButton("Bu projeyi aç",()=>{const first=linked[0];if(first){activeId=first.id;render();$("workspaceDialog").hidden=true;}else alert("Bu projeye henüz sohbet bağlanmamış. Açık sohbeti aşağıdaki düğmeyle ekleyebilirsin.");}));
+      actions.append(workspaceButton(current()?.projectId===project.id?"Sohbet projede":"Açık sohbeti ekle",()=>{const c=current();if(!c){alert("Önce bir sohbet oluştur.");return;}c.projectId=project.id;persist();renderProjectsWorkspace();renderPinnedAndProjects();}));
+      actions.append(workspaceButton("Sil",()=>{if(!confirm('"'+project.name+'" projesi silinsin mi?'))return;projects=projects.filter(p=>p.id!==project.id);conversations.forEach(c=>{if(c.projectId===project.id)delete c.projectId;});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));persist();renderPinnedAndProjects();renderProjectsWorkspace();}));
+      card.append(actions);
+      linked.forEach(c=>{const row=document.createElement("div");row.className="workspace-subitem";row.textContent=c.title||"Yeni sohbet";row.addEventListener("click",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;});card.append(row);});
+      host.append(card);
+    });
+    if(!projects.length)host.append(workspaceNote("Henüz proje oluşturulmadı."));
+    openWorkspace("Projeler",host);
+  }
+  const TIMER_KEY="mina-ai-active-timer-v1";
+  let timerInterval=null;
+  function renderTimerWorkspace() {
+    const host=document.createElement("div");
+    host.append(workspaceNote("Dakika cinsinden süre belirle. Sayaç bu sekme kapalıyken ekranda çalışmaz; tekrar açtığında kalan süre hesaplanır."));
+    const input=document.createElement("input");input.type="number";input.min="1";input.max="1440";input.value="25";input.className="workspace-number";input.setAttribute("aria-label","Süre dakika");
+    const display=document.createElement("strong");display.className="timer-display";
+    const status=document.createElement("p");status.className="workspace-note";
+    const controls=document.createElement("div");controls.className="workspace-item-actions";
+    const start=workspaceButton("Zamanlayıcıyı başlat",()=>{const minutes=Math.max(1,Math.min(1440,Number(input.value)||25));localStorage.setItem(TIMER_KEY,JSON.stringify({endsAt:Date.now()+minutes*60000,label:minutes+" dakikalık sayaç"}));update();});
+    const stop=workspaceButton("Durdur",()=>{localStorage.removeItem(TIMER_KEY);update();});
+    controls.append(start,stop);host.append(input,display,status,controls);
+    function update(){const timer=readStore(TIMER_KEY,null);if(!timer){display.textContent="00:00";status.textContent="Aktif zamanlayıcı yok.";return;}const remaining=timer.endsAt-Date.now();if(remaining<=0){localStorage.removeItem(TIMER_KEY);display.textContent="00:00";status.textContent="Süre doldu!";if("Notification"in window&&Notification.permission==="granted")new Notification("Mina AI zamanlayıcısı",{body:timer.label+" tamamlandı."});return;}const total=Math.ceil(remaining/1000);display.textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");status.textContent=timer.label+" devam ediyor."; }
+    if(timerInterval)clearInterval(timerInterval);update();timerInterval=setInterval(update,1000);
+    openWorkspace("Zamanlayıcılar",host);
+  }
+  function renderLibraryWorkspace() {
+    const host=document.createElement("div");
+    host.append(workspaceNote("Metin ve kod dosyalarını bu tarayıcının kitaplığına kaydet. Dosyalar sunucuya yüklenmez; tarayıcı verilerini temizlersen silinebilir."));
+    const picker=document.createElement("input");picker.type="file";picker.accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql";
+    picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert("Kitaplık dosyası en fazla 500 KB olabilir.");return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}catch{alert("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir.");}});
+    const add=workspaceButton("＋ Dosya ekle",()=>picker.click());host.append(add,picker);
+    libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString("tr-TR")+" · "+item.content.length+" karakter";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton("Sil",()=>{if(!confirm('"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
+    if(!libraryItems.length)host.append(workspaceNote("Kitaplık henüz boş."));
+    openWorkspace("Kitaplık",host);
+  }
+  function renderPluginsWorkspace() {
+    const host=document.createElement("div");
+    host.append(workspaceNote("Mina'da şu anda kullanılabilen araçlar. Bir araç için gerekli servis veya API anahtarı yoksa ilgili işlem çalışmayabilir."));
+    const entries=[
+      ["Web araştırması","Gemini Google Search ile kaynaklı araştırma","Web ara",()=>{$("workspaceDialog").hidden=true;$("webBtn").click();}],
+      ["Steam arama","Steam mağazasında oyun ara","Steam",()=>{$("workspaceDialog").hidden=true;$("steamBtn").click();}],
+      ["Görsel üretimi","Gemini görsel modeliyle görsel oluştur","Resim üret",()=>{$("workspaceDialog").hidden=true;$("imageGenerateBtn").click();}],
+      ["Kod çalışma alanı","Kod dosyalarını incelet ve düzenlet","Kod alanı",()=>{$("workspaceDialog").hidden=true;$("codeWorkspaceBtn").click();}],
+      ["Sesli sohbet","Tarayıcı mikrofonu ve Gemini Live","Sesli sohbet",()=>{$("workspaceDialog").hidden=true;$("voiceModeBtn").click();}],
+      ["GitHub","Bağlantı durumu; OAuth ve depo işlemleri henüz etkin değil","GitHub durumu",()=>{$("workspaceDialog").hidden=true;$("githubBtn").click();}]
+    ];
+    entries.forEach(([name,description,label,action])=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=name;const info=document.createElement("small");info.textContent=description;card.append(title,info,workspaceButton(label,action));host.append(card);});
+    openWorkspace("Eklentiler",host);
   }
 
   function render() { renderList(); renderMessages(); }
@@ -333,10 +404,10 @@
 
   $("addProjectBtn").addEventListener("click",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
   $("pinnedNav").addEventListener("click",()=>openWorkspace("Sabitlenenler",pinnedIds.map(id=>conversations.find(c=>c.id===id)?.title).filter(Boolean).join("\n")||"Henüz sabitlenen sohbet yok. Sohbetlerin yanındaki ☆ simgesine basarak sabitleyebilirsin."));
-  $("projectsNav").addEventListener("click",()=>openWorkspace("Projeler","Projelerini sol menüden oluşturabilir, seçebilir ve silebilirsin. Projelere sohbet ve dosya bağlama altyapısı sıradaki aşamada genişletilecek."));
-  $("timersNav").addEventListener("click",()=>openWorkspace("Zamanlayıcılar","Hatırlatma ve zamanlanmış görev alanı. Şu an arayüz hazır değil; güvenilir arka plan zamanlayıcısı ayrıca kurulmalı."));
-  $("libraryNav").addEventListener("click",()=>openWorkspace("Kitaplık",libraryItems.length?libraryItems.map(x=>x.name).join("\n"):"Henüz kitaplığa kaydedilmiş dosya yok. Kalıcı dosya yükleme ve arama altyapısı ayrıca bağlanmalı."));
-  $("pluginsNav").addEventListener("click",()=>openWorkspace("Eklentiler","Mevcut araçlar: Web araştırması, Steam, GitHub, resim yükleme/üretme, dosya ekleme ve kod alanı. Bazı araçlar için sunucu entegrasyonu ve API anahtarı gerekir."));
+  $("projectsNav").addEventListener("click",renderProjectsWorkspace);
+  $("timersNav").addEventListener("click",renderTimerWorkspace);
+  $("libraryNav").addEventListener("click",renderLibraryWorkspace);
+  $("pluginsNav").addEventListener("click",renderPluginsWorkspace);
   function applyAICapabilities() {
     const caps=aiSettings.capabilities||{};
     [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
