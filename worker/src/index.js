@@ -1,6 +1,6 @@
 import minaTraining from "./training.json";
 const DEFAULT_MODEL = "gemini-3.8-flash";
-const COMPLEX_MODEL = "gemini-3.8-flash";
+const COMPLEX_MODEL = "gemini-3.1-pro-preview";
 const IMAGE_MODEL = "gemini-nano-banana-2.1";
 const SYSTEM_PROMPT = "Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt.";
 
