@@ -215,7 +215,11 @@ export default {
   const apiKey={gemini:env.GEMINI_API_KEY,openai:env.OPENAI_API_KEY,anthropic:env.ANTHROPIC_API_KEY,huggingface:env.HF_TOKEN}[provider];
   if(!apiKey) return json({error:provider+" sağlayıcısı sunucuda yapılandırılmamış. Cloudflare Worker Secrets bölümüne API anahtarını ekleyin."},503,cors);
   if(body.image&&provider!=="gemini") return json({error:"Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
+  const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
+  if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
+  if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   const routing=chooseTask(body.messages);let model=body.image?DEFAULT_MODEL:body.model==="fast"?DEFAULT_MODEL:body.model==="advanced"?COMPLEX_MODEL:routing.model;
+  if(capabilities.code===false&&routing.task==="coding")model=DEFAULT_MODEL;
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
     if(i===body.messages.length-1&&m.role==="user"&&body.image) parts.push({inlineData:{mimeType:body.image.mimeType,data:body.image.data}});
@@ -223,7 +227,7 @@ export default {
   });
   const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":"LOW";
   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
-  if(routing.research&&!body.image) payload.tools=[{google_search:{}}];
+  if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   try{
     let upstream;
     if(provider==="gemini") upstream=await callGemini(env,model,payload);
