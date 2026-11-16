@@ -37,6 +37,7 @@ jobs:
           node --test worker/test/*.test.cjs
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
+          cd worker
           npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
