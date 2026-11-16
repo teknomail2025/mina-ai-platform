@@ -14,7 +14,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet.
 - PWA kurulum altyapısı: desteklenen tarayıcılarda ana ekrana ekleme ve çevrimdışı uygulama kabuğu; sohbet ve yapay zekâ API'si için internet bağlantısı gerekir.
 - Proje yönetimi: proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
-- Zamanlayıcı: sekme açıkken çalışan geri sayım; sayfa yeniden açıldığında kalan süreyi hesaplama. Tarayıcı kapalıyken sistem bildirimi garantisi yoktur.
+- Zamanlayıcı: geri sayım, tarayıcı bildirim izni isteme ve süre bitişini algılama. Uygulama kapalıyken arka plan bildirimi garantisi yoktur; tekrar açıldığında süre kontrol edilir.
 - Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme.
 - Eklenti merkezi: mevcut araçları listeleme ve ilgili arayüzleri açma.
 - Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
