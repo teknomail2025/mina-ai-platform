@@ -29,9 +29,11 @@ jobs:
           node-version: 22
       - name: Validate JavaScript syntax
         run: |
+          node --check auth.js
           node --check app.js
           node --check voice.js
           node --check worker/src/index.js
+          node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
       - name: Verify required frontend files
         run: |
           test -s index.html
