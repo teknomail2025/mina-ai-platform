@@ -277,3 +277,11 @@ test("plugins workspace opens the existing tool entry points", () => {
   assert.match(frontendSource, /\$\("steamBtn"\)\.click\(\)/);
   assert.match(frontendSource, /\$\("codeWorkspaceBtn"\)\.click\(\)/);
 });
+
+test("conversation pin and unpin controls persist and refresh the pinned workspace", () => {
+  assert.match(frontendSource, /function togglePinned\(/);
+  assert.match(frontendSource, /localStorage\.setItem\(PINNED_KEY,JSON\.stringify\(pinnedIds\)\)/);
+  assert.match(frontendSource, /pin\.addEventListener\("click"/);
+  assert.match(frontendSource, /function renderPinnedWorkspace\(/);
+  assert.match(frontendSource, /pinnedNav.*renderPinnedWorkspace/s);
+});
