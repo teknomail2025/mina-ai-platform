@@ -46,12 +46,68 @@ async function callAnthropic(env,model,payload){
   const messages=payload.contents.map(m=>({role:m.role==="model"?"assistant":"user",content:m.parts.map(p=>p.text||"").join("\n")}));
   return fetch("https://api.anthropic.com/v1/messages",{method:"POST",headers:{"x-api-key":env.ANTHROPIC_API_KEY,"anthropic-version":"2023-06-01","Content-Type":"application/json"},body:JSON.stringify({model:model==="advanced"?"claude-sonnet-4-5":"claude-haiku-4-5",max_tokens:1800,system:SYSTEM_PROMPT,messages})});
 }
+
+const AUTH_TOKEN_TTL_SECONDS = 8 * 60 * 60;
+function base64UrlEncode(bytes) {
+  let binary = "";
+  for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
+  return btoa(binary).replace(/=/g, "").replace(/\\+/g, "-").replace(/\\//g, "_");
+}
+function base64UrlDecode(value) {
+  const normalized = value.replace(/-/g, "+").replace(/_/g, "/");
+  const binary = atob(normalized + "=".repeat((4 - normalized.length % 4) % 4));
+  return Uint8Array.from(binary, char => char.charCodeAt(0));
+}
+async function signSession(payload, secret) {
+  const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(secret), {name:"HMAC",hash:"SHA-256"}, false, ["sign"]);
+  const encoded = base64UrlEncode(new TextEncoder().encode(JSON.stringify(payload)));
+  const signature = new Uint8Array(await crypto.subtle.sign("HMAC", key, new TextEncoder().encode(encoded)));
+  return encoded + "." + base64UrlEncode(signature);
+}
+async function verifySession(request, env) {
+  try {
+    if (!env.SESSION_SECRET) return false;
+    const authorization = request.headers.get("Authorization") || "";
+    if (!authorization.startsWith("Bearer ")) return false;
+    const token = authorization.slice(7);
+    const parts = token.split(".");
+    if (parts.length !== 2) return false;
+    const key = await crypto.subtle.importKey("raw", new TextEncoder().encode(env.SESSION_SECRET), {name:"HMAC",hash:"SHA-256"}, false, ["verify"]);
+    const valid = await crypto.subtle.verify("HMAC", key, base64UrlDecode(parts[1]), new TextEncoder().encode(parts[0]));
+    if (!valid) return false;
+    const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0])));
+    return payload.sub === env.ADMIN_USERNAME && Number.isFinite(payload.exp) && payload.exp > Math.floor(Date.now()/1000);
+  } catch { return false; }
+}
+function safeEqual(a, b) {
+  const left = new TextEncoder().encode(String(a));
+  const right = new TextEncoder().encode(String(b));
+  let diff = left.length ^ right.length;
+  const size = Math.max(left.length, right.length);
+  for (let i=0;i<size;i++) diff |= (left[i]||0) ^ (right[i]||0);
+  return diff === 0;
+}
+// MINA_ADMIN_AUTH_V1
+
 export default {
  async fetch(request,env){
   const cors=corsHeaders(request,env);
   if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
   const url=new URL(request.url);
-  if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY},200,cors);
+
+  if(url.pathname==="/api/auth/login"&&request.method==="POST"){
+    if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||!env.SESSION_SECRET) return json({error:"Yönetici girişi henüz sunucu tarafında yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
+    let credentials;try{credentials=await request.json();}catch{return json({error:"Geçersiz giriş isteği."},400,cors);}
+    const username=typeof credentials.username==="string"?credentials.username.trim():"";
+    const password=typeof credentials.password==="string"?credentials.password:"";
+    if(username.length>64||password.length>256||!safeEqual(username,env.ADMIN_USERNAME)||!safeEqual(password,env.ADMIN_PASSWORD)) return json({error:"Kullanıcı adı veya şifre hatalı."},401,cors);
+    const now=Math.floor(Date.now()/1000);
+    const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:now+AUTH_TOKEN_TTL_SECONDS},env.SESSION_SECRET);
+    return json({token,expires_in:AUTH_TOKEN_TTL_SECONDS,user:{username:env.ADMIN_USERNAME}},200,cors);
+  }
+  if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET)},200,cors);
+  if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,cors);
   if(url.pathname==="/api/providers"&&request.method==="GET") return json({providers:{gemini:!!env.GEMINI_API_KEY,openai:!!env.OPENAI_API_KEY,anthropic:!!env.ANTHROPIC_API_KEY,huggingface:!!env.HF_TOKEN}},200,cors);
   if(url.pathname==="/api/models"&&request.method==="GET") return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"},{id:IMAGE_MODEL,role:"image"}]},200,cors);
   if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
