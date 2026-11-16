@@ -304,3 +304,24 @@ test("timer can request browser notification permission and preserves its finish
   assert.match(frontendSource, /let timerFinished=false/);
   assert.match(frontendSource, /timerFinished\?"Süre doldu!"/);
 });
+
+test("admin login rejects oversized streamed bodies even without Content-Length", async () => {
+  const { worker } = createWorker();
+  const body = new ReadableStream({
+    start(controller) {
+      controller.enqueue(new Uint8Array(9000).fill(65));
+      controller.close();
+    }
+  });
+  const request = new Request("https://mina-test.workers.dev/api/auth/login", {
+    method: "POST",
+    headers: {
+      Origin: "https://teknomail2025.github.io",
+      "Content-Type": "application/json"
+    },
+    body,
+    duplex: "half"
+  });
+  const response = await worker.fetch(request, env);
+  assert.equal(response.status, 413);
+});
