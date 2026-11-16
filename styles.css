@@ -165,3 +165,6 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .timer-display{display:block;margin:12px 0;text-align:center;color:var(--text);font-size:42px;font-variant-numeric:tabular-nums;letter-spacing:2px}
 #workspaceDialogContent input[type=file]{display:none}
 :root[data-theme="light"] .workspace-item{background:#fff}
+
+/* Kalıcı oturum tercihi */
+.mina-login-card .mina-remember-option{display:flex;flex-direction:row;align-items:center;gap:9px;margin-top:5px;color:#c9c4d8;font-size:12px;font-weight:500;cursor:pointer}.mina-login-card .mina-remember-option input{width:16px;height:16px;margin:0;accent-color:#9677e9}.mina-login-card .mina-remember-option span{line-height:1.4}
