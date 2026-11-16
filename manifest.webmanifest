@@ -1,0 +1,21 @@
+{
+  "id": "./",
+  "name": "Mina AI",
+  "short_name": "Mina",
+  "description": "Türkçe yapay zekâ asistanı",
+  "lang": "tr",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "orientation": "portrait-primary",
+  "background_color": "#111827",
+  "theme_color": "#111827",
+  "icons": [
+    {
+      "src": "./app-icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
