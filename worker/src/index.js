@@ -34,7 +34,7 @@ async function readJsonLimited(request,maxBytes){
       const {done,value}=await reader.read();
       if(done)break;
       total+=value.byteLength;
-      if(total>maxBytes){await reader.cancel();return {tooLarge:true};}
+      if(total>maxBytes){try{await reader.cancel();}catch{}return {tooLarge:true};}
       chunks.push(value);
     }
     const bytes=new Uint8Array(total);let offset=0;
@@ -150,6 +150,7 @@ export default {
     if(parsedImage.tooLarge)return json({error:"Görsel isteği çok büyük."},413,cors);
     if(parsedImage.invalid)return json({error:"Geçersiz JSON."},400,cors);
     const body=parsedImage.value;
+    if(!body||typeof body!=="object")return json({error:"Geçersiz görsel isteği."},400,cors);
     const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
     try{
@@ -198,6 +199,7 @@ export default {
   if(parsedChat.tooLarge)return json({error:"Sohbet isteği çok büyük."},413,cors);
   if(parsedChat.invalid)return json({error:"Geçersiz JSON isteği."},400,cors);
   const body=parsedChat.value;
+  if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
   if(!body.image){
