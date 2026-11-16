@@ -178,3 +178,42 @@ test("image generation uses the current image model and returns image data", asy
   assert.equal(result.data.image.mimeType, "image/png");
   assert.ok(requestedModels[0].includes("gemini-nano-banana-2.1"));
 });
+
+test("expired admin sessions are rejected", async () => {
+  const { worker } = createWorker();
+  const realNow = Date.now;
+  let login;
+  try {
+    Date.now = () => realNow() - 9 * 60 * 60 * 1000;
+    login = await call(worker, "/api/auth/login", {
+      method: "POST",
+      body: { username: "Argion", password: env.ADMIN_PASSWORD }
+    });
+  } finally {
+    Date.now = realNow;
+  }
+  assert.equal(login.status, 200);
+  const result = await call(worker, "/api/auth/me", { token: login.data.token });
+  assert.equal(result.status, 401);
+});
+
+test("login stays disabled when required admin secrets are missing", async () => {
+  const { worker } = createWorker();
+  const result = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD },
+    env: { SESSION_SECRET: "" }
+  });
+  assert.equal(result.status, 503);
+  assert.equal(result.data.token, undefined);
+});
+
+test("CORS does not authorize an unlisted website origin", async () => {
+  const { worker } = createWorker();
+  const request = new Request("https://mina-test.workers.dev/api/health", {
+    headers: { Origin: "https://example.invalid" }
+  });
+  const response = await worker.fetch(request, env);
+  assert.notEqual(response.headers.get("Access-Control-Allow-Origin"), "https://example.invalid");
+});
+
