@@ -168,3 +168,6 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 
 /* Kalıcı oturum tercihi */
 .mina-login-card .mina-remember-option{display:flex;flex-direction:row;align-items:center;gap:9px;margin-top:5px;color:#c9c4d8;font-size:12px;font-weight:500;cursor:pointer}.mina-login-card .mina-remember-option input{width:16px;height:16px;margin:0;accent-color:#9677e9}.mina-login-card .mina-remember-option span{line-height:1.4}
+
+/* Sol alt yönetici profili */
+.sidebar-profile{display:flex;align-items:center;gap:11px;padding:13px 9px;margin-top:14px;border-top:1px solid var(--line);min-width:0}.sidebar-profile-avatar{width:36px;height:36px;flex:0 0 36px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(145deg,#c4b5fd,#7957dc);color:#211735;font:800 14px Manrope;text-transform:uppercase}.sidebar-profile-details{display:flex;flex-direction:column;gap:3px;min-width:0}.sidebar-profile-details strong{font:700 12px Manrope;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}.sidebar-profile-details span{font-size:10px;color:var(--muted)}
