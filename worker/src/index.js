@@ -97,6 +97,8 @@ export default {
 
   if(url.pathname==="/api/auth/login"&&request.method==="POST"){
     if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||env.ADMIN_PASSWORD.length<12||!env.SESSION_SECRET||env.SESSION_SECRET.length<32) return json({error:"Yönetici girişi henüz güvenli biçimde yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
+    const loginContentLength=Number(request.headers.get("Content-Length")||0);
+    if(loginContentLength>8192) return json({error:"Giriş isteği çok büyük."},413,cors);
     let credentials;try{credentials=await request.json();}catch{return json({error:"Geçersiz giriş isteği."},400,cors);}
     if(!credentials||typeof credentials!=="object") return json({error:"Geçersiz giriş bilgileri."},400,cors);
     const username=typeof credentials.username==="string"?credentials.username.trim():"";
