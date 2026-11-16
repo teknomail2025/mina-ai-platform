@@ -186,7 +186,8 @@
     projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title="Projeyi sil";del.addEventListener("click",()=>{if(confirm('"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
     if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
   }
-  function openWorkspace(title,content) {\n    $("workspaceDialog").classList.remove("settings-mode");
+  function openWorkspace(title,content) {
+    $("workspaceDialog").classList.remove("settings-mode");
     $("workspaceDialogTitle").textContent=title;
     const host=$("workspaceDialogContent");
     host.replaceChildren();
@@ -519,7 +520,7 @@
         <div class="settings-actions"><button type="button" class="settings-action" id="exportMinaData">Mina verilerini dışa aktar</button><button type="button" class="settings-action secondary" id="openClearChats">Sohbet geçmişini yönet</button></div>
         <small class="settings-status" id="dataExportStatus" aria-live="polite"></small>
       </section>
-      <section class="settings-section">
+      <section class="settings-section" data-settings-key="notifications">
         <h3>Bildirimler</h3><p>Bildirim izni tarayıcı tarafından yönetilir. Mina yalnızca izin verdiğinde bildirim gösterebilir.</p>
         <div class="settings-info-row"><strong>Tarayıcı bildirim izni</strong><span id="notificationPermissionStatus">Kontrol ediliyor…</span></div>
         <button type="button" class="settings-action" id="requestNotificationPermission">Bildirim iznini ayarla</button>
