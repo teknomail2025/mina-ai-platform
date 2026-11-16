@@ -1,5 +1,5 @@
-const DEFAULT_MODEL = "gemini-2.5-flash";
-const COMPLEX_MODEL = "gemini-2.5-pro";
+const DEFAULT_MODEL = "gemini-3.8-flash";
+const COMPLEX_MODEL = "gemini-3.8-flash";
 const IMAGE_MODEL = "gemini-3.1-flash-image";
 const SYSTEM_PROMPT = "Sen Mina adlı, yardımsever ve dikkatli bir Türkçe yapay zekâ asistanısın. Kullanıcı başka bir dil istemedikçe daima Türkçe yanıt ver. Bilmediğin konularda bunu açıkça belirt.";
 
