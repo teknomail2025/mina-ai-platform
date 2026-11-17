@@ -63,7 +63,8 @@ function createWorker(fetchOverride) {
             }
           };
         },
-        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : disciplineStore.row
+        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : disciplineStore.row,
+        run: async () => ({ success: true })
       };
     }
   };
