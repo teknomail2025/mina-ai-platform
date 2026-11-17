@@ -122,20 +122,14 @@
               <button class="tool-button" type="button" id="codeWorkspaceBtn" title="Kod çalışma alanını aç">&lt;/&gt; Kod alanı</button>
             </div>
           </div>
-          <button class="voice-input-button" type="button" id="voiceInputBtn" aria-label="Sesli mesaj" title="Türkçe konuşmak için tıkla" hidden>🎙</button>
+          <button class="voice-input-button" type="button" id="voiceInputBtn" aria-label="Sesli mesaj" title="Türkçe konuşmak için tıkla">🎙</button>
           <textarea id="messageInput" rows="1" placeholder="Mina'ya bir şey sor..." aria-label="Mesajın" required></textarea>
+          <span class="thinking-indicator" aria-label="Düşünme modu göstergesi"><svg viewBox="0 0 24 24" aria-hidden="true"><path d="M9 3.5a4 4 0 0 0-4 4 4 4 0 0 0 0 7.5A4 4 0 0 0 9 19h1V4.5a3 3 0 0 0-1-1Z"/><path d="M15 3.5a4 4 0 0 1 4 4 4 4 0 0 1 0 7.5 4 4 0 0 1-4 4h-1V4.5a3 3 0 0 1 1-1Z"/><path d="M12 5v14"/></svg><span>Düşünme</span></span>
           <button class="send-button" id="sendBtn" type="submit" aria-label="Gönder">↑</button>
         </form>
         <p class="disclaimer">Mina AI hata yapabilir. Önemli bilgileri doğrulamayı unutma.</p>
       </section>
-      <nav class="mina-bottom-nav" aria-label="Ana gezinme">
-        <button type="button" class="mina-nav-item active" id="minaHomeNav" aria-label="Ana Sayfa"><span class="mina-nav-icon">⌂</span><span>Ana Sayfa</span></button>
-        <button type="button" class="mina-nav-item" id="minaMemoriesNav" aria-label="Anılarım"><span class="mina-nav-icon">♡</span><span>Anılarım</span></button>
-        <button type="button" class="mina-avatar-nav" id="minaAvatarNav" aria-label="Mina ayarları"><span class="mina-avatar-orb">M</span><span class="mina-avatar-heart">♥</span></button>
-        <button type="button" class="mina-nav-item" id="minaTasksNav" aria-label="Görevler"><span class="mina-nav-icon">☆</span><span>Görevler</span></button>
-        <button type="button" class="mina-nav-item" id="minaSettingsNav" aria-label="Ayarlar"><span class="mina-nav-icon">⚙</span><span>Ayarlar</span></button>
-      </nav>
-    </main>
+   </main>
   </div>
   <section class="workspace-dialog" id="workspaceDialog" hidden role="dialog" aria-modal="true" aria-labelledby="workspaceDialogTitle"><div class="workspace-dialog-card"><button type="button" id="workspaceDialogClose" class="workspace-dialog-close" aria-label="Kapat">×</button><h2 id="workspaceDialogTitle"></h2><div id="workspaceDialogContent"></div></div></section>
   <section class="live-voice" id="liveVoice" hidden role="dialog" aria-modal="true" aria-labelledby="liveVoiceTitle">
