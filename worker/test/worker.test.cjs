@@ -55,7 +55,7 @@ function createWorker(fetchOverride) {
               } else if (sql.includes("appeal_status = 'pending'")) {
                 Object.assign(disciplineStore.row, { appeal_status: "pending", appeal_text: values[0], updated_at: values[1] });
               } else if (sql.includes("restricted_until = NULL")) {
-                Object.assign(disciplineStore.row, { restricted_until: null, appeal_status: "approved", updated_at: values[0] });
+                Object.assign(disciplineStore.row, { restricted_until: null, violation_count: Math.max(0, Number(disciplineStore.row.violation_count||0)-1), appeal_status: "approved", updated_at: values[0] });
               } else if (sql.includes("appeal_status = 'rejected'")) {
                 Object.assign(disciplineStore.row, { appeal_status: "rejected", updated_at: values[0] });
               }
@@ -673,6 +673,7 @@ test("Mina discipline appeals can be reviewed and an approved appeal clears chat
   assert.equal(review.status, 200);
   assert.equal(review.data.restrictionCleared, true);
   assert.equal(disciplineStore.row.restricted_until, null);
+  assert.equal(disciplineStore.row.violation_count, 1, "an approved appeal removes that violation from the active count");
 });
 
 test("Mina discipline migration stores counts and timestamps but not abusive message contents", () => {
