@@ -140,7 +140,7 @@ const watchdog = setTimeout(() => {
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - Türkçe yapay zekâ sohbet platformu");
-    assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Ayarlar");
+    assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Hesap ve ayarlar");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Mesajın");
