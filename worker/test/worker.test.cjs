@@ -22,9 +22,9 @@ function createWorker(fetchOverride) {
   const liveTokenRequests = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
-    if (target.includes("/v1beta/auth_tokens")) {
+    if (target.includes("/v1alpha/auth_tokens")) {
       const payload = JSON.parse(options.body || "{}");
-      liveTokenRequests.push({ target, headers: options.headers, payload });
+      liveTokenRequests.push({ url: target, headers: options.headers, payload });
       return new Response(JSON.stringify({ name: "authTokens/test-ephemeral-token" }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
