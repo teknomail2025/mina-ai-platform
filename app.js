@@ -685,11 +685,6 @@
     $("workspaceDialogTitle").textContent=uiText("Ayarlar");$("workspaceDialog").hidden=false;renderAISettings(section||"mina");
   }
   $("sidebarSettingsBtn").addEventListener("click",()=>openSettings());
-  $("minaHomeNav").addEventListener("click",()=>{$("newChatBtn").click();document.querySelectorAll(".mina-nav-item").forEach(x=>x.classList.toggle("active",x.id==="minaHomeNav"));});
-  $("minaMemoriesNav").addEventListener("click",()=>{$("memoryBtn").click();document.querySelectorAll(".mina-nav-item").forEach(x=>x.classList.toggle("active",x.id==="minaMemoriesNav"));});
-  $("minaTasksNav").addEventListener("click",()=>{$("discoverNav").click();document.querySelectorAll(".mina-nav-item").forEach(x=>x.classList.toggle("active",x.id==="minaTasksNav"));});
-  $("minaSettingsNav").addEventListener("click",()=>{openSettings();document.querySelectorAll(".mina-nav-item").forEach(x=>x.classList.toggle("active",x.id==="minaSettingsNav"));});
-  $("minaAvatarNav").addEventListener("click",()=>openSettings("mina"));
   $("sidebarProfile").addEventListener("click",()=>{
     const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
   });
