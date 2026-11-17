@@ -69,16 +69,7 @@
   if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
   let uiLanguage = window.MinaI18n?.language || "tr";
   const uiText = value => window.MinaI18n?.t(value) ?? String(value);
-  const uiError = value => {
-    const message = String(value ?? "");
-    const exact = uiText(message);
-    if (exact !== message) return exact;
-    const prefixes = ["Gemini servisine bağlanılamadı: "];
-    for (const prefix of prefixes) {
-      if (message.startsWith(prefix)) return uiText(prefix) + message.slice(prefix.length);
-    }
-    return message;
-  };
+  const uiError = value => uiText(String(value ?? ""));
   const formatChatCount = count => uiLanguage === "en" ? `${count} ${count === 1 ? "chat" : "chats"}` : `${count} sohbet`;
   const formatTimerLabel = minutes => uiLanguage === "en" ? `${minutes}-minute timer` : `${minutes} dakikalık sayaç`;
   let activeTimerUpdate = null;
