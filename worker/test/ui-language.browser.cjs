@@ -59,6 +59,24 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
+    assert.equal(await page.locator(".mina-bottom-nav").isVisible(), true);
+    for (const id of ["minaHomeNav", "minaMemoriesNav", "minaAvatarNav", "minaTasksNav", "minaSettingsNav"]) {
+      assert.equal(await page.locator("#" + id).isVisible(), true, id + " must be visible");
+    }
+    await page.evaluate(() => {
+      window.__minaNavPrompt = null;
+      window.prompt = message => { window.__minaNavPrompt = message; return null; };
+    });
+    await page.locator("#minaMemoriesNav").click();
+    assert.ok(await page.evaluate(() => !!window.__minaNavPrompt), "Memories navigation must open the memory editor");
+    await page.locator("#minaTasksNav").click();
+    await page.locator(".discover-card").first().waitFor();
+    await closeDialog();
+    await page.locator("#minaSettingsNav").click();
+    await page.locator("#minaUiLanguageSelect").waitFor();
+    await closeDialog();
+    await page.locator("#minaHomeNav").click();
+    assert.equal(await page.locator("#minaHomeNav").getAttribute("class").then(v => v.includes("active")), true);
     stage = "checking English settings and dynamic UI";
 
     await openSettings();
