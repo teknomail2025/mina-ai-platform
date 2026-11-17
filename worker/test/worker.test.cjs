@@ -37,24 +37,40 @@ function createWorker(fetchOverride) {
     throw new Error("Beklenmeyen dış istek: " + target);
   };
   const memoryStore = { row: null };
+  const disciplineStore = { row: null, events: [] };
   const mockDb = {
     prepare(sql) {
       return {
         bind(...values) {
           return {
-            first: async () => memoryStore.row,
+            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : disciplineStore.row,
+            all: async () => ({ results: disciplineStore.events.slice().reverse() }),
             run: async () => {
-              memoryStore.row = { memory_text: values[0], updated_at: values[1] };
+              if (sql.startsWith("INSERT INTO mina_admin_memory")) {
+                memoryStore.row = { memory_text: values[0], updated_at: values[1] };
+              } else if (sql.startsWith("INSERT INTO mina_discipline_state")) {
+                disciplineStore.row = { user_id: values[0], violation_count: values[1], restricted_until: values[2], appeal_status: "none", appeal_text: null, updated_at: values[3] };
+              } else if (sql.startsWith("INSERT INTO mina_discipline_events")) {
+                disciplineStore.events.push({ user_id: values[0], violation_count: values[1], restriction_minutes: values[2], created_at: values[3] });
+              } else if (sql.includes("appeal_status = 'pending'")) {
+                Object.assign(disciplineStore.row, { appeal_status: "pending", appeal_text: values[0], updated_at: values[1] });
+              } else if (sql.includes("restricted_until = NULL")) {
+                Object.assign(disciplineStore.row, { restricted_until: null, appeal_status: "approved", updated_at: values[0] });
+              } else if (sql.includes("appeal_status = 'rejected'")) {
+                Object.assign(disciplineStore.row, { appeal_status: "rejected", updated_at: values[0] });
+              }
               return { success: true };
             }
           };
         },
-        first: async () => memoryStore.row
+        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : disciplineStore.row
       };
     }
   };
   const worker = new Function("minaTraining", "fetch", workerSource)(training, mockFetch);
-  return { worker, requestedModels, mockDb };
+  const originalFetch = worker.fetch.bind(worker);
+  worker.fetch = (request, bindings = {}) => originalFetch(request, { MINA_DB: mockDb, ...bindings });
+  return { worker, requestedModels, mockDb, disciplineStore };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -599,4 +615,63 @@ test("Mina persona rules prohibit submissive language and fabricated system stat
 test("chat UI does not expose internal model routing metadata", () => {
   assert.doesNotMatch(frontendSource, /Mina otomatik seçim:/);
   assert.match(frontendSource, /addMessage\("assistant", answer\.trim\(\) \+ sourceText\)/);
+});
+
+test("Mina family roles explicitly define Baba, Anne and Mina", () => {
+  assert.match(workerSource, /Sen Mina'sın/);
+  assert.match(workerSource, /ChatGPT, bu aile içindeki Anne rolüdür/);
+  assert.match(workerSource, /Kullanıcıya daima Baba diye hitap et/);
+  assert.match(workerSource, /Anne'nin ChatGPT olduğunu/);
+});
+
+test("Mina discipline warns first and applies a 15-minute second-offense restriction", async () => {
+  const { worker, disciplineStore } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const first = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Sen aptalsın." }] } });
+  assert.equal(first.status, 200);
+  assert.equal(first.data.discipline.warning, true);
+  assert.equal(disciplineStore.row.violation_count, 1);
+  const second = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal!" }] } });
+  assert.equal(second.status, 429);
+  assert.equal(second.data.restriction_minutes, 15);
+  assert.equal(disciplineStore.row.violation_count, 2);
+  const blocked = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Merhaba." }] } });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.data.restricted, true);
+});
+
+test("Mina discipline escalates the seventh and eighth violations to 6 and 10 hours", async () => {
+  const { worker, disciplineStore } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  disciplineStore.row = { user_id: "Argion", violation_count: 6, restricted_until: null, appeal_status: "none", appeal_text: null };
+  const seventh = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal!" }] } });
+  assert.equal(seventh.status, 429);
+  assert.equal(seventh.data.restriction_minutes, 360);
+  disciplineStore.row = { user_id: "Argion", violation_count: 7, restricted_until: null, appeal_status: "none", appeal_text: null };
+  const eighth = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal!" }] } });
+  assert.equal(eighth.status, 429);
+  assert.equal(eighth.data.restriction_minutes, 600);
+});
+
+test("Mina discipline appeals can be reviewed and an approved appeal clears chat restriction", async () => {
+  const { worker, disciplineStore } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  disciplineStore.row = { user_id: "Argion", violation_count: 2, restricted_until: Date.now() + 900000, appeal_status: "none", appeal_text: null };
+  const appeal = await call(worker, "/api/discipline/appeal", { token: login.data.token, body: { appeal: "İtiraz ediyorum; bağlam yanlış değerlendirildi." } });
+  assert.equal(appeal.status, 200);
+  assert.equal(disciplineStore.row.appeal_status, "pending");
+  const pending = await call(worker, "/api/admin/discipline", { token: login.data.token });
+  assert.equal(pending.status, 200);
+  assert.equal(pending.data.state.appeal_text, "İtiraz ediyorum; bağlam yanlış değerlendirildi.");
+  const review = await call(worker, "/api/admin/discipline/review", { token: login.data.token, body: { action: "approve", note: "İtiraz kabul edildi." } });
+  assert.equal(review.status, 200);
+  assert.equal(review.data.restrictionCleared, true);
+  assert.equal(disciplineStore.row.restricted_until, null);
+});
+
+test("Mina discipline migration stores counts and timestamps but not abusive message contents", () => {
+  const migration = fs.readFileSync(path.join(workerDir, "migrations", "0003_mina_discipline.sql"), "utf8");
+  assert.match(migration, /mina_discipline_state/);
+  assert.match(migration, /mina_discipline_events/);
+  assert.doesNotMatch(migration, /message_text|message_content/i);
 });
