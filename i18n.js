@@ -160,6 +160,10 @@
   "sağlayıcı HTTP ": "provider HTTP "
 });
 
+  Object.assign(UI_TEXT, {
+    "Gemini servisine bağlanılamadı: ": "Could not connect to the Gemini service: "
+  });
+
   const UI_TEXT_REVERSE = Object.entries(UI_TEXT).reduce((reverse, [turkish, english]) => {
     if (!(english in reverse)) reverse[english] = turkish;
     return reverse;
