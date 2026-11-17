@@ -281,7 +281,7 @@ test("network failures also try the next free-tier model", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
   assert.equal(result.data.model, "gemini-3.5-flash-lite");
-  assert.equal(requested.length, 3, "primary model gets its timeout retry, then the backup is attempted");
+  assert.equal(requested.length, 2, "primary network failure is followed by the backup model");
 });
 
 test("ordinary chat uses the Flash model", async () => {
