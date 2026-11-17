@@ -174,7 +174,7 @@ const watchdog = setTimeout(() => {
     await page.locator("body.mina-authenticated").waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem("mina-ai-ui-language-v1")), "en");
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
-    assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Settings");
+    assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Account and settings");
     await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Response language must persist independently");
