@@ -97,30 +97,104 @@
     "Bağlı":"Connected","Yanıt hatası":"Response error","Hazır":"Ready","Yapılandırılmamış":"Not configured","Bağlantı kurulamadı":"Could not connect","Bilinmiyor":"Unknown","Kontrol edilemedi":"Could not check","Tarayıcı destekliyor":"Supported by browser","Desteklenmiyor":"Not supported","Henüz kontrol edilmedi":"Not checked yet","İzin verildi":"Permission granted","Engellendi":"Blocked","İzin bekleniyor":"Permission pending","Bu tarayıcı mikrofon erişimini desteklemiyor.":"This browser does not support microphone access.","Mikrofon erişimi başarılı. Test tamamlandı; mikrofon kapatıldı.":"Microphone access successful. Test complete; microphone has been turned off.","Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et.":"Microphone permission denied. Check your browser permissions.","Mikrofon testi başarısız: ":"Microphone test failed: ","Bu tarayıcı güvenli anahtar üretimini desteklemiyor.":"This browser does not support secure key generation.","Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.":"New key generated. It has not been applied in Cloudflare yet.","Güvenli anahtar oluşturulamadı.":"Could not generate a secure key.","Anahtar panoya kopyalandı.":"Key copied to clipboard.","Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.":"Automatic copy failed. You can select and copy the key manually.",
     "Hafıza bu tarayıcıya kaydedildi.":"Memory saved in this browser.","Hafıza kaydedilemedi. Tarayıcı depolama alanını kontrol et.":"Memory could not be saved. Check browser storage.","Mina'nın bu tarayıcıda tuttuğu hafıza notunu silmek istiyor musun?":"Do you want to delete the memory note Mina stores in this browser?","Hafıza notu silindi.":"Memory note deleted.","Hafıza silinemedi.":"Could not delete memory.","Mina'nın yerel verileri dışa aktarıldı.":"Mina’s local data has been exported.","Veriler dışa aktarılamadı.":"Could not export data.","İzin isteği başarısız.":"Permission request failed.","Sohbet geçmişi kaydedilemedi":"Chat history could not be saved","Sabitlemeyi kaldır":"Unpin","Sabitle":"Pin","Sabitlenenler kaydedilemedi.":"Pinned items could not be saved.","Mina'nın çalışma alanları tek yerde.":"Mina’s workspaces in one place.","＋ Yeni proje":"＋ New project","Araçları kapat":"Close tools","Araçları aç":"Open tools","Resim okunamadı.":"Image could not be read.","İnternette ara ve kaynaklarıyla açıkla: ":"Search the web and explain with sources: ","Önce çalışma alanına kod ekle.":"Add code to the workspace first.","Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.":"Review the code below. Find errors, fix them if needed, and provide the complete corrected code.","İndirilecek kod yok.":"There is no code to download.","GitHub sunucu anahtarı tanımlı. Güvenli kullanıcı yetkilendirmesi tamamlandığında depo işlemleri açılacak.":"GitHub server key is configured. Repository operations will be enabled after secure user authorization is completed.","GitHub bağlantı altyapısı hazırlandı. Güvenli GitHub OAuth bağlantısı ve yetki ayarları sonraki bağlantı aşamasında yapılacak.":"GitHub connection infrastructure is ready. Secure GitHub OAuth connection and permission settings will be configured in a later integration phase.","GitHub bağlantı durumu alınamadı.":"Could not retrieve GitHub connection status.","Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin.":"For now, you can attach text/code files up to 1 MB.","Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor.":"The file could not be read. Binary files such as PDF/DOCX are not converted to text yet."
   };
+
+  // Additional UI copy used by static markup, native dialogs and runtime-generated workspaces.
+  Object.assign(UI_TEXT, {
+    "Mina AI yönetici girişi":"Mina AI administrator sign-in","Mina çalışma alanı":"Mina workspace",
+    "Proje oluştur":"Create project","Tüm sohbetleri sil":"Delete all chats","Profil ve ayarları aç":"Open profile and settings",
+    "Menüyü aç":"Open menu","Sohbeti dışa aktar":"Export chat","Temayı değiştir":"Toggle theme","Yapay zekâ modeli":"AI model",
+    "Kodunu buraya yapıştır veya bir kod dosyası ekle...":"Paste your code here or attach a code file...",
+    "Dosya ekle":"Attach file","Kod veya metin dosyası ekle":"Attach a code or text file","Araçlar":"Tools",
+    "Eller serbest sesli sohbeti başlat":"Start hands-free voice chat","Mina hafıza notlarını düzenle":"Edit Mina's memory notes",
+    "Resim yükle":"Upload image","Yapay zekâ ile resim üret":"Generate an image with AI","Steam oyunlarında ara":"Search Steam games",
+    "İnternette kaynaklı araştırma yap":"Search the web with sources","GitHub bağlantı durumu":"GitHub connection status",
+    "Kod çalışma alanını aç":"Open code workspace","Mesajın":"Your message","Gönder":"Send","Sesli sohbeti kapat":"Close voice chat",
+    "Yeni sohbet":"New chat","Sabitlenenler":"Pinned","Projeler":"Projects","Zamanlayıcılar":"Timers","Kitaplık":"Library",
+    "Eklentiler":"Tools","Keşfet":"Discover","Projeyi sil":"Delete project","Projeyi aç":"Open project",
+    "Sohbet projede":"Chat is in this project","Sil":"Delete","Durdur":"Stop","Aç":"Open","＋ Dosya ekle":"＋ Add file",
+    "Sohbetlerini hızlıca aç":"Open your chats quickly","Projelerini yönet":"Manage your projects","Zaman araçları":"Time tools",
+    "Kaydettiğin içerikler":"Your saved content","Bağlı araçlar":"Connected tools",
+    "Sohbet yeteneği ayarlardan kapalı":"Chat is disabled in settings","Dinlemeyi durdur":"Stop listening",
+    "⏹ Sesli sohbeti durdur":"⏹ Stop voice chat","Mikrofonu aç":"Unmute microphone","Mikrofon kapalı":"Microphone muted",
+    "Seni dinliyorum…":"I'm listening…","Mina konuşuyor…":"Mina is speaking…",
+    "Güvenli ses bağlantısı kuruluyor…":"Establishing a secure voice connection…",
+    "Canlı ses anahtarı alınamadı.":"Could not obtain a live voice token.","Sen: ":"You: ","Mina: ":"Mina: ",
+    "Ses bağlantısı hatası: ":"Voice connection error: ","bilinmeyen hata":"unknown error",
+    "Canlı ses bağlantısında hata oluştu.":"An error occurred in the live voice connection.",
+    "Ses bağlantısı kapandı. Yeniden başlatabilirsin.":"The voice connection closed. You can restart it.",
+    "Sesli sohbet başlatılamadı.":"Could not start voice chat.","Sunucu hafızası kaydedilemedi.":"Could not save server memory.",
+    "MinaData bağlantısı kurulamadı.":"Could not connect to MinaData.","Sunucu isteği tamamlayamadı.":"The server could not complete the request.",
+    "Model boş yanıt döndürdü.":"The model returned an empty response.","Şu anda yanıt alamadım. ":"I couldn't get a response right now. ",
+    "Ayrıntı: ":" Details: ","Mina otomatik seçim: ":"Mina's automatic selection: ","Kaynaklar:":"Sources:",
+    "Sen:":"You:","Mina:":"Mina:","Tarayıcı hafızası kaydedilemedi.":"Could not save browser memory.",
+    "Oturumun sona erdi. Yeniden giriş yap.":"Your session has expired. Please sign in again.",
+    "Güvenli çıkış yapıldı.":"You have been signed out securely.","Giriş başarısız. Bilgilerini kontrol et.":"Sign-in failed. Check your credentials.",
+    "Sunucuya bağlanılamadı.":"Could not connect to the server.",
+    "Oturum doğrulanamadı. Lütfen yeniden giriş yap.":"Could not verify the session. Please sign in again.",
+    "Bütün sohbet geçmişini kalıcı olarak silmek istiyor musun?":"Do you want to permanently delete your entire chat history?",
+    "Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir.":"Enter a short note for Mina to remember in future chats. Do not save passwords or sensitive information. Leave it empty to clear the memory note.",
+    "Mina'nın hesabında tuttuğu hafıza notunu silmek istiyor musun?":"Do you want to delete the memory note stored in your Mina account?",
+    "Mina hesabına güvenli şekilde kaydedildi.":"Saved securely to your Mina account.",
+    "Hafıza Mina hesabına güvenli şekilde kaydedildi.":"Memory saved securely to your Mina account.",
+    "Yeni projenin adı:":"Project name:","Sohbet":"Chat","Sohbeti sabitle":"Pin chat","Sohbeti sil":"Delete chat","Sohbeti aç":"Open chat",
+    "Steam'de oyun ara: ":"Search Steam games: ","İnternette ara ve kaynaklarıyla açıkla: ":"Search the web and explain with sources: ",
+    "Önce çalışma alanına kod ekle.":"Add code to the workspace first.",
+    "Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.\n\n":"Review the code below. Find errors, fix them if needed, and provide the complete corrected code.\n\n",
+    "Resim en fazla 8 MB olabilir.":"Images can be up to 8 MB.","Süre dakika":"Duration in minutes",
+    "Mina tarafından üretilen görsel":"Image generated by Mina",
+    "GitHub sunucu anahtarı tanımlı. Güvenli kullanıcı yetkilendirmesi tamamlandığında depo işlemleri açılacak.":"The GitHub server key is configured. Repository operations will be enabled after secure user authorization is completed.",
+    "GitHub bağlantı altyapısı hazırlandı. Güvenli GitHub OAuth bağlantısı ve yetki ayarları sonraki bağlantı aşamasında yapılacak.":"The GitHub connection infrastructure is ready. Secure GitHub OAuth and permission settings will be configured in a later integration phase.",
+    "GitHub bağlantı durumu alınamadı.":"Could not retrieve GitHub connection status.","Resim okunamadı.":"Image could not be read.",
+    "Steam araması yapılamadı: ":"Steam search failed: ","Steam araması başarısız.":"Steam search failed.",
+    "Steam'de eşleşen oyun bulunamadı.":"No matching games found on Steam.","Steam oyunları aranıyor…":"Searching Steam games…",
+    "Mina AI zamanlayıcısı":"Mina AI timer","Sabitlenen sohbet yok":"No pinned chats","Henüz sabitlenen sohbet yok":"No pinned chats yet",
+    "Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et.":"Microphone permission was denied. Check your browser permissions.",
+    "Mikrofon erişimi başarılı. Test tamamlandı; mikrofon kapatıldı.":"Microphone access succeeded. Test complete; the microphone has been turned off.",
+    "Mikrofon testi başarısız: ":"Microphone test failed: ","Bu tarayıcı mikrofon erişimini desteklemiyor.":"This browser does not support microphone access.",
+    "İzin isteği başarısız.":"Permission request failed."
+  });
   const UI_TEXT_REVERSE = Object.fromEntries(Object.entries(UI_TEXT).map(([tr, en]) => [en, tr]));
   function shouldTranslateNode(node) {
     const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
-    return !!element && !element.closest("script,style,code,pre,textarea,input,[contenteditable='true'],.bubble,.message");
+    return !!element && !element.closest("script,style,code,pre,textarea,input,[contenteditable='true'],.bubble");
   }
+  function shouldTranslateAttribute(element) {
+    return !!element && !element.closest("script,style,code,pre,[contenteditable='true'],.bubble");
+  }
+  function uiText(key) {
+    const value = String(key);
+    return uiLanguage === "en" ? (UI_TEXT[value] || value) : (UI_TEXT_REVERSE[value] || value);
+  }
+  const formatChatCount = count => uiLanguage === "en" ? `${count} ${count === 1 ? "chat" : "chats"}` : `${count} sohbet`;
+  const formatTimerLabel = minutes => uiLanguage === "en" ? `${minutes}-minute timer` : `${minutes} dakikalık sayaç`;
+  window.MinaI18n = { t: uiText, get language() { return uiLanguage; } };
   function translateTextNode(node) {
     if (node.nodeType !== Node.TEXT_NODE || !shouldTranslateNode(node)) return;
-    const raw = node.nodeValue, key = raw.trim();
+    const raw = node.nodeValue;
+    const leading = raw.match(/^\\s*/)?.[0] || "";
+    const trailing = raw.match(/\\s*$/)?.[0] || "";
+    const key = raw.slice(leading.length, raw.length - trailing.length);
     const dictionary = uiLanguage === "en" ? UI_TEXT : UI_TEXT_REVERSE;
-    if (dictionary[key]) node.nodeValue = raw.replace(key, dictionary[key]);
+    if (dictionary[key]) node.nodeValue = leading + dictionary[key] + trailing;
+  }
+  function translateAttribute(element, attribute) {
+    if (!shouldTranslateAttribute(element)) return;
+    const value = element.getAttribute(attribute);
+    if (!value) return;
+    const dictionary = uiLanguage === "en" ? UI_TEXT : UI_TEXT_REVERSE;
+    if (dictionary[value]) element.setAttribute(attribute, dictionary[value]);
   }
   function applyInterfaceLanguage(root = document) {
-    const dictionary = uiLanguage === "en" ? UI_TEXT : UI_TEXT_REVERSE;
     if (root.nodeType === Node.TEXT_NODE) { translateTextNode(root); return; }
     if (root.nodeType !== Node.ELEMENT_NODE && root !== document) return;
     const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
-    let node; while ((node = walker.nextNode())) translateTextNode(node);
-    root.querySelectorAll?.("[placeholder],[title],[aria-label],[alt]").forEach(element => {
-      if (!shouldTranslateNode(element)) return;
-      ["placeholder","title","aria-label","alt"].forEach(attribute => {
-        const value = element.getAttribute(attribute);
-        if (value && dictionary[value]) element.setAttribute(attribute, dictionary[value]);
-      });
-    });
+    let node;
+    while ((node = walker.nextNode())) translateTextNode(node);
+    const selector = "[placeholder],[title],[aria-label],[alt]";
+    const targets = [];
+    if (root.nodeType === Node.ELEMENT_NODE && root.matches(selector)) targets.push(root);
+    root.querySelectorAll?.(selector).forEach(element => targets.push(element));
+    targets.forEach(element => ["placeholder","title","aria-label","alt"].forEach(attribute => translateAttribute(element, attribute)));
     if (root === document || root === document.documentElement) {
       document.documentElement.lang = uiLanguage;
       const description = document.querySelector('meta[name="description"]');
@@ -131,13 +205,18 @@
     uiLanguage = value === "en" ? "en" : "tr";
     try { localStorage.setItem(UI_LANGUAGE_KEY, uiLanguage); } catch {}
     applyInterfaceLanguage(document);
+    window.dispatchEvent(new CustomEvent("mina:ui-language-changed", { detail: { language: uiLanguage } }));
   }
   applyInterfaceLanguage(document);
   const uiLanguageObserver = new MutationObserver(records => records.forEach(record => {
     if (record.type === "characterData") translateTextNode(record.target);
+    if (record.type === "attributes") translateAttribute(record.target, record.attributeName);
     if (record.type === "childList") record.addedNodes.forEach(node => node.nodeType === Node.ELEMENT_NODE ? applyInterfaceLanguage(node) : translateTextNode(node));
   }));
-  uiLanguageObserver.observe(document.body, { childList: true, subtree: true, characterData: true });
+  uiLanguageObserver.observe(document.body, {
+    childList: true, subtree: true, characterData: true, attributes: true,
+    attributeFilter: ["placeholder","title","aria-label","alt"]
+  });
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
   const themeToggle = $("themeToggle");
@@ -145,8 +224,8 @@
     const selected = theme === "light" ? "light" : "dark";
     document.documentElement.dataset.theme = selected;
     if (themeToggle) {
-      themeToggle.textContent = selected === "light" ? "☾ Koyu tema" : "☀ Açık tema";
-      themeToggle.setAttribute("aria-label", selected === "light" ? "Koyu temaya geç" : "Açık temaya geç");
+      themeToggle.textContent = uiText(selected === "light" ? "☾ Koyu tema" : "☀ Açık tema");
+      themeToggle.setAttribute("aria-label", uiText(selected === "light" ? "Koyu temaya geç" : "Açık temaya geç"));
     }
     try { localStorage.setItem(MINA_THEME_KEY, selected); } catch {}
   }
@@ -170,7 +249,7 @@
   function deleteConversation(id) {
     const target = conversations.find(c => c.id === id);
     if (!target) return;
-    if (!window.confirm('"' + (target.title || "Bu sohbet") + '" sohbetini silmek istiyor musun?')) return;
+    if (!window.confirm(uiLanguage === "en" ? `Delete "${target.title || "this chat"}"?` : `"${target.title || "Bu sohbet"}" sohbetini silmek istiyor musun?`)) return;
     conversations = conversations.filter(c => c.id !== id);
     pinnedIds = pinnedIds.filter(pinnedId => pinnedId !== id);
     try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch {}
@@ -195,12 +274,12 @@
       const pin = document.createElement("button");
       pin.className = "pin-chat-btn" + (pinnedIds.includes(c.id) ? " is-pinned" : "");
       pin.type = "button"; pin.textContent = pinnedIds.includes(c.id) ? "★" : "☆";
-      pin.title = pinnedIds.includes(c.id) ? "Sabitlemeyi kaldır" : "Sohbeti sabitle";
+      pin.title = uiText(pinnedIds.includes(c.id) ? "Sabitlemeyi kaldır" : "Sohbeti sabitle");
       pin.setAttribute("aria-label", pin.title);
       pin.addEventListener("click", event => { event.stopPropagation(); togglePinned(c.id); });
       const del = document.createElement("button");
       del.className = "delete-chat-btn"; del.type = "button"; del.textContent = "×";
-      del.title = "Sohbeti sil"; del.setAttribute("aria-label", (c.title || "Sohbet") + " sohbetini sil");
+      del.title = uiText("Sohbeti sil"); del.setAttribute("aria-label", uiLanguage === "en" ? `Delete ${c.title || "chat"}` : `${c.title || "Sohbet"} sohbetini sil`);
       del.addEventListener("click", event => { event.stopPropagation(); deleteConversation(c.id); });
       item.append(b, pin, del);
       els.list.append(item);
@@ -218,20 +297,20 @@
       row.append(avatar,bubble);
       const actions = document.createElement("div"); actions.className = "message-actions";
       const action = (label,title,fn) => { const button=document.createElement("button"); button.type="button"; button.textContent=label; button.title=title; button.setAttribute("aria-label",title); button.addEventListener("click",fn); actions.append(button); };
-      if (m.role === "user") action("✎","Mesajı düzenle",()=>editMessage(c.id,c.messages.indexOf(m)));
+      if (m.role === "user") action("✎",uiText("Mesajı düzenle"),()=>editMessage(c.id,c.messages.indexOf(m)));
       else {
-        action("⧉","Yanıtı kopyala",()=>{ if(navigator.clipboard?.writeText) navigator.clipboard.writeText(m.content).catch(()=>alert("Kopyalama izni alınamadı.")); });
-        action("↻","Yanıtı yeniden oluştur",()=>regenerateResponse(c.id));
+        action("⧉",uiText("Yanıtı kopyala"),()=>{ if(navigator.clipboard?.writeText) navigator.clipboard.writeText(m.content).catch(()=>alert(uiText("Kopyalama izni alınamadı."))); });
+        action("↻",uiText("Yanıtı yeniden oluştur"),()=>regenerateResponse(c.id));
       }
-      action("×","Mesajı sil",()=>deleteMessage(c.id,c.messages.indexOf(m)));
+      action("×",uiText("Mesajı sil"),()=>deleteMessage(c.id,c.messages.indexOf(m)));
       row.append(actions);
       if (m.role === "assistant" && ("speechSynthesis" in window) && window.SpeechSynthesisUtterance) {
         const speak = document.createElement("button");
         speak.className = "message-speak-button";
         speak.type = "button";
         speak.textContent = "🔊";
-        speak.title = "Yanıtı sesli oku";
-        speak.setAttribute("aria-label", "Yanıtı sesli oku");
+        speak.title = uiText("Yanıtı sesli oku");
+        speak.setAttribute("aria-label", uiText("Yanıtı sesli oku"));
         speak.addEventListener("click", () => speakText(m.content, speak));
         row.append(speak);
       }
@@ -241,7 +320,7 @@
   }
   function exportConversation() {
     const c = current(); if (!c) return;
-    const body = ["# " + (c.title || "Mina sohbeti"), "", ...c.messages.map(m => (m.role === "user" ? "**Sen:**" : "**Mina:**") + "\n\n" + m.content + "\n")].join("\n");
+    const body = ["# " + (c.title || uiText("Mina sohbeti")), "", ...c.messages.map(m => (m.role === "user" ? "**" + uiText("Sen:") + "**" : "**" + uiText("Mina:") + "**") + "\n\n" + m.content + "\n")].join("\n");
     const blob = new Blob([body], {type:"text/markdown;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a"); link.href = url; link.download = "mina-sohbet.md"; link.click();
@@ -249,13 +328,13 @@
   }
   function deleteMessage(conversationId,index) {
     const c=conversations.find(item=>item.id===conversationId);
-    if(!c || index<0 || index>=c.messages.length || !window.confirm("Bu mesajı silmek istiyor musun?")) return;
+    if(!c || index<0 || index>=c.messages.length || !window.confirm(uiText("Bu mesajı silmek istiyor musun?"))) return;
     c.messages.splice(index,1); persist(); render();
   }
   function editMessage(conversationId,index) {
     const c=conversations.find(item=>item.id===conversationId), m=c?.messages?.[index];
     if(!m || m.role!=="user") return;
-    const edited=window.prompt("Mesajını düzenle:",m.content);
+    const edited=window.prompt(uiText("Mesajını düzenle:"),m.content);
     if(edited===null || !edited.trim()) return;
     m.content=edited.trim(); c.messages=c.messages.slice(0,index+1);
     c.title=c.messages.find(item=>item.role==="user")?.content.slice(0,42)||"Yeni sohbet";
@@ -271,14 +350,14 @@
 
   function togglePinned(id) {
     pinnedIds = pinnedIds.includes(id) ? pinnedIds.filter(value=>value!==id) : [id,...pinnedIds];
-    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch { alert("Sabitlenenler kaydedilemedi."); }
+    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch { alert(uiText("Sabitlenenler kaydedilemedi.")); }
     renderList();
   }
   function renderPinnedWorkspace() {
     const host=document.createElement("div");
     const items=pinnedIds.map(id=>conversations.find(c=>c.id===id)).filter(Boolean);
-    if(!items.length)host.append(workspaceNote("Henüz sabitlenen sohbet yok. Sohbet listesindeki ☆ simgesine basarak sabitleyebilirsin."));
-    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Sohbeti aç",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton("Sabitlemeyi kaldır",()=>{togglePinned(c.id);renderPinnedWorkspace();}));row.append(title,actions);host.append(row);});
+    if(!items.length)host.append(workspaceNote(uiText("Henüz sabitlenen sohbet yok. Sohbet listesindeki ☆ simgesine basarak sabitleyebilirsin.")));
+    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton(uiText("Sohbeti aç"),()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton(uiText("Sabitlemeyi kaldır"),()=>{togglePinned(c.id);renderPinnedWorkspace();}));row.append(title,actions);host.append(row);});
     openWorkspace("Sabitlenenler",host);
   }
   function renderPinnedAndProjects() {
@@ -290,7 +369,7 @@
       b.addEventListener("click",()=>{activeId=c.id;render();els.sidebar.classList.remove("open");});pinned.append(b);
     });
     if(!pinned.children.length){const e=document.createElement("small");e.textContent="Henüz sabitlenen sohbet yok";pinned.append(e);}
-    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title="Projeyi sil";del.addEventListener("click",()=>{if(confirm('"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
+    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title=uiText("Projeyi sil");del.addEventListener("click",()=>{if(confirm(uiLanguage === "en" ? `Delete project "${p.name}"?` : '"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
     if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
   }
   function openWorkspace(title,content) {
@@ -317,7 +396,7 @@
       const card=document.createElement("div");card.className="workspace-item";
       const title=document.createElement("strong");title.textContent=project.name;
       const linked=conversations.filter(c=>c.projectId===project.id);
-      const info=document.createElement("small");info.textContent=linked.length+" sohbet";
+      const info=document.createElement("small");info.textContent=formatChatCount(linked.length);
       card.append(title,info);
       const actions=document.createElement("div");actions.className="workspace-item-actions";
       actions.append(workspaceButton("Bu projeyi aç",()=>{const first=linked[0];if(first){activeId=first.id;render();$("workspaceDialog").hidden=true;}else alert("Bu projeye henüz sohbet bağlanmamış. Açık sohbeti aşağıdaki düğmeyle ekleyebilirsin.");}));
@@ -335,16 +414,16 @@
   function renderTimerWorkspace() {
     const host=document.createElement("div");
     host.append(workspaceNote("Dakika cinsinden süre belirle. Sayaç bu sekme kapalıyken ekranda çalışmaz; tekrar açtığında kalan süre hesaplanır."));
-    const input=document.createElement("input");input.type="number";input.min="1";input.max="1440";input.value="25";input.className="workspace-number";input.setAttribute("aria-label","Süre dakika");
+    const input=document.createElement("input");input.type="number";input.min="1";input.max="1440";input.value="25";input.className="workspace-number";input.setAttribute("aria-label",uiText("Süre dakika"));
     const display=document.createElement("strong");display.className="timer-display";
     const status=document.createElement("p");status.className="workspace-note";
     const controls=document.createElement("div");controls.className="workspace-item-actions";
     let timerFinished=false;
-    const start=workspaceButton("Zamanlayıcıyı başlat",()=>{const minutes=Math.max(1,Math.min(1440,Number(input.value)||25));timerFinished=false;localStorage.setItem(TIMER_KEY,JSON.stringify({endsAt:Date.now()+minutes*60000,label:minutes+" dakikalık sayaç"}));update();});
+    const start=workspaceButton("Zamanlayıcıyı başlat",()=>{const minutes=Math.max(1,Math.min(1440,Number(input.value)||25));timerFinished=false;localStorage.setItem(TIMER_KEY,JSON.stringify({endsAt:Date.now()+minutes*60000,minutes}));update();});
     const stop=workspaceButton("Durdur",()=>{timerFinished=false;localStorage.removeItem(TIMER_KEY);update();});
-    const notify=workspaceButton("Bildirim izni ver",async()=>{if(!("Notification"in window)){status.textContent="Bu tarayıcı bildirimleri desteklemiyor.";return;}const permission=await Notification.requestPermission();status.textContent=permission==="granted"?"Bildirim izni verildi.":"Bildirim izni verilmedi.";});
+    const notify=workspaceButton("Bildirim izni ver",async()=>{if(!("Notification"in window)){status.textContent=uiText("Bu tarayıcı bildirimleri desteklemiyor.");return;}const permission=await Notification.requestPermission();status.textContent=uiText(permission==="granted"?"Bildirim izni verildi.":"Bildirim izni verilmedi.");});
     controls.append(start,stop,notify);host.append(input,display,status,controls);
-    function update(){const timer=readStore(TIMER_KEY,null);if(!timer){display.textContent="00:00";status.textContent=timerFinished?"Süre doldu!":"Aktif zamanlayıcı yok.";return;}const remaining=timer.endsAt-Date.now();if(remaining<=0){localStorage.removeItem(TIMER_KEY);timerFinished=true;display.textContent="00:00";status.textContent="Süre doldu!";if("Notification"in window&&Notification.permission==="granted")new Notification("Mina AI zamanlayıcısı",{body:timer.label+" tamamlandı."});return;}timerFinished=false;const total=Math.ceil(remaining/1000);display.textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");status.textContent=timer.label+" devam ediyor."; }
+    function update(){const timer=readStore(TIMER_KEY,null);if(!timer){display.textContent="00:00";status.textContent=timerFinished?"Süre doldu!":"Aktif zamanlayıcı yok.";return;}const remaining=timer.endsAt-Date.now();if(remaining<=0){localStorage.removeItem(TIMER_KEY);timerFinished=true;display.textContent="00:00";status.textContent="Süre doldu!";if("Notification"in window&&Notification.permission==="granted")new Notification(uiText("Mina AI zamanlayıcısı"),{body:(Number.isFinite(timer.minutes)?formatTimerLabel(timer.minutes):timer.label)+(uiLanguage==="en"?" completed.":" tamamlandı.")});return;}timerFinished=false;const total=Math.ceil(remaining/1000);display.textContent=String(Math.floor(total/60)).padStart(2,"0")+":"+String(total%60).padStart(2,"0");const timerLabel=Number.isFinite(timer.minutes)?formatTimerLabel(timer.minutes):timer.label;status.textContent=uiLanguage==="en"?timerLabel+" is running.":timerLabel+" devam ediyor."; }
     if(timerInterval)clearInterval(timerInterval);update();timerInterval=setInterval(update,1000);
     openWorkspace("Zamanlayıcılar",host);
   }
@@ -352,10 +431,10 @@
     const host=document.createElement("div");
     host.append(workspaceNote("Metin ve kod dosyalarını bu tarayıcının kitaplığına kaydet. Dosyalar sunucuya yüklenmez; tarayıcı verilerini temizlersen silinebilir."));
     const picker=document.createElement("input");picker.type="file";picker.accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql";
-    picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert("Kitaplık dosyası en fazla 500 KB olabilir.");return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}catch{alert("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir.");}});
+    picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert(uiText("Kitaplık dosyası en fazla 500 KB olabilir."));return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}catch{alert(uiText("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir."));}});
     const add=workspaceButton("＋ Dosya ekle",()=>picker.click());host.append(add,picker);
-    libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString("tr-TR")+" · "+item.content.length+" karakter";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton("Sil",()=>{if(!confirm('"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
-    if(!libraryItems.length)host.append(workspaceNote("Kitaplık henüz boş."));
+    libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString(uiLanguage==="en"?"en-GB":"tr-TR")+" · "+item.content.length+" karakter";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton("Sil",()=>{if(!confirm('"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
+    if(!libraryItems.length)host.append(workspaceNote(uiText("Kitaplık henüz boş.")));
     openWorkspace("Kitaplık",host);
   }
   function renderPluginsWorkspace() {
@@ -413,29 +492,29 @@
         const codeEnd = codeStart >= 0 ? answer.indexOf("```", codeStart + 1) : -1;
         if (codeStart >= 0 && codeEnd > codeStart) { els.codeEditor.value = answer.slice(codeStart + 1, codeEnd).trim(); els.codeWorkspacePanel.hidden = false; }
       }
-      const sourceText = (data.sources || []).length ? "\n\nKaynaklar:\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
-      addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— Mina otomatik seçim: " + data.model + " (" + (data.selection_reason || data.task || "göreve uygun model") + ")" : ""));
+      const sourceText = (data.sources || []).length ? "\n\n" + uiText("Kaynaklar:") + "\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
+      addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— " + uiText("Mina otomatik seçim: ") + data.model + " (" + (data.selection_reason || data.task || uiText("göreve uygun model")) + ")" : ""));
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
-      addMessage("assistant", "Şu anda yanıt alamadım. " + err.message + "\n\nCloudflare Worker ve Gemini API anahtarını kontrol et.");
+      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + err.message + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
   let listening = false;
   async function generateImage() {
     const prompt = els.input.value.trim();
-    if (!prompt) { alert("Önce üretilecek resmi tarif et."); els.input.focus(); return; }
+    if (!prompt) { alert(uiText("Önce üretilecek resmi tarif et.")); els.input.focus(); return; }
     if (busy) return;
     setBusy(true); els.imageGenerateBtn.disabled = true;
     const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Mina görsel oluşturuyor…"; els.messages.append(typing);
     try {
       const r = await fetch(API_BASE + "/api/image", {method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({prompt})});
       const d = await r.json().catch(()=>({}));
-      if (!r.ok) throw new Error(d.error || "Görsel üretimi başarısız.");
+      if (!r.ok) throw new Error(d.error || uiText("Görsel üretimi başarısız."));
       const row = document.createElement("article"); row.className = "message assistant";
       const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = "M";
       const bubble = document.createElement("div"); bubble.className = "bubble image-result";
-      const img = document.createElement("img"); img.alt = "Mina tarafından üretilen görsel"; img.src = "data:" + d.image.mimeType + ";base64," + d.image.data;
+      const img = document.createElement("img"); img.alt = uiText("Mina tarafından üretilen görsel"); img.src = "data:" + d.image.mimeType + ";base64," + d.image.data;
       bubble.append(img);
       if (d.caption) { const caption = document.createElement("p"); caption.textContent = d.caption; bubble.append(caption); }
       row.append(avatar,bubble); els.messages.append(row); els.input.value = ""; els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
@@ -450,8 +529,8 @@
       const d = await r.json().catch(()=>({}));
       if (!r.ok) throw new Error(d.error || "Steam araması başarısız.");
       const lines = (d.items || []).map((x,i) => (i+1)+". "+x.name+" — "+x.price+(x.discount?" (%"+x.discount+" indirim)":"")+"\n"+x.url);
-      addMessage("assistant", lines.length ? "Steam arama sonuçları ("+d.total+" sonuç):\n\n"+lines.join("\n\n") : "Steam'de eşleşen oyun bulunamadı.");
-    } catch(e) { addMessage("assistant", "Steam araması yapılamadı: "+e.message); }
+      addMessage("assistant", lines.length ? (uiLanguage==="en"?"Steam search results ("+d.total+" results):\n\n":"Steam arama sonuçları ("+d.total+" sonuç):\n\n")+lines.join("\n\n") : uiText("Steam'de eşleşen oyun bulunamadı."));
+    } catch(e) { addMessage("assistant", uiText("Steam araması yapılamadı: ")+e.message); }
     finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   function speakText(text, button) {
@@ -469,9 +548,9 @@
     listening = value;
     els.voiceInput.classList.toggle("listening", value);
     els.voiceInput.textContent = value ? "■" : "🎙";
-    els.voiceInput.title = value ? "Dinlemeyi durdur" : "Türkçe konuşmak için tıkla";
+    els.voiceInput.title = uiText(value ? "Dinlemeyi durdur" : "Türkçe konuşmak için tıkla");
     if (els.voiceModeBtn) {
-      els.voiceModeBtn.textContent = voiceMode ? "⏹ Sesli sohbeti durdur" : "🎧 Sesli sohbeti başlat";
+      els.voiceModeBtn.textContent = uiText(voiceMode ? "⏹ Sesli sohbeti durdur" : "🎧 Sesli sohbeti başlat");
       els.voiceModeBtn.classList.toggle("voice-mode-active", voiceMode);
     }
   }
@@ -484,7 +563,7 @@
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       els.voiceInput.disabled = true;
-      els.voiceInput.title = "Bu tarayıcı yazıya ses tanımayı desteklemiyor. Canlı sesli sohbeti yine de deneyebilirsin.";
+      els.voiceInput.title = uiText("Bu tarayıcı yazıya ses tanımayı desteklemiyor. Canlı sesli sohbeti yine de deneyebilirsin.");
       return;
     }
     recognition = new SpeechRecognition();
@@ -502,7 +581,7 @@
     };
     recognition.onerror = event => {
       setListening(false);
-      if (event.error === "not-allowed") { voiceMode = false; setListening(false); alert("Mina'nın mikrofonu kullanabilmesi için tarayıcıdan mikrofon izni vermelisin."); }
+      if (event.error === "not-allowed") { voiceMode = false; setListening(false); alert(uiText("Mina'nın mikrofonu kullanabilmesi için tarayıcıdan mikrofon izni vermelisin.")); }
       else if (event.error !== "aborted" && event.error !== "no-speech") console.warn("Ses tanıma hatası:", event.error);
     };
     recognition.onend = () => {
@@ -518,14 +597,14 @@
     e.preventDefault();
     const v=els.input.value;
     if (!v.trim() && !attachedFile) return;
-    const steamMatch = v.match(/^Steam'de oyun ara:\s*(.+)$/i);
+    const steamMatch = v.match(/^(?:Steam'de oyun ara|Search Steam games):\s*(.+)$/i);
     if (steamMatch) { els.input.value=""; searchSteam(steamMatch[1]); return; }
     els.input.value=""; els.input.style.height="auto"; sendMessage(v);
   });
   els.input.addEventListener("input", () => { els.input.style.height="auto"; els.input.style.height=Math.min(els.input.scrollHeight,180)+"px"; });
   $("newChatBtn").addEventListener("click", () => { createConversation(); render(); els.input.focus(); });
   els.memoryBtn.addEventListener("click", async () => {
-    const value=window.prompt("Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir.",userMemory);
+    const value=window.prompt(uiText("Mina’nın sonraki sohbetlerde hatırlamasını istediğin kısa notları yaz. Şifre veya hassas bilgi kaydetme. Boş bırakırsan hafıza notu silinir."),userMemory);
     if(value===null)return;
     userMemory=value.trim();
     try{if(userMemory)localStorage.setItem(MEMORY_KEY,userMemory);else localStorage.removeItem(MEMORY_KEY);}catch{}
@@ -536,7 +615,7 @@
   els.exportChat.addEventListener("click", exportConversation);
   $("clearChatsBtn").addEventListener("click", () => {
     if (!conversations.length) return;
-    if (!window.confirm("Bütün sohbet geçmişini kalıcı olarak silmek istiyor musun?")) return;
+    if (!window.confirm(uiText("Bütün sohbet geçmişini kalıcı olarak silmek istiyor musun?"))) return;
     conversations = [];
     activeId = null;
     createConversation();
@@ -545,11 +624,11 @@
   });
 
 
-  $("addProjectBtn").addEventListener("click",()=>{const name=prompt("Yeni projenin adı:");if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
+  $("addProjectBtn").addEventListener("click",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
   $("discoverNav").addEventListener("click",renderDiscoverWorkspace);
   function renderDiscoverWorkspace() {
     const host=document.createElement("div");
-    host.append(workspaceNote("Mina'nın çalışma alanları tek yerde."));
+    host.append(workspaceNote(uiText("Mina'nın çalışma alanları tek yerde.")));
     const items=[
       ["☆","Sabitlenenler","Sohbetlerini hızlıca aç",renderPinnedWorkspace],
       ["▣","Projeler","Projelerini yönet",renderProjectsWorkspace],
@@ -570,7 +649,7 @@
     if(caps.code===false)els.codeWorkspacePanel.hidden=true;
     const chatDisabled=caps.chat===false;
     els.input.disabled=chatDisabled||busy;els.send.disabled=chatDisabled||busy;
-    els.input.placeholder=chatDisabled?"Sohbet yeteneği ayarlardan kapalı":"Mina'ya bir şey sor...";
+    els.input.placeholder=uiText(chatDisabled?"Sohbet yeteneği ayarlardan kapalı":"Mina'ya bir şey sor...");
   }
   applyAICapabilities();
   async function renderAISettings(initialSection="mina") {
@@ -615,14 +694,14 @@
         <small class="settings-status" id="micTestStatus" aria-live="polite"></small>
       </section>
       <section class="settings-section" data-settings-key="memory">
-        <h3>Hafıza</h3><p>Mina'nın sonraki sohbetlerde kullanacağı kişisel not. Şifre veya hassas bilgi kaydetme. Şu anda yalnızca bu tarayıcıda saklanır.</p>
+        <h3>Hafıza</h3><p>Mina'nın sonraki sohbetlerde kullanacağı kişisel not. MinaData veritabanında yönetici hesabına güvenli şekilde kaydedilir. Şifre veya hassas bilgi kaydetme.</p>
         <label class="settings-control-label" for="minaMemoryEditor">Mina'nın hatırlayacağı not</label>
         <textarea id="minaMemoryEditor" class="settings-textarea" rows="4" maxlength="2000" placeholder="Mina'nın hatırlamasını istediğin bilgileri yaz…"></textarea>
         <div class="settings-actions"><button type="button" class="settings-action" id="saveMinaMemory">Hafızayı kaydet</button><button type="button" class="settings-action secondary" id="clearMinaMemory">Hafızayı sil</button></div>
         <small class="settings-status" id="memorySaveStatus" aria-live="polite"></small>
       </section>
       <section class="settings-section" data-settings-key="data">
-        <h3>Sohbetler ve veriler</h3><p>Sohbetler, projeler, kitaplık ve hafıza şu anda bu tarayıcının yerel depolamasında tutulur. Tarayıcı verilerini temizlemeden önce dışa aktar.</p>
+        <h3>Sohbetler ve veriler</h3><p>Sohbetler, projeler ve kitaplık bu tarayıcıda saklanır; MinaData hafızası yönetici hesabınla güvenli şekilde eşitlenir. Tarayıcı verilerini temizlemeden önce yerel verileri dışa aktar.</p>
         <div class="settings-actions"><button type="button" class="settings-action" id="exportMinaData">Mina verilerini dışa aktar</button><button type="button" class="settings-action secondary" id="openClearChats">Sohbet geçmişini yönet</button></div>
         <small class="settings-status" id="dataExportStatus" aria-live="polite"></small>
       </section>
@@ -669,12 +748,12 @@
       const value=$("minaMemoryEditor").value.trim();
       userMemory=value;
       try{if(value)localStorage.setItem(MEMORY_KEY,value);else localStorage.removeItem(MEMORY_KEY);}
-      catch{$("memorySaveStatus").textContent="Tarayıcı hafızası kaydedilemedi.";return;}
+      catch{$("memorySaveStatus").textContent=uiText("Tarayıcı hafızası kaydedilemedi.");return;}
       try{await saveCloudMemory(value);$("memorySaveStatus").textContent="MinaData hafızası hesabına güvenli şekilde kaydedildi.";}
       catch{$("memorySaveStatus").textContent="Not bu tarayıcıda korundu; sunucuya kaydedilemedi.";}
     });
     $("clearMinaMemory").addEventListener("click",async()=>{
-      if(!confirm("Mina'nın hesabında tuttuğu hafıza notunu silmek istiyor musun?"))return;
+      if(!confirm(uiText("Mina'nın hesabında tuttuğu hafıza notunu silmek istiyor musun?")))return;
       userMemory="";
       try{localStorage.removeItem(MEMORY_KEY);$("minaMemoryEditor").value="";}catch{}
       try{await saveCloudMemory("");$("memorySaveStatus").textContent="MinaData hafızası silindi.";}
@@ -691,8 +770,8 @@
     $("openClearChats").addEventListener("click",()=>{$("workspaceDialog").hidden=true;$("clearChatsBtn").click();});
     $("requestNotificationPermission").addEventListener("click",async()=>{
       const status=$("notificationPermissionStatus");
-      if(!("Notification"in window)){status.textContent="Bu tarayıcı bildirimleri desteklemiyor.";return;}
-      try{status.textContent=await Notification.requestPermission();}catch{status.textContent="İzin isteği başarısız.";}
+      if(!("Notification"in window)){status.textContent=uiText("Bu tarayıcı bildirimleri desteklemiyor.");return;}
+      try{status.textContent=await Notification.requestPermission();}catch{status.textContent=uiText("İzin isteği başarısız.");}
     });
     const refreshHealth=async()=>{
       $("minaApiStatus").textContent="Kontrol ediliyor…";$("minaProviderStatus").textContent="Kontrol ediliyor…";$("adminConfigStatus").textContent="Kontrol ediliyor…";
@@ -713,11 +792,11 @@
       catch(error){status.textContent=error.name==="NotAllowedError"?"Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et.":"Mikrofon testi başarısız: "+error.message;}
     });
     $("generateSessionSecret").addEventListener("click",()=>{
-      if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent="Bu tarayıcı güvenli anahtar üretimini desteklemiyor.";return;}
-      try{const bytes=new Uint8Array(48);globalThis.crypto.getRandomValues(bytes);let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);const generated=btoa(binary).replace(/=/g,"").replaceAll("+","-").replaceAll("/","_");const field=$("generatedSessionSecret");field.value=generated;field.type="password";$("toggleSessionSecret").textContent="Göster";$("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");$("sessionSecretCopyStatus").textContent="Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.";$("sessionSecretOutput").hidden=false;}catch{$("sessionSecretCopyStatus").textContent="Güvenli anahtar oluşturulamadı.";}
+      if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent=uiText("Bu tarayıcı güvenli anahtar üretimini desteklemiyor.");return;}
+      try{const bytes=new Uint8Array(48);globalThis.crypto.getRandomValues(bytes);let binary="";for(const byte of bytes)binary+=String.fromCharCode(byte);const generated=btoa(binary).replace(/=/g,"").replaceAll("+","-").replaceAll("/","_");const field=$("generatedSessionSecret");field.value=generated;field.type="password";$("toggleSessionSecret").textContent="Göster";$("toggleSessionSecret").setAttribute("aria-label","Anahtarı göster");$("sessionSecretCopyStatus").textContent=uiText("Yeni anahtar oluşturuldu. Henüz Cloudflare tarafına uygulanmadı.");$("sessionSecretOutput").hidden=false;}catch{$("sessionSecretCopyStatus").textContent=uiText("Güvenli anahtar oluşturulamadı.");}
     });
-    $("toggleSessionSecret").addEventListener("click",()=>{const field=$("generatedSessionSecret"),visible=field.type==="password";field.type=visible?"text":"password";$("toggleSessionSecret").textContent=visible?"Gizle":"Göster";$("toggleSessionSecret").setAttribute("aria-label",visible?"Anahtarı gizle":"Anahtarı göster");});
-    $("copySessionSecret").addEventListener("click",async()=>{const value=$("generatedSessionSecret").value;if(!value)return;try{await navigator.clipboard.writeText(value);$("sessionSecretCopyStatus").textContent="Anahtar panoya kopyalandı.";}catch{$("sessionSecretCopyStatus").textContent="Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.";$("generatedSessionSecret").focus();$("generatedSessionSecret").select();}});
+    $("toggleSessionSecret").addEventListener("click",()=>{const field=$("generatedSessionSecret"),visible=field.type==="password";field.type=visible?"text":"password";$("toggleSessionSecret").textContent=uiText(visible?"Gizle":"Göster");$("toggleSessionSecret").setAttribute("aria-label",uiText(visible?"Anahtarı gizle":"Anahtarı göster"));});
+    $("copySessionSecret").addEventListener("click",async()=>{const value=$("generatedSessionSecret").value;if(!value)return;try{await navigator.clipboard.writeText(value);$("sessionSecretCopyStatus").textContent=uiText("Anahtar panoya kopyalandı.");}catch{$("sessionSecretCopyStatus").textContent=uiText("Otomatik kopyalama başarısız. Anahtarı seçip elle kopyalayabilirsin.");$("generatedSessionSecret").focus();$("generatedSessionSecret").select();}});
   }
   function openSettings(section) {
     $("profileMenu").hidden=true;$("sidebarProfile").setAttribute("aria-expanded","false");
@@ -745,7 +824,7 @@
     els.toolsPanel.hidden = !isOpen;
     els.toolsToggle.setAttribute("aria-expanded", String(isOpen));
     els.toolsToggle.textContent = "＋";
-    els.toolsToggle.setAttribute("aria-label", isOpen ? "Araçları kapat" : "Araçları aç");
+    els.toolsToggle.setAttribute("aria-label", uiText(isOpen ? "Araçları kapat" : "Araçları aç"));
   });
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
@@ -755,7 +834,7 @@
       els.toolsPanel.hidden = true;
       els.toolsToggle.setAttribute("aria-expanded", "false");
       els.toolsToggle.textContent = "＋";
-      els.toolsToggle.setAttribute("aria-label", "Araçları aç");
+      els.toolsToggle.setAttribute("aria-label", uiText("Araçları aç"));
     }
   });
   document.addEventListener("click", event => {
@@ -768,33 +847,33 @@
   });
   els.imageInput.addEventListener("change", async () => {
     const file = els.imageInput.files?.[0]; if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { alert("Resim en fazla 8 MB olabilir."); els.imageInput.value = ""; return; }
+    if (file.size > 8 * 1024 * 1024) { alert(uiText("Resim en fazla 8 MB olabilir.")); els.imageInput.value = ""; return; }
     const reader = new FileReader();
     reader.onload = () => {
       attachedFile = {kind:"image",name:file.name,mimeType:file.type,data:reader.result};
       els.fileName.textContent = "🖼 " + file.name; els.fileChip.hidden = false;
     };
-    reader.onerror = () => alert("Resim okunamadı.");
+    reader.onerror = () => alert(uiText("Resim okunamadı."));
     reader.readAsDataURL(file);
   });
   els.imageGenerateBtn.addEventListener("click", generateImage);
   els.steamBtn.addEventListener("click", () => {
-    els.input.value = "Steam'de oyun ara: " + els.input.value;
+    els.input.value = uiText("Steam'de oyun ara: ") + els.input.value;
     els.input.focus();
   });
-  els.webBtn.addEventListener("click", () => { els.input.value = "İnternette ara ve kaynaklarıyla açıkla: " + els.input.value; els.input.focus(); });
+  els.webBtn.addEventListener("click", () => { els.input.value = uiText("İnternette ara ve kaynaklarıyla açıkla: ") + els.input.value; els.input.focus(); });
   els.codeWorkspaceBtn.addEventListener("click", () => { els.codeWorkspacePanel.hidden = !els.codeWorkspacePanel.hidden; if (!els.codeWorkspacePanel.hidden) els.codeEditor.focus(); });
   $("closeCodeWorkspace").addEventListener("click", () => { els.codeWorkspacePanel.hidden = true; });
   $("sendCodeBtn").addEventListener("click", () => {
     const code = els.codeEditor.value.trim();
-    if (!code) { alert("Önce çalışma alanına kod ekle."); return; }
+    if (!code) { alert(uiText("Önce çalışma alanına kod ekle.")); return; }
     attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = "";
-    els.input.value = "Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.\n\n" + code;
+    els.input.value = uiText("Aşağıdaki kodu incele. Hataları bul, gerekiyorsa düzelt ve düzeltilmiş kodun tamamını ver.\n\n") + code;
     els.form.requestSubmit();
   });
   $("downloadCodeBtn").addEventListener("click", () => {
     const code = els.codeEditor.value;
-    if (!code.trim()) { alert("İndirilecek kod yok."); return; }
+    if (!code.trim()) { alert(uiText("İndirilecek kod yok.")); return; }
     const blob = new Blob([code], {type:"text/plain;charset=utf-8"});
     const url = URL.createObjectURL(blob);
     const link = document.createElement("a"); link.href = url; link.download = "mina-code.txt"; link.click();
@@ -804,15 +883,15 @@
     try {
       const r = await fetch(API_BASE + "/api/github/status");
       const d = await r.json();
-      alert(d.connected ? "GitHub sunucu anahtarı tanımlı. Güvenli kullanıcı yetkilendirmesi tamamlandığında depo işlemleri açılacak." : "GitHub bağlantı altyapısı hazırlandı. Güvenli GitHub OAuth bağlantısı ve yetki ayarları sonraki bağlantı aşamasında yapılacak.");
-    } catch { alert("GitHub bağlantı durumu alınamadı."); }
+      alert(uiText(d.connected ? "GitHub sunucu anahtarı tanımlı. Güvenli kullanıcı yetkilendirmesi tamamlandığında depo işlemleri açılacak." : "GitHub bağlantı altyapısı hazırlandı. Güvenli GitHub OAuth bağlantısı ve yetki ayarları sonraki bağlantı aşamasında yapılacak."));
+    } catch { alert(uiText("GitHub bağlantı durumu alınamadı.")); }
   });
   $("removeFileBtn").addEventListener("click", () => { attachedFile=null; els.fileChip.hidden=true; els.fileInput.value=""; els.imageInput.value=""; });
   els.fileInput.addEventListener("change", async () => {
     const f=els.fileInput.files?.[0]; if(!f) return;
-    if(f.size > 1024*1024) { alert("Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin."); els.fileInput.value=""; return; }
+    if(f.size > 1024*1024) { alert(uiText("Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin.")); els.fileInput.value=""; return; }
     try { attachedFile={kind:"text",name:f.name,content:await f.text()}; if ([".js",".ts",".tsx",".jsx",".py",".html",".css",".json",".sql",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml"].some(ext => f.name.toLowerCase().endsWith(ext))) els.codeEditor.value=attachedFile.content; els.fileName.textContent="📄 "+f.name; els.fileChip.hidden=false; }
-    catch { alert("Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor."); }
+    catch { alert(uiText("Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor.")); }
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
