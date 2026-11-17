@@ -716,17 +716,20 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(result.data.model, "models/gemini-3.8-live");
   assert.equal(liveTokenRequests.length, 1);
   assert.equal(liveTokenRequests[0].headers["x-goog-api-key"], env.GEMINI_API_KEY);
-  assert.equal(liveTokenRequests[0].payload.authToken.uses, 1);
-  const setup = liveTokenRequests[0].payload.authToken.bidiGenerateContentSetup;
+  assert.equal(liveTokenRequests[0].url, "https://generativelanguage.googleapis.com/v1alpha/auth_tokens");
+  assert.equal(liveTokenRequests[0].payload.uses, 1);
+  assert.ok(liveTokenRequests[0].payload.expireTime);
+  assert.ok(liveTokenRequests[0].payload.newSessionExpireTime);
+  const setup = liveTokenRequests[0].payload.liveConnectConstraints;
   assert.equal(setup.model, "models/gemini-3.8-live");
-  assert.deepEqual(setup.generationConfig.responseModalities, ["AUDIO"]);
-  assert.equal(setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Aoede");
-  assert.ok(setup.inputAudioTranscription);
-  assert.ok(setup.outputAudioTranscription);
-  assert.ok(setup.sessionResumption);
-  assert.deepEqual(setup.realtimeInputConfig.automaticActivityDetection, { disabled: false });
-  assert.match(setup.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
-  assert.equal(liveTokenRequests[0].payload.authToken.liveConnectConstraints, undefined);
+  assert.deepEqual(setup.config.responseModalities, ["AUDIO"]);
+  assert.ok(setup.config.inputAudioTranscription);
+  assert.ok(setup.config.outputAudioTranscription);
+  assert.ok(setup.config.sessionResumption);
+  assert.deepEqual(setup.config.realtimeInputConfig.automaticActivityDetection, { disabled: false });
+  assert.match(setup.config.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
+  assert.equal(liveTokenRequests[0].payload.authToken, undefined);
+  assert.equal(liveTokenRequests[0].payload.bidiGenerateContentSetup, undefined);
 });
 
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
