@@ -7,7 +7,7 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false;
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, setupTimer=null, intentionalClose=false;
   const ui = value => window.MinaI18n?.t(value) || value;
   const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
   async function moderateVoiceText(text) {
@@ -47,23 +47,32 @@
     playing.push(node);node.onended=()=>{playing=playing.filter(x=>x!==node);if(!playing.length&&active)setStatus("Seni dinliyorum…","listening");};
     setStatus("Mina konuşuyor…","speaking");
   }
+  async function failVoice(message) {
+    await cleanup(false);
+    setStatus(message,"error");
+  }
   async function start() {
     if(active)return;
-    panel.hidden=false;openBtn.disabled=true;setStatus("Güvenli ses bağlantısı kuruluyor…");
+    panel.hidden=false;openBtn.disabled=true;intentionalClose=false;setStatus("Güvenli ses bağlantısı kuruluyor…");
     try{
+      if(!navigator.mediaDevices?.getUserMedia||!(window.AudioContext||window.webkitAudioContext)||!window.WebSocket) throw new Error("Bu tarayıcı canlı ses veya mikrofon erişimini desteklemiyor. Güncel Chrome ya da Edge kullan.");
       const tokenResponse=await fetch(API_BASE+"/api/live-token",{method:"POST"});
       const tokenData=await tokenResponse.json().catch(()=>({}));
-      if(!tokenResponse.ok||!tokenData.token) throw new Error(tokenData.error||"Canlı ses anahtarı alınamadı.");
+      if(!tokenResponse.ok||!tokenData.token){
+        const detail=tokenData.provider_detail?(" ("+(tokenData.provider_status||"Google")+": "+tokenData.provider_detail+")"):"";
+        throw new Error((tokenData.error||"Canlı ses anahtarı alınamadı.")+detail);
+      }
       stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       audioContext=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
       socket=new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token="+encodeURIComponent(tokenData.token));
+      setupTimer=setTimeout(()=>{if(!active)void failVoice("Google canlı ses oturumu zamanında hazır olmadı. Bir kez daha deneyebilirsin.");},20000);
       socket.onopen=()=>{
         socket.send(JSON.stringify({setup:{model:tokenData.model,generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Aoede"}}}},inputAudioTranscription:{},outputAudioTranscription:{},realtimeInputConfig:{automaticActivityDetection:{disabled:false}}}}));
       };
       socket.onmessage=event=>{
         let msg;try{msg=JSON.parse(event.data);}catch{return;}
-        if(msg.setupComplete){active=true;setStatus("Seni dinliyorum…","listening");startMicStream();return;}
+        if(msg.setupComplete){if(setupTimer)clearTimeout(setupTimer);setupTimer=null;active=true;muteBtn.disabled=false;setStatus("Seni dinliyorum…","listening");startMicStream();return;}
         if(msg.serverContent?.interrupted){stopPlayback();setStatus("Seni dinliyorum…","listening");}
         const inputText=msg.serverContent?.inputTranscription?.text;
         const outputText=msg.serverContent?.outputTranscription?.text;
@@ -75,10 +84,17 @@
           if(pendingInputText.trim()){const completed=pendingInputText.trim();pendingInputText="";void moderateVoiceText(completed);}
           if(!playing.length)setStatus("Seni dinliyorum…","listening");
         }
-        if(msg.error) setStatus(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")),"error");
+        if(msg.error)void failVoice(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")));
       };
-      socket.onerror=()=>setStatus("Canlı ses bağlantısında hata oluştu.","error");
-      socket.onclose=()=>{if(active)setStatus("Ses bağlantısı kapandı. Yeniden başlatabilirsin.","error");active=false;};
+      socket.onerror=()=>{void failVoice("Canlı ses bağlantısında hata oluştu. Mikrofon kapatıldı; tekrar deneyebilirsin.");};
+      socket.onclose=()=>{
+        const wasActive=active;active=false;
+        if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
+        if(!intentionalClose){
+          setStatus(wasActive?"Ses bağlantısı kapandı. Yeniden başlatabilirsin.":"Google canlı ses oturumu kurulamadı. API anahtarını ve model erişimini kontrol et.","error");
+          void cleanup(false);
+        }
+      };
     }catch(error){setStatus(error.message||"Sesli sohbet başlatılamadı.","error");await cleanup(false);}
     finally{openBtn.disabled=false;}
   }
@@ -95,6 +111,8 @@
     source.connect(processor);processor.connect(silent);silent.connect(audioContext.destination);
   }
   async function cleanup(hide=true){
+    intentionalClose=true;
+    if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
     active=false;muted=false;stopPlayback();
     try{processor?.disconnect();source?.disconnect();}catch{}
     processor=null;source=null;
