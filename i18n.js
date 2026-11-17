@@ -83,6 +83,8 @@
     "🌐 Web ara": "🌐 Search the web",
     "Kod alanı": "Code workspace",
     "Mina'ya bir şey sor...": "Ask Mina something...",
+    "Düşünme": "Thinking",
+    "Düşünme modu göstergesi": "Thinking mode indicator",
     "Türkçe konuşmak için tıkla": "Click to speak Turkish",
     "Mina AI hata yapabilir. Önemli bilgileri doğrulamayı unutma.": "Mina AI can make mistakes. Remember to verify important information.",
     "Mina ile sesli sohbet": "Voice chat with Mina",
