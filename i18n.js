@@ -38,6 +38,7 @@
   
     // Additional UI copy used by static markup, native dialogs and runtime-generated workspaces.
     Object.assign(UI_TEXT, {
+    "Cihazlar ve senkronizasyon": "Devices & sync",
       "Mina AI yönetici girişi":"Mina AI administrator sign-in","Mina çalışma alanı":"Mina workspace",
       "Proje oluştur":"Create project","Tüm sohbetleri sil":"Delete all chats","Profil ve ayarları aç":"Open profile and settings",
       "Menüyü aç":"Open menu","Sohbeti dışa aktar":"Export chat","Temayı değiştir":"Toggle theme","Yapay zekâ modeli":"AI model",
