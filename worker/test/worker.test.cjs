@@ -223,7 +223,45 @@ test("unknown questions are forwarded to Gemini instead of returning a fixed fal
   assert.equal(result.data.provider, "Google Gemini");
   assert.equal(result.data.choices[0].message.content, "Gemini test yanıtı");
   assert.equal(requestedModels.length, 1);
-  assert.ok(requestedModels[0].includes("gemini-3.1-pro-preview"), "coding tasks must use the Pro model");
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "coding tasks must stay on the free-tier Flash model");
+});
+
+test("coding tasks use HIGH thinking on the free-tier Flash model", async () => {
+  let capturedPayload;
+  const { worker } = createWorker(async (url, options) => {
+    capturedPayload = JSON.parse(options.body || "{}");
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Kodlama yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST", token: login.data.token,
+    body: { messages: [{ role: "user", content: "Bana JavaScript kodu yaz." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(capturedPayload.generationConfig.thinkingConfig.thinkingLevel, "HIGH");
+});
+
+test("temporary model capacity errors fall back to free-tier models", async () => {
+  const requested = [];
+  const { worker } = createWorker(async (url) => {
+    requested.push(url);
+    if (requested.length === 1) return new Response(JSON.stringify({ error: { message: "quota" } }), { status: 429 });
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST", token: login.data.token,
+    body: { messages: [{ role: "user", content: "Merhaba, nasılsın?" }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
+  assert.equal(requested.length, 2);
+  assert.match(requested[1], /gemini-3\.5-flash-lite:generateContent$/);
+  assert.equal(result.data.fallback_used, true);
 });
 
 test("ordinary chat uses the Flash model", async () => {
