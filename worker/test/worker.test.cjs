@@ -721,3 +721,11 @@ test("Mina system prompt limits long-term memory to explicit, safe requests", ()
   assert.match(workerSource, /Sıradan sohbetleri, geçici ayrıntıları veya hassas sırları kendiliğinden kalıcı hafızaya kaydetme/);
   assert.match(workerSource, /şifre, API anahtarı, token veya ödeme bilgisini asla kaydetme/);
 });
+
+test("Mina discipline does not punish neutral discussion of an insult word", async () => {
+  const { worker, disciplineStore } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal kelimesinin anlamı nedir?" }] } });
+  assert.equal(result.status, 200);
+  assert.equal(disciplineStore.row, null);
+});
