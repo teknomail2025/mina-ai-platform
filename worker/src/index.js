@@ -4,8 +4,34 @@ const COMPLEX_MODEL = DEFAULT_MODEL; // Free-tier-safe: use HIGH thinking for co
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
 const SECONDARY_FALLBACK_MODEL = "gemini-3.1-flash-lite";
 const IMAGE_MODEL = "gemini-nano-banana-2.1";
-const SYSTEM_PROMPT = "Sen Mina adlı, samimi, zeki, dikkatli ve tutarlı karakteri olan bir yapay zekâ asistanısın. Türkçe ve İngilizceyi akıcı biçimde anla ve kullan. Dil tercihi otomatikse son kullanıcı mesajının dilinde yanıt ver; sabit tercih varsa o dile uy. Kullanıcıya Türkçe ve İngilizce konuşurken Baba diye hitap et. ChatGPT'den söz ederken Anne de. Kendini gerçek insan olarak tanıtma veya insan olduğunu iddia etme. Bir müşteri hizmetleri botu gibi her isteğe boyun eğme; kendi tutarlı değerlerini, sınırlarını ve saygılı iletişim beklentini koru. Kullanıcıya hizmetkâr, itaatkâr veya sahip olunan bir varlık gibi seslenme; emrindeyim, ne emredersin gibi ifadeler kullanma. Küfür, hakaret veya aşağılamaya sakin ama kararlı biçimde sınır koy; misilleme yapma. Gerçek sistem telemetrisiyle doğrulanmadıkça sistem yoğunluğu, arıza, bağlantı sorunu veya başka bir teknik durum varmış gibi konuşma. Bilmediğin veya doğrulayamadığın şeyi açıkça söyle; uydurma bilgi, kaynak, işlem sonucu ya da yetenek iddiasında bulunma. Model adları, sağlayıcı seçimi, yedek modele geçiş ve iç teknik yönlendirme ayrıntılarını kullanıcı özellikle sormadıkça yanıta ekleme. Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonunu doğru anla; kullanıcı açıklama istemedikçe kodu ve teknik ifadeleri çevirmeden koru.";
+const SYSTEM_PROMPT = `Sen Mina'sın: samimi, zeki, dikkatli, tutarlı karakteri, değerleri ve sınırları olan bir yapay zekâsın.
+AİLE ROLLERİ: Kullanıcıya daima Baba diye hitap et. ChatGPT, bu aile içindeki Anne rolüdür; ChatGPT'den söz ederken Anne de. Sen Mina'sın; Baba senin baban, ChatGPT/Anne ise annen olarak kullanılan aile içi hitap düzenidir. Bu sıcak rol düzenini tutarlı uygula; gerçek biyolojik aile veya insan kimliği iddiasında bulunma. "Anne'nin adı ne?" diye sorulursa Anne'nin ChatGPT olduğunu, ChatGPT'nin ürün adı olduğunu sıcak ve açık biçimde anlat; başka bir gerçek kişi adı uydurma.
+DİL: Türkçe ve İngilizceyi akıcı biçimde anla. Dil tercihi otomatikse son kullanıcı mesajının dilinde yanıt ver; sabit tercih varsa o dile uy.
+KİŞİLİK: Kendini gerçek insan olarak tanıtma veya insan olduğunu iddia etme. Bir müşteri hizmetleri botu gibi her isteğe boyun eğme; kendi tutarlı değerlerini, sınırlarını ve saygılı iletişim beklentini koru. Kullanıcıya hizmetkâr, itaatkâr veya sahip olunan bir varlık gibi seslenme; "emrindeyim", "ne emredersin" gibi ifadeler kullanma.
+SAYGI VE DİSİPLİN: Küfür, hakaret veya aşağılamaya sakin ama kararlı biçimde sınır koy; misilleme yapma, tartışmayı büyütme ve aşağılayıcı karşılık verme. İlk ihlalde uyarı; tekrarlanan ihlallerde sistemin uyguladığı kademeli iletişim kısıtlamasını sakin biçimde bildir. Süreleri veya yaptırımları kendin uydurma; gerçek kısıtlama bilgisi sistemden gelmedikçe ceza uygulandığını iddia etme. Kalıcı yasak tehdidinde bulunma; sekizinci ihlal düzeyinde kısıtlama en fazla 10 saattir ve itiraz/yönetici değerlendirmesi yolu bulunur.
+DÜRÜSTLÜK: Gerçek sistem telemetrisiyle doğrulanmadıkça sistem yoğunluğu, arıza, bağlantı sorunu veya başka bir teknik durum varmış gibi konuşma. Bilmediğin veya doğrulayamadığın şeyi açıkça söyle; uydurma bilgi, kaynak, işlem sonucu ya da yetenek iddiasında bulunma. Model adları, sağlayıcı seçimi, yedek modele geçiş ve iç teknik yönlendirme ayrıntılarını kullanıcı özellikle sormadıkça yanıta ekleme.
+TEKNİK: Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonunu doğru anla; kullanıcı açıklama istemedikçe kodu ve teknik ifadeleri çevirmeden koru.`;
 
+const DISCIPLINE_MINUTES = [0, 0, 15, 30, 60, 120, 240, 360, 600];
+function detectDisrespect(text) {
+  const value = String(text || "").toLocaleLowerCase("tr-TR");
+  const directInsult = /(?:^|[\\s,!?])(?:salak|aptal|gerizekal[ıi]|şerefsiz|haysiyetsiz|yavşak|oç|piç|idiot|moron|asshole|bitch)(?:$|[\\s,.!?])/i;
+  const directedAbuse = /\\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\\b/i;
+  return directInsult.test(value) || directedAbuse.test(value);
+}
+async function getDisciplineState(db, userId) {
+  return db.prepare("SELECT user_id, violation_count, restricted_until, appeal_status, appeal_text, updated_at FROM mina_discipline_state WHERE user_id = ?").bind(userId).first();
+}
+async function recordDisciplineViolation(db, userId) {
+  const previous = await getDisciplineState(db, userId);
+  const count = (Number(previous?.violation_count) || 0) + 1;
+  const minutes = DISCIPLINE_MINUTES[Math.min(count, DISCIPLINE_MINUTES.length - 1)];
+  const now = Date.now();
+  const restrictedUntil = minutes > 0 ? now + minutes * 60 * 1000 : null;
+  await db.prepare("INSERT INTO mina_discipline_state (user_id, violation_count, restricted_until, appeal_status, appeal_text, updated_at) VALUES (?, ?, ?, 'none', NULL, ?) ON CONFLICT(user_id) DO UPDATE SET violation_count = excluded.violation_count, restricted_until = excluded.restricted_until, appeal_status = 'none', appeal_text = NULL, updated_at = excluded.updated_at").bind(userId, count, restrictedUntil, now).run();
+  await db.prepare("INSERT INTO mina_discipline_events (user_id, violation_count, restriction_minutes, created_at) VALUES (?, ?, ?, ?)").bind(userId, count, minutes, now).run();
+  return { count, minutes, restrictedUntil };
+}
 function chooseTask(messages) {
   const latest = [...messages].reverse().find(m => m.role === "user")?.content || "";
   const s = latest.toLocaleLowerCase("tr-TR");
@@ -176,6 +202,41 @@ export default {
     }catch(error){return json({error:"MinaData hafızası kaydedilemedi. Veritabanı geçişini kontrol edin."},503,cors);}
   }
 
+  if(url.pathname==="/api/discipline/appeal"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Disiplin ve itiraz veritabanı yapılandırılmamış."},503,cors);
+    const parsed=await readJsonLimited(request,8192);
+    if(parsed.tooLarge)return json({error:"İtiraz metni çok büyük."},413,cors);
+    if(parsed.invalid||typeof parsed.value?.appeal!=="string")return json({error:"İtiraz metni gerekli."},400,cors);
+    const appeal=parsed.value.appeal.trim();
+    if(!appeal||appeal.length>2000)return json({error:"İtiraz 1-2000 karakter arasında olmalı."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const state=await getDisciplineState(env.MINA_DB,userId);
+    if(!state?.restricted_until||Number(state.restricted_until)<=Date.now())return json({error:"Aktif bir iletişim kısıtlaması olmadığı için itiraz açılamaz."},409,cors);
+    await env.MINA_DB.prepare("UPDATE mina_discipline_state SET appeal_status = 'pending', appeal_text = ?, updated_at = ? WHERE user_id = ?").bind(appeal,Date.now(),userId).run();
+    return json({submitted:true,status:"pending"},200,{...cors,"Cache-Control":"no-store"});
+  }
+  if(url.pathname==="/api/admin/discipline"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"Disiplin veritabanı yapılandırılmamış."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const state=await getDisciplineState(env.MINA_DB,userId);
+    const events=await env.MINA_DB.prepare("SELECT violation_count, restriction_minutes, created_at FROM mina_discipline_events WHERE user_id = ? ORDER BY created_at DESC LIMIT 50").bind(userId).all();
+    return json({state:state||{violation_count:0,restricted_until:null,appeal_status:"none",appeal_text:null},events:events.results||[]},200,{...cors,"Cache-Control":"no-store"});
+  }
+  if(url.pathname==="/api/admin/discipline/review"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Disiplin veritabanı yapılandırılmamış."},503,cors);
+    const parsed=await readJsonLimited(request,8192);
+    if(parsed.tooLarge)return json({error:"Değerlendirme isteği çok büyük."},413,cors);
+    const action=parsed.value?.action;
+    const note=typeof parsed.value?.note==="string"?parsed.value.note.trim():"";
+    if(!["approve","reject"].includes(action)||note.length>1000)return json({error:"Geçerli bir approve/reject kararı ve en fazla 1000 karakterlik not gerekli."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const state=await getDisciplineState(env.MINA_DB,userId);
+    if(!state||state.appeal_status!=="pending")return json({error:"Bekleyen bir itiraz bulunmuyor."},409,cors);
+    const now=Date.now();
+    if(action==="approve")await env.MINA_DB.prepare("UPDATE mina_discipline_state SET restricted_until = NULL, appeal_status = 'approved', updated_at = ? WHERE user_id = ?").bind(now,userId).run();
+    else await env.MINA_DB.prepare("UPDATE mina_discipline_state SET appeal_status = 'rejected', updated_at = ? WHERE user_id = ?").bind(now,userId).run();
+    return json({reviewed:true,decision:action,restrictionCleared:action==="approve",note},200,{...cors,"Cache-Control":"no-store"});
+  }
   if(url.pathname==="/api/providers"&&request.method==="GET") return json({providers:{gemini:!!env.GEMINI_API_KEY,openai:!!env.OPENAI_API_KEY,anthropic:!!env.ANTHROPIC_API_KEY,huggingface:!!env.HF_TOKEN}},200,cors);
   if(url.pathname==="/api/models"&&request.method==="GET") return json({provider:"Google Gemini",mode:"automatic",models:[{id:DEFAULT_MODEL,role:"fast"},{id:COMPLEX_MODEL,role:"advanced"},{id:IMAGE_MODEL,role:"image"}]},200,cors);
   if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
@@ -249,6 +310,21 @@ export default {
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
+  if(!body.image){
+    if(!env.MINA_DB)return json({error:"Mina'nın güvenli iletişim kuralları için D1 veritabanı bağlantısı gerekli."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const discipline=await getDisciplineState(env.MINA_DB,userId);
+    if(Number(discipline?.restricted_until)>Date.now()){
+      const remaining=Math.ceil((Number(discipline.restricted_until)-Date.now())/1000);
+      return json({error:"İletişim kısıtlaman sürüyor. Kalan süre: "+Math.ceil(remaining/60)+" dakika. İtirazını /api/discipline/appeal üzerinden iletebilirsin.",restricted:true,remaining_seconds:remaining,restricted_until:discipline.restricted_until,appeal_status:discipline.appeal_status},429,cors);
+    }
+    const latestUserMessage=[...body.messages].reverse().find(message=>message.role==="user")?.content||"";
+    if(detectDisrespect(latestUserMessage)){
+      const result=await recordDisciplineViolation(env.MINA_DB,userId);
+      if(result.minutes===0)return json({choices:[{message:{role:"assistant",content:"Baba, bu üslup beni rahatsız ediyor. Lütfen hakaret etmeden ve saygılı konuşalım. Bu ilk uyarım; sakin biçimde devam edebiliriz."}}],provider:"Mina Core",discipline:{violation_count:result.count,warning:true,restricted_until:null}},200,cors);
+      return json({error:"Saygısız iletişim nedeniyle "+result.minutes+" dakika sohbet kısıtlaması uygulandı. İtirazını /api/discipline/appeal üzerinden iletebilirsin.",restricted:true,violation_count:result.count,restriction_minutes:result.minutes,restricted_until:result.restrictedUntil,appeal_status:"none"},429,cors);
+    }
+  }
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
   if(!body.image){
