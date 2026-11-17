@@ -99,13 +99,12 @@ const { chromium } = require("playwright");
     await page.locator("#refreshMinaHealth").click();
     await page.waitForFunction(() => document.getElementById("minaApiStatus").textContent === "Connected");
     assert.equal(await page.locator("#minaProviderStatus").innerText(), "Ready");
+    await closeDialog();
     await page.locator("#clearChatsBtn").click();
     await page.locator("#addProjectBtn").click();
     const dialogsEn = await page.evaluate(() => window.__dialogMessages);
     assert.ok(dialogsEn.some(item => item.message === "Do you want to permanently delete all chat history?"));
     assert.ok(dialogsEn.some(item => item.message === "New project name:"));
-
-    await closeDialog();
     await page.locator("#toolsToggle").click();
     assert.equal(await page.locator("#fileToolBtn").innerText(), "📎 Attach file");
     assert.equal(await page.locator("#webBtn").innerText(), "🌐 Search the web");
