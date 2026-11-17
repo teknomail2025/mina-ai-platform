@@ -154,7 +154,10 @@
     "Mikrofon testi başarısız: ":"Microphone test failed: ","Bu tarayıcı mikrofon erişimini desteklemiyor.":"This browser does not support microphone access.",
     "İzin isteği başarısız.":"Permission request failed."
   });
-  const UI_TEXT_REVERSE = Object.fromEntries(Object.entries(UI_TEXT).map(([tr, en]) => [en, tr]));
+  const UI_TEXT_REVERSE = Object.entries(UI_TEXT).reduce((reverse, [tr, en]) => {
+    if (!(en in reverse)) reverse[en] = tr;
+    return reverse;
+  }, {});
   function shouldTranslateNode(node) {
     const element = node.nodeType === Node.ELEMENT_NODE ? node : node.parentElement;
     return !!element && !element.closest("script,style,code,pre,textarea,input,[contenteditable='true'],.bubble");
