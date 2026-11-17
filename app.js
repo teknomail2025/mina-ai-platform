@@ -69,6 +69,16 @@
   if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
   let uiLanguage = window.MinaI18n?.language || "tr";
   const uiText = value => window.MinaI18n?.t(value) ?? String(value);
+  const uiError = value => {
+    const message = String(value ?? "");
+    const exact = uiText(message);
+    if (exact !== message) return exact;
+    const prefixes = ["Gemini servisine bağlanılamadı: "];
+    for (const prefix of prefixes) {
+      if (message.startsWith(prefix)) return uiText(prefix) + message.slice(prefix.length);
+    }
+    return message;
+  };
   const formatChatCount = count => uiLanguage === "en" ? `${count} ${count === 1 ? "chat" : "chats"}` : `${count} sohbet`;
   const formatTimerLabel = minutes => uiLanguage === "en" ? `${minutes}-minute timer` : `${minutes} dakikalık sayaç`;
   let activeTimerUpdate = null;
@@ -355,12 +365,12 @@
       });
       const data = await response.json().catch(()=>({}));
       if (!response.ok) {
-        const detail = data.provider_detail ? " Ayrıntı: " + data.provider_detail : "";
-        const providerStatus = data.provider_status ? " (sağlayıcı HTTP " + data.provider_status + ")" : "";
-        throw new Error((data.error || "Sunucu isteği tamamlayamadı.") + providerStatus + detail);
+        const detail = data.provider_detail ? " " + uiText("Ayrıntı: ") + data.provider_detail : "";
+        const providerStatus = data.provider_status ? " (" + uiText("sağlayıcı HTTP ") + data.provider_status + ")" : "";
+        throw new Error(uiError(data.error || "Sunucu isteği tamamlayamadı.") + providerStatus + detail);
       }
       const answer = data.choices?.[0]?.message?.content || data.reply;
-      if (typeof answer !== "string" || !answer.trim()) throw new Error("Model boş yanıt döndürdü.");
+      if (typeof answer !== "string" || !answer.trim()) throw new Error(uiText("Model boş yanıt döndürdü."));
       const fenceStart = answer.indexOf("```");
       if (fenceStart >= 0) {
         const codeStart = answer.indexOf("\n", fenceStart + 3);
@@ -371,7 +381,7 @@
       addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— " + uiText("Mina otomatik seçim: ") + data.model + " (" + (data.selection_reason || data.task || uiText("göreve uygun model")) + ")" : ""));
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
-      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiText(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
+      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
@@ -393,7 +403,7 @@
       bubble.append(img);
       if (d.caption) { const caption = document.createElement("p"); caption.textContent = d.caption; bubble.append(caption); }
       row.append(avatar,bubble); els.messages.append(row); els.input.value = ""; els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
-    } catch(e) { alert(uiText(e.message)); }
+    } catch(e) { alert(uiError(e.message)); }
     finally { typing.remove(); setBusy(false); els.imageGenerateBtn.disabled = false; els.input.focus(); }
   }
   async function searchSteam(query) {
@@ -405,7 +415,7 @@
       if (!r.ok) throw new Error(d.error || uiText("Steam araması başarısız."));
       const lines = (d.items || []).map((x,i) => (i+1)+". "+x.name+" — "+x.price+(x.discount?(uiLanguage==="en"?" ("+x.discount+"% off)":" (%"+x.discount+" indirim)"):"")+"\n"+x.url);
       addMessage("assistant", lines.length ? (uiLanguage==="en"?"Steam search results ("+d.total+" results):\n\n":"Steam arama sonuçları ("+d.total+" sonuç):\n\n")+lines.join("\n\n") : uiText("Steam'de eşleşen oyun bulunamadı."));
-    } catch(e) { addMessage("assistant", uiText("Steam araması yapılamadı: ")+e.message); }
+    } catch(e) { addMessage("assistant", uiText("Steam araması yapılamadı: ")+uiError(e.message)); }
     finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   function speakText(text, button) {

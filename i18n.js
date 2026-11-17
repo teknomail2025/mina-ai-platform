@@ -114,6 +114,52 @@
     "İzin isteği yapılmadı.": "Permission not requested."
   });
 
+
+
+  // API/auth error messages are localized too, so backend failures never leak Turkish into an English interface.
+  Object.assign(UI_TEXT, {
+  "Yönetici girişi henüz güvenli biçimde yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor.": "Administrator sign-in has not been securely configured yet. Cloudflare Secrets settings are required.",
+  "Giriş isteği çok büyük.": "The sign-in request is too large.",
+  "Geçersiz giriş isteği.": "Invalid sign-in request.",
+  "Geçersiz giriş bilgileri.": "Invalid sign-in credentials.",
+  "Kullanıcı adı veya şifre hatalı.": "Incorrect username or password.",
+  "Bu işlem için yönetici girişi gerekiyor.": "Administrator sign-in is required for this action.",
+  "MinaData veritabanı bağlantısı yapılandırılmamış.": "The MinaData database connection is not configured.",
+  "MinaData hafızası okunamadı. Veritabanı geçişini kontrol edin.": "Could not read MinaData memory. Check the database migration.",
+  "Hafıza isteği çok büyük.": "The memory request is too large.",
+  "Geçersiz hafıza verisi.": "Invalid memory data.",
+  "Hafıza notu en fazla 2000 karakter olabilir.": "The memory note can contain up to 2,000 characters.",
+  "MinaData hafızası kaydedilemedi. Veritabanı geçişini kontrol edin.": "Could not save MinaData memory. Check the database migration.",
+  "Steam'de aranacak oyun adını yaz.": "Enter a game name to search on Steam.",
+  "Steam araması şu anda yanıt vermiyor.": "Steam search is not responding right now.",
+  "Steam araması yapılamadı.": "Could not search Steam.",
+  "Görsel üretimi için GEMINI_API_KEY henüz tanımlı değil.": "GEMINI_API_KEY is not configured for image generation yet.",
+  "Görsel isteği çok büyük.": "The image request is too large.",
+  "Geçersiz JSON.": "Invalid JSON.",
+  "Geçersiz görsel isteği.": "Invalid image request.",
+  "Görsel açıklaması boş veya çok uzun.": "The image description is empty or too long.",
+  "Gemini görsel üretim isteğini reddetti.": "Gemini rejected the image generation request.",
+  "Görsel modeli metin döndürdü ancak görsel verisi gelmedi.": "The image model returned text, but no image data was received.",
+  "Görsel üretim servisine bağlanılamadı.": "Could not connect to the image generation service.",
+  "Canlı ses için GEMINI_API_KEY henüz tanımlı değil.": "GEMINI_API_KEY is not configured for live audio yet.",
+  "Gemini canlı ses oturumu başlatılamadı.": "Could not start a Gemini Live audio session.",
+  "Gemini geçici ses anahtarı döndürmedi.": "Gemini did not return a temporary audio key.",
+  "Canlı ses servisine bağlanılamadı.": "Could not connect to the live audio service.",
+  "Uç nokta bulunamadı.": "Endpoint not found.",
+  "Sohbet isteği çok büyük.": "The chat request is too large.",
+  "Geçersiz JSON isteği.": "Invalid JSON request.",
+  "Geçersiz sohbet isteği.": "Invalid chat request.",
+  "Mesaj biçimi geçersiz veya çok uzun.": "The message format is invalid or too long.",
+  "Sohbet yeteneği yönetici ayarlarından kapatılmış.": "Chat has been disabled in administrator settings.",
+  "Görsel anlama yönetici ayarlarından kapatılmış.": "Image understanding has been disabled in administrator settings.",
+  "Resim biçimi desteklenmiyor veya dosya çok büyük. JPG, PNG ya da WEBP ve en fazla yaklaşık 8 MB kullan.": "The image format is not supported or the file is too large. Use JPG, PNG, or WEBP up to about 8 MB.",
+  "Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin.": "Image understanding is currently available only with the Gemini provider.",
+  "Hugging Face sohbet bağlantısı henüz etkinleştirilmedi.": "Hugging Face chat integration has not been enabled yet.",
+  "Google Gemini isteği reddetti.": "Google Gemini rejected the request.",
+  "Gemini boş yanıt döndürdü.": "Gemini returned an empty response.",
+  "sağlayıcı HTTP ": "provider HTTP "
+});
+
   const UI_TEXT_REVERSE = Object.entries(UI_TEXT).reduce((reverse, [turkish, english]) => {
     if (!(english in reverse)) reverse[english] = turkish;
     return reverse;

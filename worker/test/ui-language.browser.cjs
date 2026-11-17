@@ -194,6 +194,16 @@ const { chromium } = require("playwright");
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr");
     assert.deepEqual(pageErrors, [], "Browser runtime must not produce uncaught JavaScript errors");
+
+    await closeDialog();
+    await page.evaluate(() => window.MinaI18n.setLanguage("en"));
+    await page.locator("#minaLogoutBtn").click();
+    await page.locator("#minaLogin").waitFor({ state: "visible" });
+    await page.locator("#minaUsername").fill("Argion");
+    await page.locator("#minaPassword").fill("incorrect-password-for-i18n-test");
+    await page.locator("#minaLoginSubmit").click();
+    await page.waitForFunction(() => document.getElementById("minaLoginError").textContent === "Incorrect username or password.");
+    assert.deepEqual(pageErrors, [], "Localized authentication errors must not produce browser runtime errors");
   } finally {
     await browser.close();
   }
