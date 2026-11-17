@@ -264,6 +264,26 @@ test("temporary model capacity errors fall back to free-tier models", async () =
   assert.equal(result.data.fallback_used, true);
 });
 
+test("network failures also try the next free-tier model", async () => {
+  const requested = [];
+  const { worker } = createWorker(async (url) => {
+    requested.push(url);
+    if (url.includes("gemini-3.8-flash:generateContent")) throw new Error("upstream network unavailable");
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST", token: login.data.token,
+    body: { messages: [{ role: "user", content: "Merhaba, nasılsın?" }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
+  assert.equal(requested.length, 3, "primary model gets its timeout retry, then the backup is attempted");
+});
+
 test("ordinary chat uses the Flash model", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", {
