@@ -60,19 +60,24 @@ async function callGemini(env,model,payload){
   throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
 async function callGeminiWithFallback(env, initialModel, payload) {
-  const candidates = [...new Set(initialModel === COMPLEX_MODEL
-    ? [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL]
-    : [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL])];
+  const candidates = [...new Set([initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL])];
   let response = null;
   let selectedModel = initialModel;
+  let lastError = null;
   for (let index = 0; index < candidates.length; index++) {
     selectedModel = candidates[index];
     if (index > 0) await new Promise(resolve => setTimeout(resolve, 400));
-    response = await callGemini(env, selectedModel, payload);
-    if (response.ok) return { response, model: selectedModel };
-    // Only transient capacity, rate-limit, and upstream failures should trigger model fallback.
-    if (![429, 500, 502, 503, 504, 524].includes(response.status)) break;
+    try {
+      response = await callGemini(env, selectedModel, payload);
+      if (response.ok) return { response, model: selectedModel };
+      // Only transient capacity, rate-limit, and upstream failures should trigger model fallback.
+      if (![429, 500, 502, 503, 504, 524].includes(response.status)) break;
+    } catch (error) {
+      // A network failure or exhausted timeout retry should not prevent trying a backup model.
+      lastError = error;
+    }
   }
+  if (!response && lastError) throw lastError;
   return { response, model: selectedModel };
 }
 async function callOpenAI(env,model,payload){
