@@ -8,48 +8,133 @@ const { chromium } = require("playwright");
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.addInitScript(() => { window.MINA_API_BASE = "http://127.0.0.1:8787"; });
 
+  const untranslatedTurkishUi = () => page.evaluate(() => {
+    const turkish = /[çğıöşüÇĞİÖŞÜ]/;
+    const found = [];
+    const walker = document.createTreeWalker(document.body, NodeFilter.SHOW_TEXT);
+    let node;
+    while ((node = walker.nextNode())) {
+      const value = node.nodeValue.trim();
+      if (!value || !turkish.test(value)) continue;
+      if (node.parentElement.closest("option,script,style,code,pre,textarea,input,.bubble,[data-i18n-ignore]")) continue;
+      found.push(value);
+    }
+    for (const element of document.querySelectorAll("[placeholder],[title],[aria-label],[alt],[data-prompt]")) {
+      if (element.closest("[data-i18n-ignore]")) continue;
+      for (const name of ["placeholder", "title", "aria-label", "alt", "data-prompt"]) {
+        const value = element.getAttribute(name);
+        if (value && turkish.test(value)) found.push(name + ": " + value);
+      }
+    }
+    return [...new Set(found)];
+  });
+
+  const openSettings = async () => {
+    await page.locator("#sidebarSettingsBtn").click();
+    await page.locator("#minaUiLanguageSelect").waitFor();
+  };
+  const closeDialog = async () => {
+    await page.locator("#workspaceDialogClose").click();
+    await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden);
+  };
+  const openDiscover = async () => {
+    await page.locator("#discoverNav").click();
+    await page.locator(".discover-card").first().waitFor();
+  };
+
   try {
     await page.goto("http://127.0.0.1:8000/", { waitUntil: "networkidle" });
     await page.locator("#minaLogin").waitFor({ state: "visible" });
-    assert.equal(await page.locator(".mina-login-card .eyebrow").innerText(), "PRIVATE ADMIN AREA");
+    assert.equal(await page.locator(".mina-login-card .eyebrow").innerText(), "ÖZEL YÖNETİCİ ALANI");
+    assert.equal(await page.locator("#minaLoginSubmit").innerText(), "Giriş yap");
     await page.locator("#minaUsername").fill("Argion");
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
-    await page.locator("#sidebarSettingsBtn").click();
-    await page.locator("#minaUiLanguageSelect").waitFor();
 
+    await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "tr");
+    assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "auto");
     await page.locator("#minaLanguageSelect").selectOption("en");
     await page.locator("#minaUiLanguageSelect").selectOption("en");
     await page.waitForFunction(() => document.documentElement.lang === "en");
+
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Settings");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Ask Mina something...");
+    assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Your message");
     assert.equal(await page.locator("#minaMemoryEditor").getAttribute("placeholder"), "Write the information you want Mina to remember…");
-
-    await page.locator("#workspaceDialogClose").click();
-    await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden);
-    await page.locator("#sidebarSettingsBtn").click();
-    await page.locator("#minaUiLanguageSelect").waitFor();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en");
-    assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
 
+    const settingsText = await page.locator(".settings-main").innerText();
+    for (const expected of [
+      "Language & communication", "Interface language", "Mina's response language",
+      "Account & security", "Appearance", "Voice & microphone", "Memory",
+      "Chats & data", "Notifications", "Devices & sync", "System status",
+      "Session security · SESSION_SECRET", "A shared Mina account and cross-device sync"
+    ]) assert.ok(settingsText.includes(expected), "Missing English settings text: " + expected);
+    assert.deepEqual(await untranslatedTurkishUi(), [], "English interface must not contain untranslated Turkish UI text");
+
+    await closeDialog();
+    await page.locator("#toolsToggle").click();
+    assert.equal(await page.locator("#fileToolBtn").innerText(), "📎 Attach file");
+    assert.equal(await page.locator("#webBtn").innerText(), "🌐 Search the web");
+    assert.equal(await page.locator("#toolsToggle").getAttribute("aria-label"), "Close tools");
+    await page.locator("#toolsToggle").click();
+
+    await page.locator("#sidebarProfile").click();
+    assert.equal(await page.locator(".profile-menu-heading").innerText(), "Account and settings");
+    assert.equal(await page.locator('[data-settings-section="language"]').innerText(), "Language & communication");
+    await page.locator("#sidebarProfile").click();
+
+    await openDiscover();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Discover");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("Mina’s workspaces in one place."));
+    assert.equal(await page.locator(".suggestion").first().getAttribute("data-prompt"), "Prepare a Python learning plan for a beginner.");
+    await page.locator(".discover-card").nth(0).click();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Pinned");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("No pinned chats yet"));
+    await closeDialog();
+
+    await openDiscover();
+    await page.locator(".discover-card").nth(1).click();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Projects");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("No projects have been created yet."));
+    await closeDialog();
+
+    await page.evaluate(() => localStorage.setItem("mina-ai-active-timer-v1", JSON.stringify({ endsAt: Date.now() + 120000, minutes: 25 })));
+    await openDiscover();
+    await page.locator(".discover-card").nth(2).click();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Timers");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("25-minute timer is running."));
+    await closeDialog();
+
+    await openDiscover();
+    await page.locator(".discover-card").nth(3).click();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Library");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("The library is empty."));
+    await closeDialog();
+
+    await openDiscover();
+    await page.locator(".discover-card").nth(4).click();
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Plugins");
+    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("Tools currently available in Mina."));
+    await closeDialog();
+
+    await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr");
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Ayarlar");
-    assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
+    assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
+    assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Mesajın");
+    assert.equal(await page.locator(".suggestion").first().getAttribute("data-prompt"), "Bana yeni başlayanlar için Python öğrenme planı hazırla.");
+    assert.deepEqual(await untranslatedTurkishUi(), []);
 
-    await page.locator("#workspaceDialogClose").click();
-    await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden);
-    await page.locator("#discoverNav").click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Keşfet");
-    assert.equal((await page.locator("#workspaceDialogContent").innerText()).includes("Mina'nın çalışma alanları tek yerde."), true);
-
+    await closeDialog();
     await page.evaluate(() => localStorage.setItem("mina-ai-conversations-v1", JSON.stringify([{
       id: "i18n-runtime-test",
-      title: "New chat",
+      title: "Ayarlar",
       messages: [{ role: "assistant", content: "Test response remains unchanged." }]
     }])));
     await page.reload({ waitUntil: "networkidle" });
@@ -57,19 +142,15 @@ const { chromium } = require("playwright");
     assert.equal(await page.evaluate(() => localStorage.getItem("mina-ai-ui-language-v1")), "tr");
     assert.equal(await page.locator(".message-actions button").first().getAttribute("aria-label"), "Yanıtı kopyala");
     assert.equal(await page.locator(".bubble").innerText(), "Test response remains unchanged.");
+    assert.equal(await page.locator(".conversation-item").innerText(), "Ayarlar", "User-created conversation titles must not be translated");
 
-    await page.locator("#sidebarSettingsBtn").click();
-    await page.locator("#minaUiLanguageSelect").waitFor();
+    await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("en");
     await page.waitForFunction(() => document.documentElement.lang === "en");
-    await page.locator("#workspaceDialogClose").click();
-    await page.locator("#discoverNav").click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Discover");
-    assert.equal((await page.locator("#workspaceDialogContent").innerText()).includes("Mina’s workspaces in one place."), true);
-
-    await page.locator("#workspaceDialogClose").click();
-    await page.locator("#sidebarSettingsBtn").click();
-    await page.locator("#minaUiLanguageSelect").waitFor();
+    await closeDialog();
+    await openSettings();
+    assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");
+    assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Response language must persist independently");
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr");
     assert.deepEqual(pageErrors, [], "Browser runtime must not produce uncaught JavaScript errors");
