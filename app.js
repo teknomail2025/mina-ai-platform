@@ -740,6 +740,11 @@
     setSettingsSection(activeKey);
     $("minaUiLanguageSelect").value=uiLanguage;
     $("minaUiLanguageSelect").addEventListener("change",e=>setInterfaceLanguage(e.target.value));
+    $("minaLanguageSelect").value=minaLanguage;
+    $("minaLanguageSelect").addEventListener("change",e=>{
+      minaLanguage=["auto","tr","en"].includes(e.target.value)?e.target.value:"auto";
+      try{localStorage.setItem(LANGUAGE_KEY,minaLanguage);}catch{}
+    });
     $("minaThemeSelect").value=theme;
     $("minaMemoryEditor").value=userMemory;
     applyInterfaceLanguage(host);
