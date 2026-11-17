@@ -575,6 +575,24 @@
         <div class="settings-actions"><button type="button" class="settings-action" id="saveMinaMemory">Hafızayı kaydet</button><button type="button" class="settings-action secondary" id="clearMinaMemory">Hafızayı sil</button></div>
         <small class="settings-status" id="memorySaveStatus" aria-live="polite"></small>
       </section>
+      <section class="settings-section" data-settings-key="discipline">
+        <h3>Saygı ve disiplin</h3>
+        <p>Mina hakaret ve aşağılamaya sınır koyar. Kademeler: ilk ihlalde uyarı; 2. ihlalde 15 dk; 3. ihlalde 30 dk; 4. ihlalde 1 saat; 5. ihlalde 2 saat; 6. ihlalde 4 saat; 7. ihlalde 6 saat; 8. ve sonraki ihlallerde en fazla 10 saat sohbet kısıtlaması. Kalıcı yasak yoktur.</p>
+        <div class="settings-info-row"><strong>Toplam ihlal</strong><span id="disciplineCount">Yükleniyor…</span></div>
+        <div class="settings-info-row"><strong>Aktif kısıtlama</strong><span id="disciplineRestriction">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>İtiraz durumu</strong><span id="disciplineAppealStatus">Kontrol ediliyor…</span></div>
+        <label class="settings-control-label" for="disciplineAppealText">İtirazını yaz</label>
+        <textarea id="disciplineAppealText" class="settings-textarea" rows="3" maxlength="2000" placeholder="Kısıtlamaya neden itiraz ettiğini açıkla…"></textarea>
+        <button type="button" class="settings-action" id="submitDisciplineAppeal">İtiraz gönder</button>
+        <div id="disciplineReviewPanel" hidden>
+          <label class="settings-control-label" for="disciplineReviewNote">Yönetici değerlendirme notu</label>
+          <textarea id="disciplineReviewNote" class="settings-textarea" rows="2" maxlength="1000" placeholder="Değerlendirme notu (isteğe bağlı)"></textarea>
+          <div class="settings-actions"><button type="button" class="settings-action" id="approveDisciplineAppeal">İtirazı kabul et ve kısıtlamayı kaldır</button><button type="button" class="settings-action secondary" id="rejectDisciplineAppeal">İtirazı reddet</button></div>
+        </div>
+        <small class="settings-status" id="disciplineStatus" aria-live="polite"></small>
+        <div id="disciplineEvents" class="settings-status"></div>
+        <button type="button" class="settings-action secondary" id="refreshDiscipline">Disiplin kaydını yenile</button>
+      </section>
       <section class="settings-section" data-settings-key="data">
         <h3>Sohbetler ve veriler</h3><p>Sohbetler, projeler ve kitaplık bu tarayıcıda saklanır; MinaData hafızası yönetici hesabınla güvenli şekilde eşitlenir. Tarayıcı verilerini temizlemeden önce yerel verileri dışa aktar.</p>
         <div class="settings-actions"><button type="button" class="settings-action" id="exportMinaData">Mina verilerini dışa aktar</button><button type="button" class="settings-action secondary" id="openClearChats">Sohbet geçmişini yönet</button></div>
@@ -624,6 +642,47 @@
     $("minaMemoryEditor").value=userMemory;
     window.MinaI18n?.apply(host);
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
+    const refreshDiscipline=async()=>{
+      const status=$("disciplineStatus");status.textContent="Disiplin kaydı yükleniyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/discipline",{cache:"no-store"});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"Disiplin kaydı alınamadı.");
+        const state=data.state||{};
+        $("disciplineCount").textContent=String(state.violation_count||0);
+        const until=Number(state.restricted_until)||0;
+        $("disciplineRestriction").textContent=until>Date.now()?new Date(until).toLocaleString():"Aktif kısıtlama yok";
+        $("disciplineAppealStatus").textContent=({none:"İtiraz yok",pending:"İnceleme bekliyor",approved:"Kabul edildi",rejected:"Reddedildi"})[state.appeal_status]||"Bilinmiyor";
+        $("disciplineAppealText").value=state.appeal_text||"";
+        $("disciplineReviewPanel").hidden=state.appeal_status!=="pending";
+        $("disciplineEvents").textContent=(data.events||[]).map(event=>"#"+event.violation_count+" · "+(event.restriction_minutes?event.restriction_minutes+" dakika kısıtlama":"uyarı")+" · "+new Date(event.created_at).toLocaleString()).join("\n")||"Henüz ihlal kaydı yok.";
+        status.textContent="Disiplin ve itiraz kayıtları güncel.";
+      }catch(error){status.textContent=error.message||"Disiplin kaydı alınamadı.";}
+    };
+    $("refreshDiscipline").addEventListener("click",refreshDiscipline);
+    $("submitDisciplineAppeal").addEventListener("click",async()=>{
+      const appeal=$("disciplineAppealText").value.trim();
+      if(!appeal){$("disciplineStatus").textContent="Önce itiraz metnini yaz.";return;}
+      try{
+        const response=await fetch(API_BASE+"/api/discipline/appeal",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({appeal})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"İtiraz gönderilemedi.");
+        $("disciplineStatus").textContent="İtirazın yönetici değerlendirmesine iletildi.";
+        await refreshDiscipline();
+      }catch(error){$("disciplineStatus").textContent=error.message||"İtiraz gönderilemedi.";}
+    });
+    const reviewDiscipline=async(action)=>{
+      try{
+        const response=await fetch(API_BASE+"/api/admin/discipline/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,note:$("disciplineReviewNote").value.trim()})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"Değerlendirme kaydedilemedi.");
+        $("disciplineStatus").textContent=action==="approve"?"İtiraz kabul edildi; sohbet kısıtlaması kaldırıldı.":"İtiraz reddedildi.";
+        await refreshDiscipline();
+      }catch(error){$("disciplineStatus").textContent=error.message||"Değerlendirme kaydedilemedi.";}
+    };
+    $("approveDisciplineAppeal").addEventListener("click",()=>reviewDiscipline("approve"));
+    $("rejectDisciplineAppeal").addEventListener("click",()=>reviewDiscipline("reject"));
+    refreshDiscipline();
     $("saveMinaMemory").addEventListener("click",async()=>{
       const value=$("minaMemoryEditor").value.trim();
       userMemory=value;
