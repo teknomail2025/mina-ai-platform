@@ -163,7 +163,7 @@
     els.welcome.hidden = has;
     (c?.messages || []).forEach(m => {
       const row = document.createElement("article"); row.className = "message " + (m.role === "user" ? "user" : "assistant");
-      const avatar = document.createElement("div"); avatar.className = "avatar"; avatar.textContent = m.role === "user" ? "S" : "M";
+      const avatar = document.createElement("div"); avatar.className = "avatar"; if (m.role === "user") { avatar.textContent = "S"; } else { const portrait = document.createElement("img"); portrait.src = "./assets/mina-avatar.webp"; portrait.alt = "Mina"; portrait.loading = "lazy"; avatar.append(portrait); }
       const bubble = document.createElement("div"); bubble.className = "bubble"; bubble.textContent = m.content;
       row.append(avatar,bubble);
       const actions = document.createElement("div"); actions.className = "message-actions";

@@ -447,3 +447,11 @@ body{background:#fff;color:#292637}
   .suggestions{margin-top:18px}
   .composer-wrap{width:calc(100% - 20px);padding:8px 0 9px}
 }
+
+
+/* Mina's supplied portrait avatar */
+.message.assistant .avatar{overflow:hidden;border-radius:50%;background:#f6d9e8;padding:0}
+.message.assistant .avatar img{display:block;width:100%;height:100%;object-fit:cover;object-position:center 38%;border-radius:inherit}
+.welcome-orb{overflow:hidden;padding:0;border-radius:50%;width:76px;height:76px;display:grid;place-items:center}
+.welcome-orb .mina-welcome-avatar{width:100%;height:100%;display:block;object-fit:cover;object-position:center 32%;border-radius:inherit}
+@media(max-width:760px){.welcome-orb{width:64px;height:64px}}
