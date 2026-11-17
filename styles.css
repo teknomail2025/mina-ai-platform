@@ -345,3 +345,52 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .settings-single-page .session-secret-panel{margin:16px 0}
 .settings-single-page .settings-section,.settings-single-page .session-secret-panel{scroll-margin-top:18px}
 @media(max-width:720px){.settings-single-page .settings-main{padding:22px 14px 32px}}
+
+
+/* Mina soft-pink conversation shell and compact bottom navigation */
+:root{--mina-pink:#e34f9b;--mina-pink-soft:#fbe4f1}
+body{background:#fff;color:#292637}
+.app-shell{min-height:100dvh;background:#fff}
+.sidebar{display:none!important}
+.main-panel{height:100dvh;min-height:560px;background:linear-gradient(180deg,#fff 0%,#fffafd 100%)}
+.topbar{height:64px;flex-basis:64px;border-bottom:1px solid #f3e8ef;padding:0 26px;background:#fff}
+.topbar-title{color:#51485a}
+.model-label{color:#928b9b}
+.chat-scroll{padding:34px 28px 20px}
+.welcome-orb{background:linear-gradient(145deg,#ffd7ec,#e45b9f);color:#fff;box-shadow:0 10px 30px #e34f9b2b}
+.eyebrow{color:#d94d96}
+.composer-wrap{width:calc(100% - 64px);max-width:none;margin:0 auto;padding:12px 0 10px}
+.composer{gap:12px;padding:13px 16px;border:1px solid #f6d6e8;border-radius:999px;background:#fff;box-shadow:0 10px 28px #e34f9b17}
+.composer:focus-within{border-color:#e78aba;box-shadow:0 10px 32px #e34f9b22}
+.composer textarea{color:#373141}
+.composer textarea::placeholder{color:#a39baa}
+.tools-toggle{width:40px;height:40px;border-radius:50%;background:#fff0f7;color:#df4e98;border:1px solid #f8d8e9;font-size:23px}
+.send-button{width:48px;height:48px;flex:0 0 48px;border-radius:50%;background:linear-gradient(145deg,#ed73b2,#d83f91);color:white;font-size:26px;box-shadow:0 7px 18px #d83f9130}
+.disclaimer{color:#aaa2ad}
+.mina-bottom-nav{height:86px;flex:0 0 86px;display:grid;grid-template-columns:1fr 1fr 1fr 1fr 1fr;align-items:center;padding:4px 28px 8px;border-top:1px solid #f4e7ee;background:#fff;box-shadow:0 -8px 24px #e7cddd0b}
+.mina-nav-item{position:relative;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-width:0;height:70px;border:0;background:transparent;color:#98919f;font:500 11px 'DM Sans';cursor:pointer}
+.mina-nav-icon{font:normal 25px/1 'DM Sans';color:currentColor}
+.mina-nav-item.active{color:var(--mina-pink)}
+.mina-nav-item.active:after{content:"";position:absolute;bottom:-8px;width:52px;height:4px;border-radius:5px 5px 0 0;background:#efb1d2}
+.mina-avatar-nav{position:relative;justify-self:center;align-self:start;margin-top:-19px;width:76px;height:76px;border:5px solid #fff;border-radius:50%;background:linear-gradient(145deg,#fff,#fff1f8);box-shadow:0 5px 22px #df70aa35;display:grid;place-items:center;cursor:pointer}
+.mina-avatar-orb{width:62px;height:62px;border-radius:50%;display:grid;place-items:center;background:radial-gradient(circle at 35% 25%,#ffe3f1,#e879b1 58%,#b94d89);color:#fff;font:800 27px Manrope;text-shadow:0 2px 8px #8c315e55}
+.mina-avatar-heart{position:absolute;right:-1px;bottom:-2px;width:24px;height:24px;border:3px solid #fff;border-radius:50%;display:grid;place-items:center;background:#e85a9e;color:#fff;font-size:12px}
+:root[data-theme="dark"] body,:root[data-theme="dark"] .app-shell,:root[data-theme="dark"] .main-panel{background:#11121a;color:#f3eff8}
+:root[data-theme="dark"] .topbar,:root[data-theme="dark"] .mina-bottom-nav{background:#151622;border-color:#302a3a}
+:root[data-theme="dark"] .topbar-title{color:#f3eff8}
+:root[data-theme="dark"] .composer{background:#1b1c29;border-color:#49344a}
+:root[data-theme="dark"] .composer textarea{color:#f3eff8}
+:root[data-theme="dark"] .mina-nav-item{color:#aaa2b5}
+:root[data-theme="dark"] .mina-nav-item.active{color:#ef79b6}
+:root[data-theme="dark"] .mina-avatar-nav{border-color:#151622}
+@media(max-width:760px){
+ .topbar{padding:0 14px}.topbar-title{font-size:13px}.topbar-actions{gap:6px}.model-label{max-width:110px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+ .chat-scroll{padding:22px 14px 14px}.composer-wrap{width:calc(100% - 24px);padding:9px 0 8px}
+ .composer{padding:9px 11px;gap:8px}.composer textarea{font-size:13px}
+ .mina-bottom-nav{height:78px;flex-basis:78px;padding:3px 8px 6px}
+ .mina-nav-item{height:64px;font-size:10px}.mina-nav-icon{font-size:23px}
+ .mina-avatar-nav{width:68px;height:68px;margin-top:-15px}.mina-avatar-orb{width:56px;height:56px}
+ .mina-nav-item.active:after{bottom:-6px}
+ .disclaimer{font-size:9px}
+}
+@media(max-width:420px){.logout-btn{display:none}.topbar{height:56px;flex-basis:56px}.mina-bottom-nav{padding-left:3px;padding-right:3px}.mina-nav-item{font-size:9px}}
