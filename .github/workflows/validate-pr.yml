@@ -1,0 +1,27 @@
+name: Validate Mina changes before merge
+
+on:
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - name: Validate voice and Worker syntax
+        run: |
+          node --check voice.js
+          node --check worker/src/index.js
+      - name: Run Worker regression tests
+        run: node --test worker/test/*.test.cjs
