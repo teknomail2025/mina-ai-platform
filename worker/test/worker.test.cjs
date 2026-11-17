@@ -586,3 +586,17 @@ test("Mina sidebar has no duplicate settings button or secondary page navigation
   assert.doesNotMatch(html, /class="workspace-nav"/);
   assert.match(html, /id="sidebarProfile"/, "settings remain reachable from the profile menu");
 });
+
+ 
+test("Mina persona rules prohibit submissive language and fabricated system status", () => {
+  assert.match(workerSource, /kendi tutarlı değerlerini, sınırlarını/);
+  assert.match(workerSource, /emrindeyim, ne emredersin gibi ifadeler kullanma/);
+  assert.match(workerSource, /telemetrisiyle doğrulanmadıkça sistem yoğunluğu/);
+  assert.match(workerSource, /Model adları, sağlayıcı seçimi/);
+  assert.match(workerSource, /Sesli konuşmada kısa, anlaşılır ve doğal cevaplar/);
+});
+
+test("chat UI does not expose internal model routing metadata", () => {
+  assert.doesNotMatch(frontendSource, /Mina otomatik seçim:/);
+  assert.match(frontendSource, /addMessage\("assistant", answer\.trim\(\) \+ sourceText\)/);
+});
