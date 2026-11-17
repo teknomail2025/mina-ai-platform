@@ -125,13 +125,19 @@ jobs:
             echo "Browser static server and local Worker stopped."
           }
           trap cleanup EXIT
-          for i in $(seq 1 60); do
-            if curl -fsS http://127.0.0.1:8787/api/health >/dev/null && curl -fsS http://127.0.0.1:8000/ >/dev/null; then break; fi
+          READY=false
+          for i in $(seq 1 30); do
+            if curl --connect-timeout 1 --max-time 2 -fsS http://127.0.0.1:8787/api/health >/dev/null && curl --connect-timeout 1 --max-time 2 -fsS http://127.0.0.1:8000/ >/dev/null; then READY=true; break; fi
             sleep 1
           done
-          curl -fsS http://127.0.0.1:8787/api/health >/dev/null
-          curl -fsS http://127.0.0.1:8000/ >/dev/null
-          node worker/test/ui-language.browser.cjs
+          if [ "$READY" != "true" ]; then
+            echo "Local Worker or static server did not become ready."
+            cat /tmp/mina-browser-worker.log || true
+            cat /tmp/mina-browser-http.log || true
+            exit 1
+          fi
+          echo "Local Worker and static server are ready; starting Playwright checks."
+          timeout 180s node worker/test/ui-language.browser.cjs
           echo "Browser app startup, authenticated runtime, TR→EN→TR, response-language independence, settings open/close and browser shutdown: passed"
           cat /tmp/mina-browser-worker.log
       - name: Verify required frontend files
