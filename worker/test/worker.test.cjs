@@ -525,16 +525,16 @@ test("Gemini 503 on ordinary chat switches to a different Flash model", async ()
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
   assert.equal(result.data.requested_model, "gemini-3.8-flash");
-  assert.equal(result.data.model, "gemini-3.7-flash");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
   assert.equal(result.data.fallback_used, true);
   assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
   assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
-  assert.ok(requestedModels[1].includes("gemini-3.7-flash"));
+  assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
 });
 
 test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
   const { worker, requestedModels } = createWorker(async target => {
-    if (!target.includes("gemini-3.7-flash:generateContent")) {
+    if (!target.includes("gemini-3.1-flash-lite:generateContent")) {
       return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
     }
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Güvenli yedek yanıt" }] } }] }), { status: 200 });
@@ -549,12 +549,12 @@ test("Gemini advanced task falls back through Flash models without repeating a m
     body: { messages: [{ role: "user", content: "JavaScript kodu yaz." }] }
   });
   assert.equal(result.status, 200);
-  assert.equal(result.data.model, "gemini-3.7-flash");
+  assert.equal(result.data.model, "gemini-3.1-flash-lite");
   assert.equal(result.data.fallback_used, true);
   assert.equal(requestedModels.length, 3);
-  assert.ok(requestedModels[0].includes("gemini-3.1-pro-preview"));
-  assert.ok(requestedModels[1].includes("gemini-3.8-flash"));
-  assert.ok(requestedModels[2].includes("gemini-3.7-flash"));
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
+  assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
+  assert.ok(requestedModels[2].includes("gemini-3.1-flash-lite"));
   assert.equal(new Set(requestedModels).size, requestedModels.length, "no model may be retried as its own fallback");
 });
 
