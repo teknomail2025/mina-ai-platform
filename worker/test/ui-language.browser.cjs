@@ -28,9 +28,9 @@ const watchdog = setTimeout(() => {
       if (node.parentElement.closest("script,style,code,pre,textarea,input,.bubble,[data-i18n-ignore]")) continue;
       found.push(value);
     }
-    for (const element of document.querySelectorAll("[placeholder],[title],[aria-label],[alt],[data-prompt]")) {
+    for (const element of document.querySelectorAll("[placeholder],[title],[aria-label],[aria-description],[aria-roledescription],[alt],[data-prompt],[data-tooltip]")) {
       if (element.closest("[data-i18n-ignore]")) continue;
-      for (const name of ["placeholder", "title", "aria-label", "alt", "data-prompt"]) {
+      for (const name of ["placeholder", "title", "aria-label", "aria-description", "aria-roledescription", "alt", "data-prompt", "data-tooltip"]) {
         const value = element.getAttribute(name);
         if (value && turkish.test(value)) found.push(name + ": " + value);
       }
@@ -77,6 +77,8 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaUiLanguageSelect option[value=tr]").innerText(), "Turkish");
     assert.equal(await page.locator("#minaLanguageSelect option[value=auto]").innerText(), "Detect automatically (recommended)");
     assert.equal(await page.locator("#minaThemeSelect option[value=dark]").innerText(), "Dark theme");
+    assert.equal(await page.evaluate(() => window.MinaI18n.t("Gemini servisine bağlanılamadı: test", "en")), "Could not connect to the Gemini service: test");
+    assert.equal(await page.evaluate(() => window.MinaI18n.t("Could not connect to the Gemini service: test", "tr")), "Gemini servisine bağlanılamadı: test");
     assert.equal(await page.locator("#minaMemoryEditor").getAttribute("placeholder"), "Write the information you want Mina to remember…");
     const settingsText = await page.locator(".settings-main").innerText();
     for (const expected of [
