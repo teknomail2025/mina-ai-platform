@@ -19,7 +19,7 @@ jobs:
     environment:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -30,6 +30,7 @@ jobs:
       - name: Validate JavaScript syntax
         run: |
           node --check auth.js
+          node --check i18n.js
           node --check app.js
           node --check voice.js
           node --check pwa.js
@@ -97,7 +98,7 @@ jobs:
       - name: Browser UI language runtime test
         run: |
           npm install --no-save playwright@1.56.1
-          npx --yes playwright@1.56.1 install --with-deps chromium
+          npx playwright install --with-deps chromium
           cd worker
           npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.toml
           setsid npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
@@ -131,6 +132,7 @@ jobs:
         run: |
           test -s index.html
           test -s styles.css
+          test -s i18n.js
           test -s app.js
           test -s voice.js
           test -s pwa.js
