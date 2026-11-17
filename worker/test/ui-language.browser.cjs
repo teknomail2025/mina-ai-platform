@@ -74,9 +74,9 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Ask Mina something...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Your message");
-    assert.equal(await page.locator("#minaUiLanguageSelect option[value="tr"]").innerText(), "Turkish");
-    assert.equal(await page.locator("#minaLanguageSelect option[value="auto"]").innerText(), "Detect automatically (recommended)");
-    assert.equal(await page.locator("#minaThemeSelect option[value="dark"]").innerText(), "Dark theme");
+    assert.equal(await page.locator("#minaUiLanguageSelect option[value=tr]").innerText(), "Turkish");
+    assert.equal(await page.locator("#minaLanguageSelect option[value=auto]").innerText(), "Detect automatically (recommended)");
+    assert.equal(await page.locator("#minaThemeSelect option[value=dark]").innerText(), "Dark theme");
     assert.equal(await page.locator("#minaMemoryEditor").getAttribute("placeholder"), "Write the information you want Mina to remember…");
     const settingsText = await page.locator(".settings-main").innerText();
     for (const expected of [
@@ -183,9 +183,9 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Mesajın");
-    assert.equal(await page.locator("#minaUiLanguageSelect option[value="tr"]").innerText(), "Türkçe");
-    assert.equal(await page.locator("#minaLanguageSelect option[value="auto"]").innerText(), "Otomatik algıla (önerilen)");
-    assert.equal(await page.locator("#minaThemeSelect option[value="dark"]").innerText(), "Koyu tema");
+    assert.equal(await page.locator("#minaUiLanguageSelect option[value=tr]").innerText(), "Türkçe");
+    assert.equal(await page.locator("#minaLanguageSelect option[value=auto]").innerText(), "Otomatik algıla (önerilen)");
+    assert.equal(await page.locator("#minaThemeSelect option[value=dark]").innerText(), "Koyu tema");
     assert.equal(await page.locator(".suggestion").first().getAttribute("data-prompt"), "Bana yeni başlayanlar için Python öğrenme planı hazırla.");
     assert.equal(await page.locator(".bubble img").getAttribute("alt"), "Mina tarafından üretilen görsel");
     await page.locator("#requestNotificationPermission").click();
