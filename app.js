@@ -238,7 +238,7 @@
     const host=document.createElement("div");
     const items=pinnedIds.map(id=>conversations.find(c=>c.id===id)).filter(Boolean);
     if(!items.length)host.append(workspaceNote(uiText("Henüz sabitlenen sohbet yok. Sohbet listesindeki ☆ simgesine basarak sabitleyebilirsin.")));
-    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton(uiText("Sohbeti aç"),()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton(uiText("Sabitlemeyi kaldır"),()=>{togglePinned(c.id);renderPinnedWorkspace();}));row.append(title,actions);host.append(row);});
+    items.forEach(c=>{const row=document.createElement("div");row.className="workspace-item";const title=document.createElement("strong");title.textContent=c.title||"Yeni sohbet";if(c.title&&c.title!=="Yeni sohbet")title.setAttribute("data-i18n-ignore","");const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton(uiText("Sohbeti aç"),()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;}));actions.append(workspaceButton(uiText("Sabitlemeyi kaldır"),()=>{togglePinned(c.id);renderPinnedWorkspace();}));row.append(title,actions);host.append(row);});
     openWorkspace("Sabitlenenler",host);
   }
   function renderPinnedAndProjects() {
@@ -251,7 +251,7 @@
       b.addEventListener("click",()=>{activeId=c.id;render();els.sidebar.classList.remove("open");});pinned.append(b);
     });
     if(!pinned.children.length){const e=document.createElement("small");e.textContent="Henüz sabitlenen sohbet yok";pinned.append(e);}
-    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title=uiText("Projeyi sil");del.addEventListener("click",()=>{if(confirm(uiLanguage === "en" ? `Delete project "${p.name}"?` : '"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
+    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.setAttribute("data-i18n-ignore","");b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title=uiText("Projeyi sil");del.addEventListener("click",()=>{if(confirm(uiLanguage === "en" ? `Delete project "${p.name}"?` : '"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
     if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
     window.MinaI18n?.apply(pinned);window.MinaI18n?.apply(projectList);
   }
