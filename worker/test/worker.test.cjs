@@ -519,3 +519,16 @@ test("Gemini advanced task falls back through Flash models without repeating a m
   assert.ok(requestedModels[2].includes("gemini-3.7-flash"));
   assert.equal(new Set(requestedModels).size, requestedModels.length, "no model may be retried as its own fallback");
 });
+
+
+test("Mina bottom navigation exposes and wires home, memories, tasks and settings", () => {
+  const html = fs.readFileSync(path.join(workerDir, "..", "index.html"), "utf8");
+  const styles = fs.readFileSync(path.join(workerDir, "..", "styles.css"), "utf8");
+  for (const id of ["minaHomeNav", "minaMemoriesNav", "minaAvatarNav", "minaTasksNav", "minaSettingsNav"]) {
+    assert.match(html, new RegExp('id="' + id + '"'));
+    assert.match(frontendSource, new RegExp('\\$\\("' + id + '"\\)\\.addEventListener'));
+  }
+  assert.match(html, /class="mina-bottom-nav"/);
+  assert.match(styles, /\.mina-bottom-nav/);
+  assert.match(styles, /--mina-pink:#e34f9b/);
+});
