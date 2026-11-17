@@ -369,7 +369,7 @@
         if (codeStart >= 0 && codeEnd > codeStart) { els.codeEditor.value = answer.slice(codeStart + 1, codeEnd).trim(); els.codeWorkspacePanel.hidden = false; }
       }
       const sourceText = (data.sources || []).length ? "\n\n" + uiText("Kaynaklar:") + "\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
-      addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— " + uiText("Mina otomatik seçim: ") + data.model + " (" + (data.selection_reason || data.task || uiText("göreve uygun model")) + ")" : ""));
+      addMessage("assistant", answer.trim() + sourceText);
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
       addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
