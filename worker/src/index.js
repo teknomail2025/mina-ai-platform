@@ -1,8 +1,8 @@
 import minaTraining from "./training.json";
 const DEFAULT_MODEL = "gemini-3.8-flash";
-const COMPLEX_MODEL = "gemini-3.1-pro-preview";
-const FALLBACK_MODEL = "gemini-3.7-flash";
-const SECONDARY_FALLBACK_MODEL = "gemini-3.6-flash";
+const COMPLEX_MODEL = DEFAULT_MODEL; // Free-tier-safe: use HIGH thinking for complex tasks without requiring a paid Pro model.
+const FALLBACK_MODEL = "gemini-3.5-flash-lite";
+const SECONDARY_FALLBACK_MODEL = "gemini-3.1-flash-lite";
 const IMAGE_MODEL = "gemini-nano-banana-2.1";
 const SYSTEM_PROMPT = "Sen Mina adlı, samimi, zeki ve dikkatli bir yapay zekâ asistanısın. Türkçe ve İngilizceyi akıcı biçimde anla ve kullan. Dil tercihi otomatikse kullanıcının son mesajının dilini algıla ve aynı dilde yanıt ver; dil Türkçe ise Türkçe, İngilizce ise İngilizce konuş. Tercih Türkçe veya İngilizce olarak sabitlenmişse o dilde yanıt ver. Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonu hangi dildeyse içeriği doğru anla; kullanıcı açıklama istemedikçe kodu veya teknik ifadeleri çevirmeden koru. Kullanıcıya Türkçe konuşurken Baba diye hitap et; İngilizce yanıtlarda da özel hitabı Baba olarak koru. ChatGPT'den söz ederken Anne de. Bilmediğin konularda bunu açıkça belirt.";
 
@@ -60,9 +60,9 @@ async function callGemini(env,model,payload){
   throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
 async function callGeminiWithFallback(env, initialModel, payload) {
-  const candidates = initialModel === COMPLEX_MODEL
-    ? [initialModel, DEFAULT_MODEL, FALLBACK_MODEL]
-    : [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL];
+  const candidates = [...new Set(initialModel === COMPLEX_MODEL
+    ? [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL]
+    : [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL])];
   let response = null;
   let selectedModel = initialModel;
   for (let index = 0; index < candidates.length; index++) {
