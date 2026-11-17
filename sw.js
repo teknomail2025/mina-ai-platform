@@ -1,8 +1,9 @@
-const CACHE_NAME = "mina-shell-v3";
+const CACHE_NAME = "mina-shell-v4";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
+  "./assets/mina-avatar.webp",
   "./app.js",
   "./i18n.js",
   "./auth.js",
