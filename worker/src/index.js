@@ -1,6 +1,8 @@
 import minaTraining from "./training.json";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const COMPLEX_MODEL = "gemini-3.1-pro-preview";
+const FALLBACK_MODEL = "gemini-3.7-flash";
+const SECONDARY_FALLBACK_MODEL = "gemini-3.6-flash";
 const IMAGE_MODEL = "gemini-nano-banana-2.1";
 const SYSTEM_PROMPT = "Sen Mina adlı, samimi, zeki ve dikkatli bir yapay zekâ asistanısın. Türkçe ve İngilizceyi akıcı biçimde anla ve kullan. Dil tercihi otomatikse kullanıcının son mesajının dilini algıla ve aynı dilde yanıt ver; dil Türkçe ise Türkçe, İngilizce ise İngilizce konuş. Tercih Türkçe veya İngilizce olarak sabitlenmişse o dilde yanıt ver. Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonu hangi dildeyse içeriği doğru anla; kullanıcı açıklama istemedikçe kodu veya teknik ifadeleri çevirmeden koru. Kullanıcıya Türkçe konuşurken Baba diye hitap et; İngilizce yanıtlarda da özel hitabı Baba olarak koru. ChatGPT'den söz ederken Anne de. Bilmediğin konularda bunu açıkça belirt.";
 
@@ -56,6 +58,22 @@ async function callGemini(env,model,payload){
     }
   }
   throw new Error("Gemini isteği zaman aşımına uğradı.");
+}
+async function callGeminiWithFallback(env, initialModel, payload) {
+  const candidates = initialModel === COMPLEX_MODEL
+    ? [initialModel, DEFAULT_MODEL, FALLBACK_MODEL]
+    : [initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL];
+  let response = null;
+  let selectedModel = initialModel;
+  for (let index = 0; index < candidates.length; index++) {
+    selectedModel = candidates[index];
+    if (index > 0) await new Promise(resolve => setTimeout(resolve, 400));
+    response = await callGemini(env, selectedModel, payload);
+    if (response.ok) return { response, model: selectedModel };
+    // Only transient capacity, rate-limit, and upstream failures should trigger model fallback.
+    if (![429, 500, 502, 503, 504, 524].includes(response.status)) break;
+  }
+  return { response, model: selectedModel };
 }
 async function callOpenAI(env,model,payload){
   const messages=[{role:"system",content:SYSTEM_PROMPT},...payload.contents.map(m=>({role:m.role==="model"?"assistant":"user",content:m.parts.map(p=>p.text||"").join("\n")}))];
@@ -254,22 +272,22 @@ export default {
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   try{
     let upstream;
-    if(provider==="gemini") upstream=await callGemini(env,model,payload);
+    const requestedModel = model;
+    if(provider==="gemini") {
+      const result = await callGeminiWithFallback(env, model, payload);
+      upstream = result.response;
+      model = result.model;
+    }
     else if(provider==="openai") upstream=await callOpenAI(env,body.model==="advanced"?"advanced":"fast",payload);
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
     else return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);
-    if(!upstream.ok&&provider==="gemini"&&[429,500,502,503,504,524].includes(upstream.status)){
-      await new Promise(resolve=>setTimeout(resolve,1200));
-      upstream=await callGemini(env,DEFAULT_MODEL,payload);
-      model=DEFAULT_MODEL;
-    }
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
-    if(!upstream.ok){const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:"Google Gemini isteği reddetti.",provider_status:upstream.status,provider_detail:detail},upstream.status===429?429:502,cors);}
+    if(!upstream.ok){const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,provider_detail:detail,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
     const parts=parsed?.candidates?.[0]?.content?.parts||[];
     const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
     if(!answer)return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);
     const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
-    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
   }catch(e){return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
  }
 };
