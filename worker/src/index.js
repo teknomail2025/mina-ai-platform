@@ -244,7 +244,7 @@ export default {
     const state=await getDisciplineState(env.MINA_DB,userId);
     if(!state||state.appeal_status!=="pending")return json({error:"Bekleyen bir itiraz bulunmuyor."},409,cors);
     const now=Date.now();
-    if(action==="approve")await env.MINA_DB.prepare("UPDATE mina_discipline_state SET restricted_until = NULL, appeal_status = 'approved', updated_at = ? WHERE user_id = ?").bind(now,userId).run();
+    if(action==="approve")await env.MINA_DB.prepare("UPDATE mina_discipline_state SET restricted_until = NULL, violation_count = CASE WHEN violation_count > 0 THEN violation_count - 1 ELSE 0 END, appeal_status = 'approved', updated_at = ? WHERE user_id = ?").bind(now,userId).run();
     else await env.MINA_DB.prepare("UPDATE mina_discipline_state SET appeal_status = 'rejected', updated_at = ? WHERE user_id = ?").bind(now,userId).run();
     return json({reviewed:true,decision:action,restrictionCleared:action==="approve",note},200,{...cors,"Cache-Control":"no-store"});
   }
