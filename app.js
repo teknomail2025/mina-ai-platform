@@ -649,7 +649,7 @@
     window.MinaI18n?.apply(host);
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
     const refreshDiscipline=async()=>{
-      const status=$("disciplineStatus");status.textContent="Disiplin kaydı yükleniyor…";
+      const status=$("disciplineStatus");status.textContent=uiText("Disiplin kaydı yükleniyor…");
       try{
         const response=await fetch(API_BASE+"/api/admin/discipline",{cache:"no-store"});
         const data=await response.json().catch(()=>({}));
@@ -657,12 +657,12 @@
         const state=data.state||{};
         $("disciplineCount").textContent=String(state.violation_count||0);
         const until=Number(state.restricted_until)||0;
-        $("disciplineRestriction").textContent=until>Date.now()?new Date(until).toLocaleString():"Aktif kısıtlama yok";
-        $("disciplineAppealStatus").textContent=({none:"İtiraz yok",pending:"İnceleme bekliyor",approved:"Kabul edildi",rejected:"Reddedildi"})[state.appeal_status]||"Bilinmiyor";
+        $("disciplineRestriction").textContent=until>Date.now()?new Date(until).toLocaleString():uiText("Aktif kısıtlama yok");
+        $("disciplineAppealStatus").textContent=uiText(({none:"İtiraz yok",pending:"İnceleme bekliyor",approved:"Kabul edildi",rejected:"Reddedildi"})[state.appeal_status]||"Bilinmiyor");
         $("disciplineAppealText").value=state.appeal_text||"";
         $("disciplineReviewPanel").hidden=state.appeal_status!=="pending";
-        $("disciplineEvents").textContent=(data.events||[]).map(event=>"#"+event.violation_count+" · "+(event.restriction_minutes?event.restriction_minutes+" dakika kısıtlama":"uyarı")+" · "+new Date(event.created_at).toLocaleString()).join("\n")||"Henüz ihlal kaydı yok.";
-        status.textContent="Disiplin ve itiraz kayıtları güncel.";
+        $("disciplineEvents").textContent=(data.events||[]).map(event=>"#"+event.violation_count+" · "+(event.restriction_minutes?event.restriction_minutes+" "+uiText("dakika kısıtlama"):uiText("uyarı"))+" · "+new Date(event.created_at).toLocaleString()).join("\n")||uiText("Henüz ihlal kaydı yok.");
+        status.textContent=uiText("Disiplin ve itiraz kayıtları güncel.");
       }catch(error){status.textContent=error.message||"Disiplin kaydı alınamadı.";}
     };
     $("refreshDiscipline").addEventListener("click",refreshDiscipline);
@@ -682,7 +682,7 @@
         const response=await fetch(API_BASE+"/api/admin/discipline/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({action,note:$("disciplineReviewNote").value.trim()})});
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.error||"Değerlendirme kaydedilemedi.");
-        $("disciplineStatus").textContent=action==="approve"?"İtiraz kabul edildi; sohbet kısıtlaması kaldırıldı.":"İtiraz reddedildi.";
+        $("disciplineStatus").textContent=action==="approve"?uiText("İtiraz kabul edildi; sohbet kısıtlaması kaldırıldı."):uiText("İtiraz reddedildi.");
         await refreshDiscipline();
       }catch(error){$("disciplineStatus").textContent=error.message||"Değerlendirme kaydedilemedi.";}
     };
