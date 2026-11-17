@@ -355,6 +355,12 @@
         body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
+      if(typeof data.memory_updated==="string"){
+        userMemory=data.memory_updated;
+        try{if(userMemory)localStorage.setItem(MEMORY_KEY,userMemory);else localStorage.removeItem(MEMORY_KEY);}catch{}
+        const memoryEditor=$("minaMemoryEditor");if(memoryEditor)memoryEditor.value=userMemory;
+        const memoryStatus=$("memorySaveStatus");if(memoryStatus)memoryStatus.textContent="MinaData hafızası güncellendi.";
+      }
       if (!response.ok) {
         const detail = data.provider_detail ? " " + uiText("Ayrıntı: ") + data.provider_detail : "";
         const providerStatus = data.provider_status ? " (" + uiText("sağlayıcı HTTP ") + data.provider_status + ")" : "";
