@@ -699,3 +699,20 @@ test("voice discipline endpoint records spoken insults and applies escalating re
   assert.equal(second.data.restriction_minutes, 15);
   assert.equal(disciplineStore.row.violation_count, 2);
 });
+
+test("Mina only saves long-term memory when the user explicitly asks", async () => {
+  const { worker, mockDb } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const ordinary = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Bugün hava nasıl?" }] } });
+  assert.equal(ordinary.status, 200);
+  const initialMemory = await call(worker, "/api/memory", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.equal(initialMemory.data.memory, "");
+  const saved = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Bunu hatırla: Mina projesindeki tüm değişiklikler önce test edilecek." }] } });
+  assert.equal(saved.status, 200);
+  assert.match(saved.data.memory_updated, /önce test edilecek/);
+  const secret = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Bunu hatırla: API key gizli-değer." }] } });
+  assert.equal(secret.status, 200);
+  assert.equal(secret.data.memory_saved, false);
+  const finalMemory = await call(worker, "/api/memory", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.doesNotMatch(finalMemory.data.memory, /gizli-değer/);
+});
