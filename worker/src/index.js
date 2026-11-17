@@ -19,7 +19,16 @@ function detectDisrespect(text) {
   const directedAbuse = /\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\b/i;
   return directInsult.test(value) || directedAbuse.test(value);
 }
+let disciplineSchemaReady = false;
+async function ensureDisciplineSchema(db) {
+  if (disciplineSchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_discipline_state (user_id TEXT PRIMARY KEY, violation_count INTEGER NOT NULL DEFAULT 0, restricted_until INTEGER, appeal_status TEXT NOT NULL DEFAULT 'none', appeal_text TEXT, updated_at INTEGER NOT NULL)").run();
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_discipline_events (id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL, violation_count INTEGER NOT NULL, restriction_minutes INTEGER NOT NULL DEFAULT 0, created_at INTEGER NOT NULL)").run();
+  await db.prepare("CREATE INDEX IF NOT EXISTS idx_mina_discipline_events_user_created ON mina_discipline_events(user_id, created_at DESC)").run();
+  disciplineSchemaReady = true;
+}
 async function getDisciplineState(db, userId) {
+  await ensureDisciplineSchema(db);
   return db.prepare("SELECT user_id, violation_count, restricted_until, appeal_status, appeal_text, updated_at FROM mina_discipline_state WHERE user_id = ?").bind(userId).first();
 }
 async function recordDisciplineViolation(db, userId) {
