@@ -496,7 +496,7 @@
       addMessage("assistant", answer.trim() + sourceText + (data.model ? "\n\n— " + uiText("Mina otomatik seçim: ") + data.model + " (" + (data.selection_reason || data.task || uiText("göreve uygun model")) + ")" : ""));
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
-      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + err.message + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
+      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiText(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
@@ -518,7 +518,7 @@
       bubble.append(img);
       if (d.caption) { const caption = document.createElement("p"); caption.textContent = d.caption; bubble.append(caption); }
       row.append(avatar,bubble); els.messages.append(row); els.input.value = ""; els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
-    } catch(e) { alert(e.message); }
+    } catch(e) { alert(uiText(e.message)); }
     finally { typing.remove(); setBusy(false); els.imageGenerateBtn.disabled = false; els.input.focus(); }
   }
   async function searchSteam(query) {
@@ -528,7 +528,7 @@
       const r = await fetch(API_BASE + "/api/steam/search?q=" + encodeURIComponent(query));
       const d = await r.json().catch(()=>({}));
       if (!r.ok) throw new Error(d.error || uiText("Steam araması başarısız."));
-      const lines = (d.items || []).map((x,i) => (i+1)+". "+x.name+" — "+x.price+(x.discount?" (%"+x.discount+" indirim)":"")+"\n"+x.url);
+      const lines = (d.items || []).map((x,i) => (i+1)+". "+x.name+" — "+x.price+(x.discount?(uiLanguage==="en"?" ("+x.discount+"% off)":" (%"+x.discount+" indirim)"):"")+"\n"+x.url);
       addMessage("assistant", lines.length ? (uiLanguage==="en"?"Steam search results ("+d.total+" results):\n\n":"Steam arama sonuçları ("+d.total+" sonuç):\n\n")+lines.join("\n\n") : uiText("Steam'de eşleşen oyun bulunamadı."));
     } catch(e) { addMessage("assistant", uiText("Steam araması yapılamadı: ")+e.message); }
     finally { typing.remove(); setBusy(false); els.input.focus(); }
@@ -794,7 +794,7 @@
       const status=$("micTestStatus");
       if(!navigator.mediaDevices?.getUserMedia){status.textContent="Bu tarayıcı mikrofon erişimini desteklemiyor.";return;}
       try{const stream=await navigator.mediaDevices.getUserMedia({audio:true});stream.getTracks().forEach(track=>track.stop());$("micPermissionStatus").textContent="İzin verildi";status.textContent="Mikrofon erişimi başarılı. Test tamamlandı; mikrofon kapatıldı.";}
-      catch(error){status.textContent=error.name==="NotAllowedError"?"Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et.":"Mikrofon testi başarısız: "+error.message;}
+      catch(error){status.textContent=error.name==="NotAllowedError"?uiText("Mikrofon izni reddedildi. Tarayıcı izinlerini kontrol et."):uiText("Mikrofon testi başarısız: ")+error.message;}
     });
     $("generateSessionSecret").addEventListener("click",()=>{
       if(!globalThis.crypto?.getRandomValues){$("sessionSecretCopyStatus").textContent=uiText("Bu tarayıcı güvenli anahtar üretimini desteklemiyor.");return;}
