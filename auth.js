@@ -1,7 +1,7 @@
 /* Mina AI single-admin authentication. Tokens stay in sessionStorage and expire server-side. */
 (() => {
   "use strict";
-  const API_BASE=(window.MINA_API_BASE||"https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/,"");
+  const API_BASE=(window.MINA_API_BASE||"https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/,"");
   const TOKEN_KEY="mina-admin-session-v1";
   const nativeFetch=window.fetch.bind(window);
   const screen=document.getElementById("minaLogin");
