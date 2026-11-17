@@ -467,3 +467,20 @@ body{background:#fff;color:#292637}
   .sidebar{height:100dvh;min-height:100dvh;overflow-y:auto;overflow-x:hidden}
   .sidebar-profile-wrap{margin-top:auto!important;flex:0 0 auto;position:sticky;bottom:0;z-index:20;padding-top:10px;padding-bottom:4px;background:var(--panel,#fff)}
 }
+
+
+/* Mina's portrait is the settings entry point; Argion's account stays at the sidebar bottom. */
+.brand .mina-profile-settings-trigger{
+  flex:0 0 44px;width:44px;height:44px;padding:0;border:2px solid #d98ab8;
+  border-radius:50%;overflow:hidden;cursor:pointer;background:#f4d8e7;
+  box-shadow:0 0 0 3px #d98ab822,0 5px 16px #0003;transition:transform .18s ease,box-shadow .18s ease;
+}
+.brand .mina-profile-settings-trigger:hover{
+  transform:translateY(-1px);box-shadow:0 0 0 4px #d98ab844,0 7px 20px #0004;
+}
+.brand .mina-profile-settings-trigger:focus-visible{
+  outline:2px solid #dca0c5;outline-offset:4px;
+}
+.brand .mina-profile-settings-trigger img{
+  display:block;width:100%;height:100%;object-fit:cover;object-position:center 34%;border-radius:50%;
+}
