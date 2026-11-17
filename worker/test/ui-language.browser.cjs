@@ -1,9 +1,16 @@
 const assert = require("node:assert/strict");
 const { chromium } = require("playwright");
 
+let stage = "launching Chromium";
+const watchdog = setTimeout(() => {
+  console.error("Browser UI language test timed out at stage: " + stage);
+  process.exit(1);
+}, 120000);
+
 (async () => {
   const browser = await chromium.launch({ headless: true });
   const page = await browser.newPage();
+  stage = "opening the app and signing in";
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(30000);
   const pageErrors = [];
@@ -36,7 +43,7 @@ const { chromium } = require("playwright");
   };
   const closeDialog = async () => {
     await page.locator("#workspaceDialogClose").click();
-    await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden);
+    await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden, null, { timeout: 15000 });
   };
   const openDiscover = async () => {
     await page.locator("#discoverNav").click();
@@ -52,13 +59,14 @@ const { chromium } = require("playwright");
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
+    stage = "checking English settings and dynamic UI";
 
     await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "tr");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "auto");
     await page.locator("#minaLanguageSelect").selectOption("en");
     await page.locator("#minaUiLanguageSelect").selectOption("en");
-    await page.waitForFunction(() => document.documentElement.lang === "en");
+    await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - bilingual AI assistant");
 
@@ -102,7 +110,7 @@ const { chromium } = require("playwright");
     await page.locator("#requestNotificationPermission").click();
     assert.equal(await page.locator("#notificationPermissionStatus").innerText(), "Permission granted");
     await page.locator("#refreshMinaHealth").click();
-    await page.waitForFunction(() => document.getElementById("minaApiStatus").textContent === "Connected");
+    await page.waitForFunction(() => document.getElementById("minaApiStatus").textContent === "Connected", null, { timeout: 15000 });
     assert.equal(await page.locator("#minaProviderStatus").innerText(), "Ready");
     await closeDialog();
     await page.locator("#clearChatsBtn").click();
@@ -142,9 +150,9 @@ const { chromium } = require("playwright");
     assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Timers");
     assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("25-minute timer is running."));
     await page.evaluate(() => window.MinaI18n.setLanguage("tr"));
-    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25 dakikalık sayaç devam ediyor."));
+    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25 dakikalık sayaç devam ediyor."), null, { timeout: 15000 });
     await page.evaluate(() => window.MinaI18n.setLanguage("en"));
-    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25-minute timer is running."));
+    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25-minute timer is running."), null, { timeout: 15000 });
     await closeDialog();
 
     await openDiscover();
@@ -161,7 +169,7 @@ const { chromium } = require("playwright");
 
     await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
-    await page.waitForFunction(() => document.documentElement.lang === "tr");
+    await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - Türkçe yapay zekâ sohbet platformu");
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Ayarlar");
@@ -189,7 +197,7 @@ const { chromium } = require("playwright");
 
     await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("en");
-    await page.waitForFunction(() => document.documentElement.lang === "en");
+    await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 15000 });
     await closeDialog();
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("body.mina-authenticated").waitFor();
@@ -200,9 +208,10 @@ const { chromium } = require("playwright");
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Response language must persist independently");
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
-    await page.waitForFunction(() => document.documentElement.lang === "tr");
+    await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.deepEqual(pageErrors, [], "Browser runtime must not produce uncaught JavaScript errors");
 
+    stage = "checking localized sign-in errors";
     await closeDialog();
     await page.evaluate(() => window.MinaI18n.setLanguage("en"));
     await page.locator("#minaLogoutBtn").click();
@@ -210,12 +219,14 @@ const { chromium } = require("playwright");
     await page.locator("#minaUsername").fill("Argion");
     await page.locator("#minaPassword").fill("incorrect-password-for-i18n-test");
     await page.locator("#minaLoginSubmit").click();
-    await page.waitForFunction(() => document.getElementById("minaLoginError").textContent === "Incorrect username or password.");
+    await page.waitForFunction(() => document.getElementById("minaLoginError").textContent === "Incorrect username or password.", null, { timeout: 15000 });
     assert.deepEqual(pageErrors, [], "Localized authentication errors must not produce browser runtime errors");
   } finally {
     await browser.close();
+    clearTimeout(watchdog);
   }
 })().catch(error => {
+  clearTimeout(watchdog);
   console.error(error);
   process.exitCode = 1;
 });
