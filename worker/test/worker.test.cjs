@@ -69,7 +69,11 @@ function createWorker(fetchOverride) {
   };
   const worker = new Function("minaTraining", "fetch", workerSource)(training, mockFetch);
   const originalFetch = worker.fetch.bind(worker);
-  worker.fetch = (request, bindings = {}) => originalFetch(request, { MINA_DB: mockDb, ...bindings });
+  worker.fetch = (request, bindings = {}) => {
+    const pathname = new URL(request.url).pathname;
+    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
+  };
   return { worker, requestedModels, mockDb, disciplineStore };
 }
 
@@ -674,4 +678,11 @@ test("Mina discipline migration stores counts and timestamps but not abusive mes
   assert.match(migration, /mina_discipline_state/);
   assert.match(migration, /mina_discipline_events/);
   assert.doesNotMatch(migration, /message_text|message_content/i);
+});
+
+test("frontend exposes discipline appeal and admin review controls", () => {
+  assert.match(frontendSource, /data-settings-key="discipline"/);
+  assert.match(frontendSource, /submitDisciplineAppeal/);
+  assert.match(frontendSource, /approveDisciplineAppeal/);
+  assert.match(frontendSource, /rejectDisciplineAppeal/);
 });
