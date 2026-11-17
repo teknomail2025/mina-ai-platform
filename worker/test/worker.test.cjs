@@ -716,12 +716,12 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(result.data.model, "models/gemini-3.8-live");
   assert.equal(liveTokenRequests.length, 1);
   assert.equal(liveTokenRequests[0].headers["x-goog-api-key"], env.GEMINI_API_KEY);
-  assert.equal(liveTokenRequests[0].payload.uses, 1);
-  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints.model, "models/gemini-3.8-live");
-  assert.deepEqual(liveTokenRequests[0].payload.liveConnectConstraints.config.responseModalities, ["AUDIO"]);
-  assert.ok(liveTokenRequests[0].payload.liveConnectConstraints.config.inputAudioTranscription);
-  assert.ok(liveTokenRequests[0].payload.liveConnectConstraints.config.outputAudioTranscription);
-  assert.match(liveTokenRequests[0].payload.liveConnectConstraints.config.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
+  assert.equal(liveTokenRequests[0].payload.authToken.uses, 1);
+  assert.equal(liveTokenRequests[0].payload.authToken.liveConnectConstraints.model, "models/gemini-3.8-live");
+  assert.deepEqual(liveTokenRequests[0].payload.authToken.liveConnectConstraints.config.responseModalities, ["AUDIO"]);
+  assert.ok(liveTokenRequests[0].payload.authToken.liveConnectConstraints.config.inputAudioTranscription);
+  assert.ok(liveTokenRequests[0].payload.authToken.liveConnectConstraints.config.outputAudioTranscription);
+  assert.match(liveTokenRequests[0].payload.authToken.liveConnectConstraints.config.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
 });
 
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {

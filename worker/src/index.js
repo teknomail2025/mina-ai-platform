@@ -308,17 +308,19 @@ export default {
         method:"POST",
         headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
         body:JSON.stringify({
-          uses:1,
-          expireTime:new Date(Date.now()+30*60*1000).toISOString(),
-          newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
-          liveConnectConstraints:{
-            model:"models/gemini-3.8-live",
-            config:{
-              responseModalities:["AUDIO"],
-              inputAudioTranscription:{},
-              outputAudioTranscription:{},
-              sessionResumption:{},
-              systemInstruction:{parts:[{text:SYSTEM_PROMPT+" Sesli konuşmada kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
+          authToken:{
+            uses:1,
+            expireTime:new Date(Date.now()+30*60*1000).toISOString(),
+            newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
+            liveConnectConstraints:{
+              model:"models/gemini-3.8-live",
+              config:{
+                responseModalities:["AUDIO"],
+                inputAudioTranscription:{},
+                outputAudioTranscription:{},
+                sessionResumption:{},
+                systemInstruction:{parts:[{text:SYSTEM_PROMPT+" Sesli konuşmada kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
+              }
             }
           }
         })
