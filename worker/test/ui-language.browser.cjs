@@ -73,7 +73,7 @@ const watchdog = setTimeout(() => {
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - bilingual AI assistant");
 
-    assert.equal(await page.locator(".profile-menu-heading").innerText(), "Settings");
+    assert.equal(await page.locator(".profile-menu-heading").innerText(), "Account and settings");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Ask Mina something...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Your message");
