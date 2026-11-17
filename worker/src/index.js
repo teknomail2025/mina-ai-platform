@@ -192,8 +192,6 @@ export default {
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
   if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});  if(url.pathname==="/api/memory"&&request.method==="GET"){
-  const latestUserMessage=[...body.messages].reverse().find(message=>message.role==="user")?.content||"";
-  const actualUserRequest=latestUserMessage.replace(/^Kullanıcı hafızası[\s\S]*?Kullanıcının isteği:\s*/,"").trim();
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
     try{
       const row=await env.MINA_DB.prepare("SELECT memory_text, updated_at FROM mina_admin_memory WHERE id = 1").first();
@@ -340,6 +338,8 @@ export default {
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
+  const latestUserMessage=[...body.messages].reverse().find(message=>message.role==="user")?.content||"";
+  const actualUserRequest=latestUserMessage.replace(/^Kullanıcı hafızası[\s\S]*?Kullanıcının isteği:\s*/,"").trim();
   {
     if(!env.MINA_DB)return json({error:"Mina'nın güvenli iletişim kuralları için D1 veritabanı bağlantısı gerekli."},503,cors);
     const userId=String(env.ADMIN_USERNAME||"admin");
