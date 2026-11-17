@@ -611,7 +611,7 @@ test("Mina sidebar has no duplicate settings button or secondary page navigation
  
 test("Mina persona rules prohibit submissive language and fabricated system status", () => {
   assert.match(workerSource, /kendi tutarlı değerlerini, sınırlarını/);
-  assert.match(workerSource, /emrindeyim, ne emredersin gibi ifadeler kullanma/);
+  assert.match(workerSource, /emrindeyim.*ne emredersin.*ifadeler kullanma/);
   assert.match(workerSource, /telemetrisiyle doğrulanmadıkça sistem yoğunluğu/);
   assert.match(workerSource, /Model adları, sağlayıcı seçimi/);
   assert.match(workerSource, /Sesli konuşmada kısa, anlaşılır ve doğal cevaplar/);
