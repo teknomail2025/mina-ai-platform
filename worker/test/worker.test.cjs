@@ -532,3 +532,11 @@ test("Mina bottom navigation exposes and wires home, memories, tasks and setting
   assert.match(styles, /\.mina-bottom-nav/);
   assert.match(styles, /--mina-pink:#e34f9b/);
 });
+
+
+test("Mina sidebar has no duplicate settings button or secondary page navigation", () => {
+  const html = fs.readFileSync(path.join(workerDir, "..", "index.html"), "utf8");
+  assert.doesNotMatch(html, /id="sidebarSettingsBtn"/);
+  assert.doesNotMatch(html, /class="workspace-nav"/);
+  assert.match(html, /id="sidebarProfile"/, "settings remain reachable from the profile menu");
+});
