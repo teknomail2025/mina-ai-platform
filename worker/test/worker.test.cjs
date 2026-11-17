@@ -225,7 +225,8 @@ test("known training lesson is answered by Mina Core", async () => {
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.provider, "Mina Core");
-  assert.match(result.data.choices[0].message.content, /Merhaba/);
+  assert.match(result.data.choices[0].message.content, /Merhaba Baba/);
+  assert.doesNotMatch(result.data.choices[0].message.content, /emrindeyim|ne emredersin/i);
   assert.equal(requestedModels.length, 0);
 });
 
