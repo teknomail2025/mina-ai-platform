@@ -686,3 +686,15 @@ test("frontend exposes discipline appeal and admin review controls", () => {
   assert.match(frontendSource, /approveDisciplineAppeal/);
   assert.match(frontendSource, /rejectDisciplineAppeal/);
 });
+
+test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
+  const { worker, disciplineStore } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const first = await call(worker, "/api/discipline/voice-check", { token: login.data.token, body: { text: "Sen aptalsın." } });
+  assert.equal(first.status, 200);
+  assert.equal(first.data.warning, true);
+  const second = await call(worker, "/api/discipline/voice-check", { token: login.data.token, body: { text: "Aptal!" } });
+  assert.equal(second.status, 429);
+  assert.equal(second.data.restriction_minutes, 15);
+  assert.equal(disciplineStore.row.violation_count, 2);
+});
