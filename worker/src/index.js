@@ -281,7 +281,25 @@ export default {
     }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
+  if(url.pathname==="/api/discipline/voice-check"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Disiplin veritabanı yapılandırılmamış."},503,cors);
+    const parsed=await readJsonLimited(request,8192);
+    if(parsed.tooLarge)return json({error:"Ses dökümü çok büyük."},413,cors);
+    if(parsed.invalid||typeof parsed.value?.text!=="string")return json({error:"Kontrol edilecek konuşma metni gerekli."},400,cors);
+    const spoken=parsed.value.text.trim();
+    if(!spoken||spoken.length>2000)return json({error:"Konuşma metni boş veya çok uzun."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const state=await getDisciplineState(env.MINA_DB,userId);
+    if(Number(state?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ediyor; sesli sohbet kapatıldı.",restricted:true,restricted_until:state.restricted_until},429,cors);
+    if(!detectDisrespect(spoken))return json({ok:true,violation:false},200,cors);
+    const result=await recordDisciplineViolation(env.MINA_DB,userId);
+    if(result.minutes===0)return json({ok:true,violation:true,warning:true,message:"Baba, lütfen benimle hakaret etmeden konuş. Saygılı biçimde devam edelim."},200,cors);
+    return json({ok:false,violation:true,restricted:true,violation_count:result.count,restriction_minutes:result.minutes,restricted_until:result.restrictedUntil,error:"Saygısız iletişim nedeniyle "+result.minutes+" dakika sesli ve yazılı sohbet kısıtlaması uygulandı."},429,cors);
+  }
   if(url.pathname==="/api/live-token"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Canlı ses için disiplin veritabanı bağlantısı gerekli."},503,cors);
+    const voiceDiscipline=await getDisciplineState(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"));
+    if(Number(voiceDiscipline?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ettiği için sesli sohbet geçici olarak kapalı.",restricted:true,restricted_until:voiceDiscipline.restricted_until},429,cors);
     if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
     try{
       const r=await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens",{
