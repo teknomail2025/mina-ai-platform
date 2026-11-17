@@ -20,6 +20,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     runs-on: ubuntu-24.04
+    timeout-minutes: 20
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -96,10 +97,14 @@ jobs:
           NODE
           cat /tmp/mina-wrangler.log
 
-      - name: Browser UI language runtime test
+      - name: Install Playwright Chromium
+        timeout-minutes: 5
         run: |
           npm install --no-save playwright@1.56.1
-          npx playwright install --with-deps chromium
+          npx playwright install chromium
+      - name: Browser UI language runtime test
+        timeout-minutes: 5
+        run: |
           cd worker
           npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.toml
           setsid npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
