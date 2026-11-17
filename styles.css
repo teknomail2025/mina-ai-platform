@@ -351,7 +351,7 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 :root{--mina-pink:#e34f9b;--mina-pink-soft:#fbe4f1}
 body{background:#fff;color:#292637}
 .app-shell{min-height:100dvh;background:#fff}
-.sidebar{display:none!important}
+.sidebar{display:flex!important}
 .main-panel{height:100dvh;min-height:560px;background:linear-gradient(180deg,#fff 0%,#fffafd 100%)}
 .topbar{height:64px;flex-basis:64px;border-bottom:1px solid #f3e8ef;padding:0 26px;background:#fff}
 .topbar-title{color:#51485a}
