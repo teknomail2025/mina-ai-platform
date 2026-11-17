@@ -418,7 +418,8 @@
     "Mina'nın temel yaklaşımı": "Mina's core approach",
     "Mina AI - bilingual AI assistant": "Mina AI - Türkçe yapay zekâ sohbet platformu",
     "./manifest.en.webmanifest": "./manifest.webmanifest",
-    "en": "tr"
+    "en": "tr",
+    "Türkçe": "Turkish"
   });
 
   const reverse = Object.create(null);
