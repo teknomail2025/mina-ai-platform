@@ -716,3 +716,8 @@ test("Mina only saves long-term memory when the user explicitly asks", async () 
   const finalMemory = await call(worker, "/api/memory", { token: login.data.token, env: { MINA_DB: mockDb } });
   assert.doesNotMatch(finalMemory.data.memory, /gizli-değer/);
 });
+
+test("Mina system prompt limits long-term memory to explicit, safe requests", () => {
+  assert.match(workerSource, /Sıradan sohbetleri, geçici ayrıntıları veya hassas sırları kendiliğinden kalıcı hafızaya kaydetme/);
+  assert.match(workerSource, /şifre, API anahtarı, token veya ödeme bilgisini asla kaydetme/);
+});
