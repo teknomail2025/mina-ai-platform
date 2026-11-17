@@ -422,3 +422,7 @@ body{background:#fff;color:#292637}
  .tools-toggle{width:34px;height:34px;min-width:34px}
 }
 @media(max-width:390px){.thinking-indicator span{display:none}}
+
+/* Single-page Mina layout: remove duplicate settings/navigation panels */
+.sidebar-settings-button,.workspace-nav{display:none!important}
+.sidebar-profile-wrap{margin-top:auto}
