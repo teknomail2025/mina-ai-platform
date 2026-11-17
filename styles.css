@@ -284,10 +284,7 @@ body:not(.mina-authenticated) .app-shell{display:none!important}
 .settings-section[data-settings-key="mina"] h3{margin-bottom:7px}
 .settings-section[data-settings-key="mina"] .settings-info-row{min-height:70px;padding:15px 17px}
 .settings-section[data-settings-key="mina"] .settings-info-row strong{display:flex;flex-direction:column;gap:5px}
-.settings-section[data-settings-key="mina"] .settings-info-row strong:after{font-size:9px;font-weight:400;color:#8e899e}
-.settings-section[data-settings-key="mina"] .settings-info-row:nth-of-type(1) strong:after{content:"Mina tercihleri kendi yönetir"}
-.settings-section[data-settings-key="mina"] .settings-info-row:nth-of-type(2) strong:after{content:"Arayüz ve iletişim dili"}
-.settings-section[data-settings-key="mina"] .settings-info-row:nth-of-type(3) strong:after{content:"Mina'nın temel yaklaşımı"}
+.settings-section[data-settings-key="mina"] .settings-row-caption{display:block;font-size:9px;font-weight:400;color:#8e899e}
 .settings-section[data-settings-key="mina"] .settings-info-row span{padding:7px 10px;border:1px solid #8f75c744;border-radius:20px;background:#8f75c71a;color:#c6b5f3;font-size:10px}
 .session-secret-panel{margin:20px 0 0;padding:18px;border-color:#ffffff18;background:#1b1e2c}
 .session-secret-panel>p{color:#a7a1b5}

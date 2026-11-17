@@ -57,6 +57,8 @@ const { chromium } = require("playwright");
     await page.locator("#minaLanguageSelect").selectOption("en");
     await page.locator("#minaUiLanguageSelect").selectOption("en");
     await page.waitForFunction(() => document.documentElement.lang === "en");
+    assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
+    assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - bilingual AI assistant");
 
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Settings");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
@@ -68,7 +70,8 @@ const { chromium } = require("playwright");
       "Language & communication", "Interface language", "Mina's response language",
       "Account & security", "Appearance", "Voice & microphone", "Memory",
       "Chats & data", "Notifications", "Devices & sync", "System status",
-      "Session security · SESSION_SECRET", "A shared Mina account and cross-device sync"
+      "Session security · SESSION_SECRET", "A shared Mina account and cross-device sync",
+      "Mina manages her own preferences", "Interface and communication language", "Mina's core approach"
     ]) assert.ok(settingsText.includes(expected), "Missing English settings text: " + expected);
     assert.deepEqual(await untranslatedTurkishUi(), [], "English interface must not contain untranslated Turkish UI text");
 
@@ -157,6 +160,8 @@ const { chromium } = require("playwright");
     await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr");
+    assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
+    assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - Türkçe yapay zekâ sohbet platformu");
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Ayarlar");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
@@ -187,6 +192,7 @@ const { chromium } = require("playwright");
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("body.mina-authenticated").waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem("mina-ai-ui-language-v1")), "en");
+    assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
     assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Settings");
     await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");

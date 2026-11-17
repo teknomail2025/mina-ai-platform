@@ -549,9 +549,9 @@
           </header>
       <section class="settings-section" data-settings-key="mina">
         <h3>Mina</h3><p>Mina Core görevine göre sohbet, görsel, web araştırması, kod ve ses özelliklerini yönetir.</p>
-        <div class="settings-info-row"><strong>Çalışma modu</strong><span>Mina otomatik yönetim</span></div>
-        <div class="settings-info-row"><strong>Mina'nın iletişim dili</strong><span>Türkçe ve İngilizce</span></div>
-        <div class="settings-info-row"><strong>Karakter</strong><span>Samimi · Zeki · Yardımsever</span></div>
+        <div class="settings-info-row"><strong>Çalışma modu<small class="settings-row-caption">Mina tercihleri kendi yönetir</small></strong><span>Mina otomatik yönetim</span></div>
+        <div class="settings-info-row"><strong>Mina'nın iletişim dili<small class="settings-row-caption">Arayüz ve iletişim dili</small></strong><span>Türkçe ve İngilizce</span></div>
+        <div class="settings-info-row"><strong>Karakter<small class="settings-row-caption">Mina'nın temel yaklaşımı</small></strong><span>Samimi · Zeki · Yardımsever</span></div>
       </section>
       <section class="settings-section" data-settings-key="language">
         <h3>Dil ve iletişim</h3><p>Mina otomatik olarak Türkçe veya İngilizce konuşabilir. İstersen yanıt dilini sabitleyebilirsin. Bu tercih yalnızca bu tarayıcıda saklanır.</p>

@@ -39,6 +39,7 @@ jobs:
           node --check worker/test/ui-language.browser.cjs
           node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest', 'utf8'))"
+          node -e "JSON.parse(require('fs').readFileSync('manifest.en.webmanifest', 'utf8'))"
           node --test worker/test/*.test.cjs
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
@@ -138,6 +139,7 @@ jobs:
           test -s pwa.js
           test -s sw.js
           test -s manifest.webmanifest
+          test -s manifest.en.webmanifest
           test -s app-icon.svg
           test -s worker/wrangler.toml
           test -s worker/test/worker.test.cjs

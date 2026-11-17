@@ -1,14 +1,16 @@
-const CACHE_NAME = "mina-shell-v1";
+const CACHE_NAME = "mina-shell-v2";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css",
   "./app.js",
+  "./i18n.js",
   "./auth.js",
   "./voice.js",
   "./favicon.svg",
   "./app-icon.svg",
-  "./manifest.webmanifest"
+  "./manifest.webmanifest",
+  "./manifest.en.webmanifest"
 ];
 
 self.addEventListener("install", event => {

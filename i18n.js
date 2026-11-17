@@ -164,6 +164,12 @@
     "Gemini servisine bağlanılamadı: ": "Could not connect to the Gemini service: "
   });
 
+  Object.assign(UI_TEXT, {
+  "Mina tercihleri kendi yönetir": "Mina manages her own preferences",
+  "Arayüz ve iletişim dili": "Interface and communication language",
+  "Mina'nın temel yaklaşımı": "Mina's core approach"
+});
+
   const UI_TEXT_REVERSE = Object.entries(UI_TEXT).reduce((reverse, [turkish, english]) => {
     if (!(english in reverse)) reverse[english] = turkish;
     return reverse;
@@ -226,6 +232,8 @@
       if (description) description.content = language === "en"
         ? "Mina AI - bilingual AI assistant"
         : "Mina AI - Türkçe yapay zekâ sohbet platformu";
+      const manifestLink = document.getElementById("minaManifestLink") || document.querySelector('link[rel="manifest"]');
+      if (manifestLink) manifestLink.href = language === "en" ? "./manifest.en.webmanifest" : "./manifest.webmanifest";
     }
   }
 
