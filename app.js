@@ -1,7 +1,7 @@
 /* Mina AI frontend. Set window.MINA_API_BASE before this script when deploying. */
 (() => {
   "use strict";
-  const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
+  const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
   const STORAGE_KEY = "mina-ai-conversations-v1";
   const MEMORY_KEY = "mina-ai-user-memory-v1";
   const LANGUAGE_KEY = "mina-ai-language-v1";
