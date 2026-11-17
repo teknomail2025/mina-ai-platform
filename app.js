@@ -171,8 +171,8 @@
   function translateTextNode(node) {
     if (node.nodeType !== Node.TEXT_NODE || !shouldTranslateNode(node)) return;
     const raw = node.nodeValue;
-    const leading = raw.match(/^\\s*/)?.[0] || "";
-    const trailing = raw.match(/\\s*$/)?.[0] || "";
+    const leading = raw.match(/^\s*/)?.[0] || "";
+    const trailing = raw.match(/\s*$/)?.[0] || "";
     const key = raw.slice(leading.length, raw.length - trailing.length);
     const dictionary = uiLanguage === "en" ? UI_TEXT : UI_TEXT_REVERSE;
     if (dictionary[key]) node.nodeValue = leading + dictionary[key] + trailing;
