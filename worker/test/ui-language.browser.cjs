@@ -38,6 +38,7 @@ const watchdog = setTimeout(() => {
     return [...new Set(found)];
   });
   const openSettings = async () => {
+    if (!(await page.locator("#workspaceDialog").isHidden())) await closeDialog();
     await page.locator("#sidebarProfile").click();
     await page.locator('[data-settings-section="language"]').click();
     await page.locator("#minaUiLanguageSelect").waitFor();
@@ -60,6 +61,7 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator(".profile-menu-heading").innerText(), "Hesap ve ayarlar");
     await page.locator('[data-settings-section="language"]').click();
     await page.locator("#minaUiLanguageSelect").waitFor();
+    await closeDialog();
     stage = "checking English settings and dynamic UI";
 
     await openSettings();
@@ -71,7 +73,7 @@ const watchdog = setTimeout(() => {
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - bilingual AI assistant");
 
-    assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Settings");
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Settings");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Ask Mina something...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Your message");
@@ -138,7 +140,7 @@ const watchdog = setTimeout(() => {
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - Türkçe yapay zekâ sohbet platformu");
-    assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Ayarlar");
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Ayarlar");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Mesajın");
@@ -172,7 +174,7 @@ const watchdog = setTimeout(() => {
     await page.locator("body.mina-authenticated").waitFor();
     assert.equal(await page.evaluate(() => localStorage.getItem("mina-ai-ui-language-v1")), "en");
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
-    assert.equal(await page.locator(".sidebar-settings-copy strong").innerText(), "Settings");
+    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Settings");
     await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Response language must persist independently");
