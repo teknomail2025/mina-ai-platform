@@ -30,6 +30,7 @@
     "Anılarım": "Memories",
     "Görevler": "Tasks",
     "Mina ayarları": "Mina settings",
+    "Mina profilini aç: Ayarlar": "Open Mina profile: Settings",
     "Mina’yı kişiselleştir": "Personalize Mina",
     "Mina'yı kişiselleştir": "Personalize Mina",
     "Kurucu · Yönetici": "Founder · Administrator",
