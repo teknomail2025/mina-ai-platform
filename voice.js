@@ -7,9 +7,27 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[];
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false;
   const ui = value => window.MinaI18n?.t(value) || value;
   const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
+  async function moderateVoiceText(text) {
+    if(!text||moderationBusy)return;
+    moderationBusy=true;
+    try{
+      const response=await fetch(API_BASE+"/api/discipline/voice-check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
+      const data=await response.json().catch(()=>({}));
+      if(data.warning){
+        transcript.textContent=ui("Mina: ")+(data.message||"Baba, lütfen saygılı konuşalım.");
+        setStatus("Mina sana bir uyarı verdi.","listening");
+      }
+      if(response.status===429||data.restricted){
+        transcript.textContent=ui("Mina: ")+(data.error||"Sesli sohbet geçici olarak kısıtlandı.");
+        await cleanup(false);
+        setStatus(data.error||"Sesli sohbet geçici olarak kısıtlandı.","error");
+      }
+    }catch(error){console.warn("Sesli iletişim denetimi yapılamadı:",error);}
+    finally{moderationBusy=false;}
+  }
   function pcmToBase64(float32, inputRate) {
     const ratio=inputRate/16000, length=Math.floor(float32.length/ratio), pcm=new Int16Array(length);
     for(let i=0;i<length;i++){const sample=float32[Math.floor(i*ratio)]||0;pcm[i]=Math.max(-1,Math.min(1,sample))*32767;}
@@ -49,11 +67,14 @@
         if(msg.serverContent?.interrupted){stopPlayback();setStatus("Seni dinliyorum…","listening");}
         const inputText=msg.serverContent?.inputTranscription?.text;
         const outputText=msg.serverContent?.outputTranscription?.text;
-        if(inputText) transcript.textContent=ui("Sen: ")+inputText;
+        if(inputText){pendingInputText=inputText;transcript.textContent=ui("Sen: ")+inputText;}
         if(outputText) transcript.textContent=ui("Mina: ")+outputText;
         const parts=msg.serverContent?.modelTurn?.parts||[];
         for(const part of parts){const data=part.inlineData?.data||part.inline_data?.data;if(data)playPcm(data);}
-        if(msg.serverContent?.turnComplete&&!playing.length)setStatus("Seni dinliyorum…","listening");
+        if(msg.serverContent?.turnComplete){
+          if(pendingInputText.trim()){const completed=pendingInputText.trim();pendingInputText="";void moderateVoiceText(completed);}
+          if(!playing.length)setStatus("Seni dinliyorum…","listening");
+        }
         if(msg.error) setStatus(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")),"error");
       };
       socket.onerror=()=>setStatus("Canlı ses bağlantısında hata oluştu.","error");
