@@ -25,7 +25,7 @@ const watchdog = setTimeout(() => {
     while ((node = walker.nextNode())) {
       const value = node.nodeValue.trim();
       if (!value || !turkish.test(value)) continue;
-      if (node.parentElement.closest("option,script,style,code,pre,textarea,input,.bubble,[data-i18n-ignore]")) continue;
+      if (node.parentElement.closest("script,style,code,pre,textarea,input,.bubble,[data-i18n-ignore]")) continue;
       found.push(value);
     }
     for (const element of document.querySelectorAll("[placeholder],[title],[aria-label],[alt],[data-prompt]")) {
@@ -74,6 +74,9 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Ask Mina something...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Your message");
+    assert.equal(await page.locator("#minaUiLanguageSelect option[value="tr"]").innerText(), "Turkish");
+    assert.equal(await page.locator("#minaLanguageSelect option[value="auto"]").innerText(), "Detect automatically (recommended)");
+    assert.equal(await page.locator("#minaThemeSelect option[value="dark"]").innerText(), "Dark theme");
     assert.equal(await page.locator("#minaMemoryEditor").getAttribute("placeholder"), "Write the information you want Mina to remember…");
     const settingsText = await page.locator(".settings-main").innerText();
     for (const expected of [
@@ -142,6 +145,10 @@ const watchdog = setTimeout(() => {
     await page.locator(".discover-card").nth(1).click();
     assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Projects");
     assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("No projects have been created yet."));
+    await page.evaluate(() => { window.prompt = message => { window.__dialogMessages.push({ type: "prompt", message }); return "Ayarlar"; }; });
+    await page.locator("#workspaceDialogContent button").first().click();
+    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent .workspace-item strong")?.textContent === "Ayarlar");
+    assert.equal(await page.locator("#projectsList .mini-item").innerText(), "▣ Ayarlar", "User-created project names must not be translated");
     await closeDialog();
 
     await page.evaluate(() => localStorage.setItem("mina-ai-active-timer-v1", JSON.stringify({ endsAt: Date.now() + 120000, minutes: 25 })));
@@ -176,6 +183,9 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Mina response language must remain independent of interface language");
     assert.equal(await page.locator("#messageInput").getAttribute("placeholder"), "Mina'ya bir şey sor...");
     assert.equal(await page.locator("#messageInput").getAttribute("aria-label"), "Mesajın");
+    assert.equal(await page.locator("#minaUiLanguageSelect option[value="tr"]").innerText(), "Türkçe");
+    assert.equal(await page.locator("#minaLanguageSelect option[value="auto"]").innerText(), "Otomatik algıla (önerilen)");
+    assert.equal(await page.locator("#minaThemeSelect option[value="dark"]").innerText(), "Koyu tema");
     assert.equal(await page.locator(".suggestion").first().getAttribute("data-prompt"), "Bana yeni başlayanlar için Python öğrenme planı hazırla.");
     assert.equal(await page.locator(".bubble img").getAttribute("alt"), "Mina tarafından üretilen görsel");
     await page.locator("#requestNotificationPermission").click();
