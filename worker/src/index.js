@@ -15,8 +15,8 @@ TEKNİK: Kod, hata mesajı, teknik terim ve Ren'Py dokümantasyonunu doğru anla
 const DISCIPLINE_MINUTES = [0, 0, 15, 30, 60, 120, 240, 360, 600];
 function detectDisrespect(text) {
   const value = String(text || "").toLocaleLowerCase("tr-TR");
-  const directInsult = /(?:^|[\\s,!?])(?:salak|aptal|gerizekal[ıi]|şerefsiz|haysiyetsiz|yavşak|oç|piç|idiot|moron|asshole|bitch)(?:sın|sınız)?(?:$|[\\s,.!?])/i;
-  const directedAbuse = /\\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\\b/i;
+  const directInsult = /(?:^|[\s,!?])(?:salak|aptal|gerizekal[ıi]|şerefsiz|haysiyetsiz|yavşak|oç|piç|idiot|moron|asshole|bitch)(?:sın|sınız)?(?:$|[\s,.!?])/i;
+  const directedAbuse = /\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\b/i;
   return directInsult.test(value) || directedAbuse.test(value);
 }
 async function getDisciplineState(db, userId) {
