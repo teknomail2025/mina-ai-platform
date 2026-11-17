@@ -337,7 +337,7 @@ export default {
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
-  if(!body.image){
+  {
     if(!env.MINA_DB)return json({error:"Mina'nın güvenli iletişim kuralları için D1 veritabanı bağlantısı gerekli."},503,cors);
     const userId=String(env.ADMIN_USERNAME||"admin");
     const discipline=await getDisciplineState(env.MINA_DB,userId);
