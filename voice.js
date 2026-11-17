@@ -65,7 +65,7 @@
       stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       audioContext=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
-      socket=new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token="+encodeURIComponent(tokenData.token));
+      socket=new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1alpha.GenerativeService.BidiGenerateContentConstrained?access_token="+encodeURIComponent(tokenData.token));
       setupTimer=setTimeout(()=>{if(!active)void failVoice("Google canlı ses oturumu zamanında hazır olmadı. Bir kez daha deneyebilirsin.");},20000);
       socket.onopen=()=>{
         socket.send(JSON.stringify({setup:{model:tokenData.model,generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Aoede"}}}},inputAudioTranscription:{},outputAudioTranscription:{},realtimeInputConfig:{automaticActivityDetection:{disabled:false}}}}));
