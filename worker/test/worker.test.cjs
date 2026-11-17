@@ -17,12 +17,13 @@ const env = {
   GEMINI_API_KEY: "test-gemini-key"
 };
 
-function createWorker() {
+function createWorker(fetchOverride) {
   const requestedModels = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
     if (target.includes(":generateContent")) {
       requestedModels.push(target);
+      if (fetchOverride) return fetchOverride(target, options);
       const payload = JSON.parse(options.body || "{}");
       const wantsImage = payload.generationConfig?.responseModalities?.includes("IMAGE");
       const parts = wantsImage
@@ -464,4 +465,57 @@ test("frontend applies chat capability to the composer and sends capability sett
   assert.match(frontendSource, /MINA_CAPABILITIES\.chat===false/);
   assert.match(frontendSource, /capabilities:\s*MINA_CAPABILITIES/);
   assert.doesNotMatch(frontendSource, /aiProviderSelect|OPENAI_API_KEY|ANTHROPIC_API_KEY|Hugging Face/);
+});
+
+
+test("Gemini 503 on ordinary chat switches to a different Flash model", async () => {
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-3.8-flash:generateContent")) {
+      return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
+  assert.equal(result.data.requested_model, "gemini-3.8-flash");
+  assert.equal(result.data.model, "gemini-3.7-flash");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
+  assert.ok(requestedModels[1].includes("gemini-3.7-flash"));
+});
+
+test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
+  const { worker, requestedModels } = createWorker(async target => {
+    if (!target.includes("gemini-3.7-flash:generateContent")) {
+      return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Güvenli yedek yanıt" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "JavaScript kodu yaz." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.model, "gemini-3.7-flash");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 3);
+  assert.ok(requestedModels[0].includes("gemini-3.1-pro-preview"));
+  assert.ok(requestedModels[1].includes("gemini-3.8-flash"));
+  assert.ok(requestedModels[2].includes("gemini-3.7-flash"));
+  assert.equal(new Set(requestedModels).size, requestedModels.length, "no model may be retried as its own fallback");
 });
