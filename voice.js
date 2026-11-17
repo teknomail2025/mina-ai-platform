@@ -8,7 +8,8 @@
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-platform.teknomail2025.workers.dev").replace(/\/$/, "");
   let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[];
-  const setStatus = (s, state="") => { status.textContent=s; orb.dataset.state=state; };
+  const ui = value => window.MinaI18n?.t(value) || value;
+  const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
   function pcmToBase64(float32, inputRate) {
     const ratio=inputRate/16000, length=Math.floor(float32.length/ratio), pcm=new Int16Array(length);
     for(let i=0;i<length;i++){const sample=float32[Math.floor(i*ratio)]||0;pcm[i]=Math.max(-1,Math.min(1,sample))*32767;}
@@ -48,12 +49,12 @@
         if(msg.serverContent?.interrupted){stopPlayback();setStatus("Seni dinliyorum…","listening");}
         const inputText=msg.serverContent?.inputTranscription?.text;
         const outputText=msg.serverContent?.outputTranscription?.text;
-        if(inputText) transcript.textContent="Sen: "+inputText;
-        if(outputText) transcript.textContent="Mina: "+outputText;
+        if(inputText) transcript.textContent=ui("Sen: ")+inputText;
+        if(outputText) transcript.textContent=ui("Mina: ")+outputText;
         const parts=msg.serverContent?.modelTurn?.parts||[];
         for(const part of parts){const data=part.inlineData?.data||part.inline_data?.data;if(data)playPcm(data);}
         if(msg.serverContent?.turnComplete&&!playing.length)setStatus("Seni dinliyorum…","listening");
-        if(msg.error) setStatus("Ses bağlantısı hatası: "+(msg.error.message||"bilinmeyen hata"),"error");
+        if(msg.error) setStatus(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")),"error");
       };
       socket.onerror=()=>setStatus("Canlı ses bağlantısında hata oluştu.","error");
       socket.onclose=()=>{if(active)setStatus("Ses bağlantısı kapandı. Yeniden başlatabilirsin.","error");active=false;};
@@ -79,7 +80,7 @@
     stream?.getTracks().forEach(t=>t.stop());stream=null;
     if(socket){try{socket.close();}catch{}socket=null;}
     if(audioContext){try{await audioContext.close();}catch{}audioContext=null;}
-    muteBtn.textContent="Mikrofonu kapat";muteBtn.disabled=true;
+    muteBtn.textContent=ui("Mikrofonu kapat");muteBtn.disabled=true;
     if(hide)panel.hidden=true;
     openBtn.disabled=false;
   }
@@ -88,10 +89,13 @@
   closeBtn.addEventListener("click",()=>cleanup(true));
   endBtn.addEventListener("click",()=>cleanup(true));
   muteBtn.addEventListener("click",()=>{
-    muted=!muted;muteBtn.textContent=muted?"Mikrofonu aç":"Mikrofonu kapat";
+    muted=!muted;muteBtn.textContent=ui(muted?"Mikrofonu aç":"Mikrofonu kapat");
     setStatus(muted?"Mikrofon kapalı":"Seni dinliyorum…",muted?"muted":"listening");
   });
-  const originalStart=start;
+  window.addEventListener("mina:ui-language-changed",()=>{
+    muteBtn.textContent=ui(muted?"Mikrofonu aç":"Mikrofonu kapat");
+    if(active)setStatus(muted?"Mikrofon kapalı":playing.length?"Mina konuşuyor…":"Seni dinliyorum…",muted?"muted":playing.length?"speaking":"listening");
+  });
   openBtn.addEventListener("click",()=>{muteBtn.disabled=false;});
   panel.addEventListener("keydown",e=>{if(e.key==="Escape")cleanup(true);});
   window.addEventListener("beforeunload",()=>{active=false;stream?.getTracks().forEach(t=>t.stop());socket?.close();});
