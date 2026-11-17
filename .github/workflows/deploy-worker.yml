@@ -28,6 +28,11 @@ jobs:
         with:
           node-version: 22
 
+      - name: Validate Worker and run tests
+        run: |
+          node --check worker/src/index.js
+          node --test worker/test/*.test.cjs
+
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
