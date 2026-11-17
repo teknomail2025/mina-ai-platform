@@ -683,6 +683,7 @@
     $("workspaceDialog").classList.add("settings-mode");
     $("workspaceDialogTitle").textContent=uiText("Ayarlar");$("workspaceDialog").hidden=false;renderAISettings(section||"mina");
   }
+  $("minaProfileSettingsBtn").addEventListener("click",()=>openSettings("mina"));
   $("sidebarProfile").addEventListener("click",()=>{
     const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
   });
