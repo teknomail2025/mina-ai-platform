@@ -191,6 +191,8 @@ export default {
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
   if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});  if(url.pathname==="/api/memory"&&request.method==="GET"){
+  const latestUserMessage=[...body.messages].reverse().find(message=>message.role==="user")?.content||"";
+  const actualUserRequest=latestUserMessage.replace(/^Kullanıcı hafızası[\s\S]*?Kullanıcının isteği:\s*/,"").trim();
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
     try{
       const row=await env.MINA_DB.prepare("SELECT memory_text, updated_at FROM mina_admin_memory WHERE id = 1").first();
@@ -345,12 +347,25 @@ export default {
       const remaining=Math.ceil((Number(discipline.restricted_until)-Date.now())/1000);
       return json({error:"İletişim kısıtlaman sürüyor. Kalan süre: "+Math.ceil(remaining/60)+" dakika. İtirazını /api/discipline/appeal üzerinden iletebilirsin.",restricted:true,remaining_seconds:remaining,restricted_until:discipline.restricted_until,appeal_status:discipline.appeal_status},429,cors);
     }
-    const latestUserMessage=[...body.messages].reverse().find(message=>message.role==="user")?.content||"";
-    if(detectDisrespect(latestUserMessage)){
+    if(detectDisrespect(actualUserRequest)){
       const result=await recordDisciplineViolation(env.MINA_DB,userId);
       if(result.minutes===0)return json({choices:[{message:{role:"assistant",content:"Baba, bu üslup beni rahatsız ediyor. Lütfen hakaret etmeden ve saygılı konuşalım. Bu ilk uyarım; sakin biçimde devam edebiliriz."}}],provider:"Mina Core",discipline:{violation_count:result.count,warning:true,restricted_until:null}},200,cors);
       return json({error:"Saygısız iletişim nedeniyle "+result.minutes+" dakika sohbet kısıtlaması uygulandı. İtirazını /api/discipline/appeal üzerinden iletebilirsin.",restricted:true,violation_count:result.count,restriction_minutes:result.minutes,restricted_until:result.restrictedUntil,appeal_status:"none"},429,cors);
     }
+  }
+  const rememberMatch=actualUserRequest.match(/^(?:mina[, ]*)?(?:bunu hatırla|bunu unutma|hafızana kaydet|hafızana ekle|remember this|save this to memory)\s*[:\-]?\s*(.+)$/i);
+  if(rememberMatch&&!body.image){
+    const note=rememberMatch[1].trim();
+    if(!note||note.length>1500)return json({error:"Hafızaya eklenecek not 1-1500 karakter arasında olmalı."},400,cors);
+    if(/(?:şifre|parola|password|api[_ -]?key|access token|secret key|kredi kartı|cvv)/i.test(note))return json({choices:[{message:{role:"assistant",content:"Baba, güvenliğin için şifre, API anahtarı veya ödeme bilgisi gibi sırları hafızama kaydetmiyorum."}}],provider:"Mina Core",memory_saved:false},200,cors);
+    if(/\b(?:yarın|bugün|bu akşam|şu an|geçici hatırlatma|hatırlat)\b/i.test(note))return json({choices:[{message:{role:"assistant",content:"Baba, geçici hatırlatmaları kalıcı hafızama eklemiyorum. Uzun süre geçerli bir bilgiyse yeniden yazabilirsin."}}],provider:"Mina Core",memory_saved:false},200,cors);
+    const memoryRow=await env.MINA_DB.prepare("SELECT memory_text FROM mina_admin_memory WHERE id = 1").first();
+    const currentMemory=memoryRow?.memory_text||"";
+    const duplicate=currentMemory.toLocaleLowerCase("tr-TR").includes(note.toLocaleLowerCase("tr-TR"));
+    const nextMemory=duplicate?currentMemory:[currentMemory,note].filter(Boolean).join("\n");
+    if(nextMemory.length>2000)return json({error:"MinaData hafızası 2000 karakter sınırına ulaştı. Ayarlardan eski veya önemsiz notları düzenleyebilirsin."},409,cors);
+    if(!duplicate)await env.MINA_DB.prepare("INSERT INTO mina_admin_memory (id, memory_text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET memory_text = excluded.memory_text, updated_at = excluded.updated_at").bind(nextMemory,Date.now()).run();
+    return json({choices:[{message:{role:"assistant",content:duplicate?"Baba, bu bilgi zaten hafızamda kayıtlı.":"Baba, bunu uzun süreli hafızama kaydettim. Önemli ve kalıcı bilgileri saklayacağım; sıradan sohbet ayrıntılarını kendiliğimden kaydetmeyeceğim."}}],provider:"Mina Core",memory_saved:true,memory_updated:nextMemory},200,cors);
   }
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
