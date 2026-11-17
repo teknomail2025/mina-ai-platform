@@ -426,3 +426,24 @@ body{background:#fff;color:#292637}
 /* Single-page Mina layout: remove duplicate settings/navigation panels */
 .sidebar-settings-button,.workspace-nav{display:none!important}
 .sidebar-profile-wrap{margin-top:auto}
+
+
+/* Final compact chat polish: remove the oversized welcome gap and unify Mina's avatar. */
+.chat-scroll{padding:24px 24px 12px}
+.welcome{margin:1.5vh auto 0}
+.welcome-orb{width:50px;height:50px;border-radius:17px;margin-bottom:14px;font-size:24px}
+.welcome h1{margin:9px 0;font-size:clamp(30px,4.3vw,44px)}
+.welcome-copy{margin:10px 0 0}
+.suggestions{margin-top:24px}
+.messages{gap:20px}
+.message.assistant .avatar{width:36px;height:36px;flex-basis:36px;border-radius:13px;background:linear-gradient(145deg,#f7c6df,#dc6da6);color:#fff;font:800 15px Manrope;box-shadow:0 4px 12px #c84c8b22}
+.message.assistant .avatar::after{content:"✦";position:absolute;margin:23px 0 0 25px;font-size:10px;color:#fff}
+.message.assistant .avatar{position:relative}
+.composer-wrap{width:min(960px,calc(100% - 48px));padding:10px 0 12px}
+@media(max-width:760px){
+  .chat-scroll{padding:18px 14px 10px}
+  .welcome{margin:1vh auto 0}
+  .welcome-orb{width:46px;height:46px;margin-bottom:12px}
+  .suggestions{margin-top:18px}
+  .composer-wrap{width:calc(100% - 20px);padding:8px 0 9px}
+}
