@@ -394,3 +394,31 @@ body{background:#fff;color:#292637}
  .disclaimer{font-size:9px}
 }
 @media(max-width:420px){.logout-btn{display:none}.topbar{height:56px;flex-basis:56px}.mina-bottom-nav{padding-left:3px;padding-right:3px}.mina-nav-item{font-size:9px}}
+
+
+/* Reference-inspired compact message composer */
+.composer-wrap{width:calc(100% - 48px);max-width:1100px;margin:0 auto;padding:12px 0 14px}
+.composer{display:flex;flex-wrap:nowrap;align-items:center;gap:10px;min-height:64px;padding:7px 8px 7px 12px;border:1px solid #e6e7eb;border-radius:999px;background:#fff;box-shadow:0 3px 16px #1725540b}
+.composer:focus-within{border-color:#c9d4ef;box-shadow:0 3px 18px #3157a410}
+.composer textarea{flex:1 1 auto;order:2;min-width:60px;min-height:32px;max-height:140px;padding:7px 2px;color:#242938;font:14px/1.45 'DM Sans'}
+.composer textarea::placeholder{color:#9297a3}
+.tools-menu{order:1}
+.tools-toggle{width:38px;height:38px;min-width:38px;border:0;border-radius:50%;background:transparent;color:#343b49;font-size:25px}
+.tools-toggle:hover{background:#f3f4f6}
+.voice-input-button{order:4;display:inline-flex!important;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;border:0;border-radius:50%;background:transparent;color:#343b49;font-size:18px;cursor:pointer}
+.voice-input-button:hover{background:#f3f4f6}
+.thinking-indicator{order:3;display:inline-flex;align-items:center;gap:6px;flex:0 0 auto;padding:0 5px;color:#777d89;font-size:13px;white-space:nowrap}
+.thinking-indicator svg{width:19px;height:19px;fill:none;stroke:currentColor;stroke-width:1.65;stroke-linecap:round;stroke-linejoin:round}
+.send-button{order:5;display:inline-flex;align-items:center;justify-content:center;flex:0 0 38px;width:38px;height:38px;border:0;border-radius:50%;background:#2864d8;color:#fff;font-size:23px;font-weight:500;box-shadow:none}
+.send-button:hover{background:#1e55c3}
+.disclaimer{margin-top:8px}
+@media(max-width:760px){
+ .composer-wrap{width:calc(100% - 20px);padding:8px 0 10px}
+ .composer{gap:5px;min-height:56px;padding:6px 7px 6px 9px}
+ .composer textarea{font-size:13px}
+ .thinking-indicator{gap:4px;font-size:11px;padding:0 2px}
+ .thinking-indicator svg{width:17px;height:17px}
+ .voice-input-button,.send-button{width:35px;height:35px;flex-basis:35px}
+ .tools-toggle{width:34px;height:34px;min-width:34px}
+}
+@media(max-width:390px){.thinking-indicator span{display:none}}
