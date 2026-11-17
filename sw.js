@@ -1,4 +1,4 @@
-const CACHE_NAME = "mina-shell-v2";
+const CACHE_NAME = "mina-shell-v3";
 const SHELL_FILES = [
   "./",
   "./index.html",
