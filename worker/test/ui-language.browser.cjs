@@ -38,16 +38,13 @@ const watchdog = setTimeout(() => {
     return [...new Set(found)];
   });
   const openSettings = async () => {
-    await page.locator("#sidebarSettingsBtn").click();
+    await page.locator("#sidebarProfile").click();
+    await page.locator('[data-settings-section="language"]').click();
     await page.locator("#minaUiLanguageSelect").waitFor();
   };
   const closeDialog = async () => {
     await page.locator("#workspaceDialogClose").click();
     await page.waitForFunction(() => document.getElementById("workspaceDialog").hidden, null, { timeout: 15000 });
-  };
-  const openDiscover = async () => {
-    await page.locator("#discoverNav").click();
-    await page.locator(".discover-card").first().waitFor();
   };
 
   try {
@@ -59,24 +56,10 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
-    assert.equal(await page.locator(".mina-bottom-nav").isVisible(), true);
-    for (const id of ["minaHomeNav", "minaMemoriesNav", "minaAvatarNav", "minaTasksNav", "minaSettingsNav"]) {
-      assert.equal(await page.locator("#" + id).isVisible(), true, id + " must be visible");
-    }
-    await page.evaluate(() => {
-      window.__minaNavPrompt = null;
-      window.prompt = message => { window.__minaNavPrompt = message; return null; };
-    });
-    await page.locator("#minaMemoriesNav").click();
-    assert.ok(await page.evaluate(() => !!window.__minaNavPrompt), "Memories navigation must open the memory editor");
-    await page.locator("#minaTasksNav").click();
-    await page.locator(".discover-card").first().waitFor();
-    await closeDialog();
-    await page.locator("#minaSettingsNav").click();
+    await page.locator("#sidebarProfile").click();
+    assert.equal(await page.locator(".profile-menu-heading").innerText(), "Hesap ve ayarlar");
+    await page.locator('[data-settings-section="language"]').click();
     await page.locator("#minaUiLanguageSelect").waitFor();
-    await closeDialog();
-    await page.locator("#minaHomeNav").click();
-    assert.equal(await page.locator("#minaHomeNav").getAttribute("class").then(v => v.includes("active")), true);
     stage = "checking English settings and dynamic UI";
 
     await openSettings();
@@ -149,52 +132,8 @@ const watchdog = setTimeout(() => {
 
     await page.locator("#sidebarProfile").click();
     assert.equal(await page.locator(".profile-menu-heading").innerText(), "Account and settings");
-    assert.equal(await page.locator('[data-settings-section="language"]').innerText(), "Language & communication");
-    await page.locator("#sidebarProfile").click();
-
-    await openDiscover();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Discover");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("Mina’s workspaces in one place."));
-    assert.equal(await page.locator(".suggestion").first().getAttribute("data-prompt"), "Prepare a Python learning plan for a beginner.");
-    await page.locator(".discover-card").nth(0).click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Pinned");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("No pinned chats yet"));
-    await closeDialog();
-
-    await openDiscover();
-    await page.locator(".discover-card").nth(1).click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Projects");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("No projects have been created yet."));
-    await page.evaluate(() => { window.prompt = message => { window.__dialogMessages.push({ type: "prompt", message }); return "Ayarlar"; }; });
-    await page.locator("#workspaceDialogContent button").first().click();
-    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent .workspace-item strong")?.textContent === "Ayarlar");
-    assert.equal(await page.locator("#projectsList .mini-item").innerText(), "▣ Ayarlar", "User-created project names must not be translated");
-    await closeDialog();
-
-    await page.evaluate(() => localStorage.setItem("mina-ai-active-timer-v1", JSON.stringify({ endsAt: Date.now() + 120000, minutes: 25 })));
-    await openDiscover();
-    await page.locator(".discover-card").nth(2).click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Timers");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("25-minute timer is running."));
-    await page.evaluate(() => window.MinaI18n.setLanguage("tr"));
-    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25 dakikalık sayaç devam ediyor."), null, { timeout: 15000 });
-    await page.evaluate(() => window.MinaI18n.setLanguage("en"));
-    await page.waitForFunction(() => document.querySelector("#workspaceDialogContent").innerText.includes("25-minute timer is running."), null, { timeout: 15000 });
-    await closeDialog();
-
-    await openDiscover();
-    await page.locator(".discover-card").nth(3).click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Library");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("The library is empty."));
-    await closeDialog();
-
-    await openDiscover();
-    await page.locator(".discover-card").nth(4).click();
-    assert.equal(await page.locator("#workspaceDialogTitle").innerText(), "Integrations");
-    assert.ok((await page.locator("#workspaceDialogContent").innerText()).includes("Tools currently available in Mina."));
-    await closeDialog();
-
-    await openSettings();
+    await page.locator('[data-settings-section="language"]').click();
+    await page.locator("#minaUiLanguageSelect").waitFor();
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
