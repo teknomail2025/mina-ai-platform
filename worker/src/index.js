@@ -18,6 +18,7 @@ function detectDisrespect(text) {
   const value = String(text || "").toLocaleLowerCase("tr-TR");
   const directInsult = /^\s*(?:salak|aptal|gerizekal[ıi]|şerefsiz|haysiyetsiz|yavşak|oç|piç|idiot|moron|asshole|bitch)(?:sın|sınız)?[!.?]*\s*$/i;
   const directedInsult = /\b(?:sen|sana|seni|siz|size|you)\b.{0,30}\b(?:salak|aptal|gerizekal[ıi]|şerefsiz|haysiyetsiz|yavşak|oç|piç|idiot|moron|asshole|bitch)(?:sın|sınız)?\b/i;
+  const directedAbuse = /\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\b/i;
   return directInsult.test(value) || directedAbuse.test(value);
 }
 let disciplineSchemaReady = false;
