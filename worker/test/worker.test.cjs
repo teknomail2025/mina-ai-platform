@@ -19,8 +19,17 @@ const env = {
 
 function createWorker(fetchOverride) {
   const requestedModels = [];
+  const liveTokenRequests = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
+    if (target.includes("/v1beta/auth_tokens")) {
+      const payload = JSON.parse(options.body || "{}");
+      liveTokenRequests.push({ target, headers: options.headers, payload });
+      return new Response(JSON.stringify({ name: "authTokens/test-ephemeral-token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
     if (target.includes(":generateContent")) {
       requestedModels.push(target);
       if (fetchOverride) return fetchOverride(target, options);
@@ -75,7 +84,7 @@ function createWorker(fetchOverride) {
     const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
-  return { worker, requestedModels, mockDb, disciplineStore };
+  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -688,6 +697,31 @@ test("frontend exposes discipline appeal and admin review controls", () => {
   assert.match(frontendSource, /submitDisciplineAppeal/);
   assert.match(frontendSource, /approveDisciplineAppeal/);
   assert.match(frontendSource, /rejectDisciplineAppeal/);
+});
+
+test("live voice token endpoint requires an authenticated session and creates a constrained ephemeral token", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const guest = await call(worker, "/api/live-token", { method: "POST" });
+  assert.equal(guest.status, 401);
+  assert.equal(liveTokenRequests.length, 0, "guest requests must not reach Google");
+
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  assert.equal(login.status, 200);
+  const result = await call(worker, "/api/live-token", { token: login.data.token, method: "POST" });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.token, "authTokens/test-ephemeral-token");
+  assert.equal(result.data.model, "models/gemini-3.8-live");
+  assert.equal(liveTokenRequests.length, 1);
+  assert.equal(liveTokenRequests[0].headers["x-goog-api-key"], env.GEMINI_API_KEY);
+  assert.equal(liveTokenRequests[0].payload.uses, 1);
+  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints.model, "models/gemini-3.8-live");
+  assert.deepEqual(liveTokenRequests[0].payload.liveConnectConstraints.config.responseModalities, ["AUDIO"]);
+  assert.ok(liveTokenRequests[0].payload.liveConnectConstraints.config.inputAudioTranscription);
+  assert.ok(liveTokenRequests[0].payload.liveConnectConstraints.config.outputAudioTranscription);
+  assert.match(liveTokenRequests[0].payload.liveConnectConstraints.config.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
 });
 
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
