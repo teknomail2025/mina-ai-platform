@@ -501,7 +501,6 @@
 
 
   $("addProjectBtn").addEventListener("click",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
-  $("discoverNav").addEventListener("click",renderDiscoverWorkspace);
   function renderDiscoverWorkspace() {
     const host=document.createElement("div");
     host.append(workspaceNote(uiText("Mina'nın çalışma alanları tek yerde.")));
@@ -684,7 +683,6 @@
     $("workspaceDialog").classList.add("settings-mode");
     $("workspaceDialogTitle").textContent=uiText("Ayarlar");$("workspaceDialog").hidden=false;renderAISettings(section||"mina");
   }
-  $("sidebarSettingsBtn").addEventListener("click",()=>openSettings());
   $("sidebarProfile").addEventListener("click",()=>{
     const menu=$("profileMenu");menu.hidden=!menu.hidden;$("sidebarProfile").setAttribute("aria-expanded",String(!menu.hidden));
   });
