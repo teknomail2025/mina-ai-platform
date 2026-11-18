@@ -339,13 +339,18 @@ export default {
     const name=safeStoredFileName(parsedFile.value?.name);
     const decoded=decodeStoredFile(parsedFile.value?.data,name);
     if(parsedFile.invalid||!name||!decoded)return json({error:"Dosya adı, türü veya içeriği geçersiz. Desteklenen dosyalar en fazla 10 MB olabilir."},400,cors);
+    if(!env.MINA_DB)return json({error:"Dosya kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
     const userId=String(env.ADMIN_USERNAME||"admin");
+    let quota;
+    try{quota=await reserveDailyFileBytes(env.MINA_DB,userId,decoded.bytes.byteLength);}
+    catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
+    if(!quota.allowed)return json({error:"Günlük 100 MB dosya yükleme kotan doldu.",fileQuota:{usedBytes:quota.used,limitBytes:quota.limit,remainingBytes:0}},429,cors);
     const now=Date.now(),id=crypto.randomUUID(),expiresAt=now+STORED_FILE_TTL_MS;
     const key=storedFileKey(userId,id);
     try{
-      await env.MINA_FILES.put(key,decoded.bytes,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt)}});
-      return json({saved:true,id,name,size:decoded.bytes.byteLength,uploadedAt:now,expiresAt,downloadPath:"/api/files/"+id},201,{...cors,"Cache-Control":"no-store"});
-    }catch(error){return json({error:"Dosya güvenli depoya kaydedilemedi."},503,cors);}
+      await env.MINA_FILES.put(key,decoded.bytes,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt),quotaDay:quota.day,quotaBytes:String(decoded.bytes.byteLength)}});
+      return json({saved:true,id,name,size:decoded.bytes.byteLength,uploadedAt:now,expiresAt,downloadPath:"/api/files/"+id,fileQuota:{usedBytes:quota.used,limitBytes:quota.limit,remainingBytes:quota.remaining}},201,{...cors,"Cache-Control":"no-store"});
+    }catch(error){await refundDailyFileBytes(env.MINA_DB,userId,decoded.bytes.byteLength,quota.day);return json({error:"Dosya güvenli depoya kaydedilemedi."},503,cors);}
   }
   if(url.pathname==="/api/files"&&request.method==="GET"){
     if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
@@ -686,15 +691,9 @@ export default {
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   const usageType=body.image?"image_analysis":"chat";
   const usageUserId=String(env.ADMIN_USERNAME||"admin");
-  let fileReservation=null;
-  if(attachmentBytes>0){
-    try{fileReservation=await reserveDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes);}
-    catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
-    if(!fileReservation.allowed)return json({error:"Bugünkü 100 MB dosya ekleme kotan doldu.",fileQuota:{usedBytes:fileReservation.used,limitBytes:fileReservation.limit,remainingBytes:0}},429,cors);
-  }
   let usageReservation;
   try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType);}
-  catch(error){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
+  catch(error){return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
   if(!usageReservation.allowed){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
     let upstream;
