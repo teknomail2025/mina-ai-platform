@@ -206,6 +206,7 @@ const watchdog = setTimeout(() => {
     await openSettings();
     await page.locator("#minaUiLanguageSelect").selectOption("en");
     await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 15000 });
+    await page.waitForFunction(() => document.getElementById("preferencesSyncStatus").textContent === "Settings synced to the cloud.", null, { timeout: 15000 });
     await closeDialog();
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("body.mina-authenticated").waitFor();
