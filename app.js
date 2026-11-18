@@ -589,7 +589,7 @@
       }
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf",data:file.data.split(",")[1]}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,content:file.content}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf"}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,...(/\\.docx$/i.test(file.name)?{content:file.content}:{})}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if(typeof data.memory_updated==="string"){
