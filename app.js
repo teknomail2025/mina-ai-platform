@@ -606,7 +606,7 @@
         <div class="settings-info-row"><strong>Karakter<small class="settings-row-caption">Mina'nın temel yaklaşımı</small></strong><span>Samimi · Zeki · Yardımsever</span></div>
       </section>
       <section class="settings-section" data-settings-key="language">
-        <h3>Dil ve iletişim</h3><p>Mina otomatik olarak Türkçe veya İngilizce konuşabilir. İstersen yanıt dilini sabitleyebilirsin. Bu tercih yalnızca bu tarayıcıda saklanır.</p>
+        <h3>Dil ve iletişim</h3><p>Mina otomatik olarak Türkçe veya İngilizce konuşabilir. İstersen yanıt dilini sabitleyebilirsin. Bu tercih hesabınla eşitlenir.</p>
         <label class="settings-control-label" for="minaUiLanguageSelect">Arayüz dili</label><select id="minaUiLanguageSelect" class="settings-select"><option value="tr">Türkçe</option><option value="en">English</option></select><small class="settings-status">Menüler, düğmeler ve uygulama metinleri seçtiğin dile geçer.</small><label class="settings-control-label" for="minaLanguageSelect">Mina'nın yanıt dili</label>
         <select id="minaLanguageSelect" class="settings-select"><option value="auto">Otomatik algıla (önerilen)</option><option value="tr">Türkçe</option><option value="en">English</option></select>
         <small class="settings-status">Otomatik modda Mina, mesajının dilini algılayıp aynı dilde yanıt verir. İngilizce Ren'Py dokümantasyonu ve hata mesajlarını da anlayabilir.</small>
@@ -618,7 +618,7 @@
         <div class="settings-info-row"><strong>Oturum</strong><span>8 saat · açık tut seçeneğiyle 30 gün</span></div>
       </section>
       <section class="settings-section" data-settings-key="appearance">
-        <h3>Görünüm</h3><p>Tema tercihi bu tarayıcıda saklanır.</p>
+        <h3>Görünüm</h3><p>Tema tercihi hesabınla eşitlenir ve diğer cihazlarında da kullanılır.</p>
         <label class="settings-control-label" for="minaThemeSelect">Tema</label>
         <select id="minaThemeSelect" class="settings-select"><option value="dark">Koyu tema</option><option value="light">Açık tema</option></select>
       </section>
