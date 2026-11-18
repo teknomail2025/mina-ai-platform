@@ -47,16 +47,22 @@ function createWorker(fetchOverride) {
   };
   const memoryStore = { row: null };
   const preferencesStore = { row: null };
+  const workspaceStore = { row: null };
   const disciplineStore = { row: null, events: [] };
   const mockDb = {
     prepare(sql) {
       return {
         bind(...values) {
           return {
-            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : disciplineStore.row,
+            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row,
             all: async () => ({ results: disciplineStore.events.slice().reverse() }),
             run: async () => {
-              if (sql.startsWith("INSERT INTO mina_admin_memory")) {
+              if (sql.startsWith("INSERT INTO mina_admin_workspace")) {
+                if (!workspaceStore.row && values[2] === 0) workspaceStore.row = { data_json: values[0], version: 1, updated_at: values[1] };
+                else if (workspaceStore.row && workspaceStore.row.version === values[2]) workspaceStore.row = { data_json: values[0], version: workspaceStore.row.version + 1, updated_at: values[1] };
+                else return { success: true, meta: { changes: 0 } };
+                return { success: true, meta: { changes: 1 } };
+              } else if (sql.startsWith("INSERT INTO mina_admin_memory")) {
                 memoryStore.row = { memory_text: values[0], updated_at: values[1] };
               } else if (sql.startsWith("INSERT INTO mina_admin_preferences")) {
                 preferencesStore.row = { preferences_json: values[0], updated_at: values[1] };
@@ -71,7 +77,7 @@ function createWorker(fetchOverride) {
               } else if (sql.includes("appeal_status = 'rejected'")) {
                 Object.assign(disciplineStore.row, { appeal_status: "rejected", updated_at: values[0] });
               }
-              return { success: true };
+              return { success: true, meta: { changes: 1 } };
             }
           };
         },
@@ -84,7 +90,7 @@ function createWorker(fetchOverride) {
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
-    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
   return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore };
@@ -146,6 +152,44 @@ test("Mina preferences are private and sync through the D1 binding", async () =>
   assert.deepEqual(loaded.data.preferences, preferences);
   const invalid = await call(worker, "/api/preferences", { method: "PUT", token: login.data.token, body: { preferences: { ...preferences, theme: "neon" } } });
   assert.equal(invalid.status, 400);
+});
+
+test("workspace data is private, versioned, and rejects stale device writes", async () => {
+  const { worker, mockDb } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  assert.equal(login.status, 200);
+  const guest = await call(worker, "/api/workspace");
+  assert.equal(guest.status, 401);
+  const initial = await call(worker, "/api/workspace", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.equal(initial.status, 200);
+  assert.equal(initial.data.initialized, false);
+  assert.equal(initial.data.version, 0);
+  const data = {
+    conversations: [{ id: "chat-1", title: "Test sohbet", messages: [{ role: "user", content: "Merhaba" }] }],
+    projects: [{ id: "project-1", name: "Mina", createdAt: 123 }],
+    pinnedIds: ["chat-1"],
+    libraryItems: [{ id: "file-1", name: "not.txt", content: "test", createdAt: 123 }]
+  };
+  const saved = await call(worker, "/api/workspace", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { version: 0, data } });
+  assert.equal(saved.status, 200);
+  assert.equal(saved.data.version, 1);
+  const loaded = await call(worker, "/api/workspace", { token: login.data.token, env: { MINA_DB: mockDb } });
+  assert.equal(loaded.data.initialized, true);
+  assert.deepEqual(loaded.data.data, data);
+  const stale = await call(worker, "/api/workspace", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { version: 0, data: { ...data, projects: [] } } });
+  assert.equal(stale.status, 409);
+  assert.equal(stale.data.conflict, true);
+  const invalid = await call(worker, "/api/workspace", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { version: 1, data: { ...data, libraryItems: [{ id: "x", name: "large.txt", content: "x".repeat(500001) }] } } });
+  assert.equal(invalid.status, 400);
+});
+
+test("workspace API enforces payload size and D1 configuration", async () => {
+  const { worker, mockDb } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const missing = await call(worker, "/api/workspace", { token: login.data.token });
+  assert.equal(missing.status, 503);
+  const oversized = await call(worker, "/api/workspace", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { version: 0, data: { conversations: [], projects: [], pinnedIds: [], libraryItems: [{ id: "x", name: "huge", content: "x".repeat(500001) }] } } });
+  assert.equal(oversized.status, 400);
 });
 
 test("MinaData memory is private and persists through the D1 binding", async () => {
