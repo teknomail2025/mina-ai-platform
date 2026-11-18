@@ -57,18 +57,28 @@ function createWorker(fetchOverride) {
         bind(...values) {
           return {
             first: async () => {
+              if (sql.startsWith("INSERT INTO mina_daily_usage") && sql.includes("'file_bytes'")) {
+                const key=usageKey(values[0],"file_bytes",values[1]);
+                const row=usageStore.get(key)||{used:0};
+                if(row.used+values[2]>values[4])return null;
+                row.used+=values[2];usageStore.set(key,row);return {used:row.used};
+              }
               if (sql.startsWith("INSERT INTO mina_daily_usage")) {
                 const key=usageKey(values[0],values[1],values[2]);
                 const row=usageStore.get(key)||{used:0};
                 if(row.used>=values[4])return null;
                 row.used+=1;usageStore.set(key,row);return {used:row.used};
               }
+              if (sql.startsWith("SELECT used FROM mina_daily_usage") && sql.includes("'file_bytes'")) return usageStore.get(usageKey(values[0],"file_bytes",values[1]))||null;
               if (sql.startsWith("SELECT used FROM mina_daily_usage")) return usageStore.get(usageKey(values[0],values[1],values[2]))||null;
               return sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row;
             },
             all: async () => ({ results: disciplineStore.events.slice().reverse() }),
             run: async () => {
-              if (sql.startsWith("UPDATE mina_daily_usage")) {
+              if (sql.startsWith("UPDATE mina_daily_usage") && sql.includes("used - ?")) {
+                const row=usageStore.get(usageKey(values[2],"file_bytes",values[3]));
+                if(row)row.used=Math.max(0,row.used-values[0]);
+              } else if (sql.startsWith("UPDATE mina_daily_usage")) {
                 const row=usageStore.get(usageKey(values[1],values[2],values[3]));
                 if(row)row.used=Math.max(0,row.used-1);
               } else if (sql.startsWith("INSERT INTO mina_admin_workspace")) {
@@ -451,6 +461,7 @@ test("daily usage endpoint reports server-side counters and limits", async () =>
   assert.deepEqual(result.data.usage.chat, { used: 0, limit: 5, remaining: 5 });
   assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 5, remaining: 5 });
   assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 5, remaining: 5 });
+  assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
 });
 
 test("image generation enforces five successful requests per Istanbul day", async () => {
@@ -491,6 +502,50 @@ test("image analysis has its own five-request daily quota", async () => {
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.type,"image_analysis");
   assert.equal(requestedModels.length,5);
+});
+
+test("chat accepts a validated temporary text attachment and accounts its bytes", async () => {
+  let capturedPayload;
+  const { worker } = createWorker(async (url, options) => {
+    capturedPayload=JSON.parse(options.body||"{}");
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"Dosya incelendi."}]}}]}),{status:200});
+  });
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
+    fileAttachment:{name:"script.rpy",content:"label start:\n    return"}
+  }});
+  assert.equal(result.status,200);
+  assert.match(capturedPayload.contents[0].parts[1].text,/script\.rpy/);
+  const usage=await call(worker,"/api/usage",{token:login.data.token});
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode("label start:\n    return").byteLength);
+});
+
+test("chat rejects text attachments larger than 10 MB", async () => {
+  const { worker, requestedModels }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Read this file"}],
+    fileAttachment:{name:"large.txt",content:"x".repeat(10*1024*1024+1)}
+  }});
+  assert.equal(result.status,413);
+  assert.equal(requestedModels.length,0);
+});
+
+test("chat sends valid PDF attachments to Gemini as application/pdf", async () => {
+  let capturedPayload;
+  const { worker }=createWorker(async(url,options)=>{
+    capturedPayload=JSON.parse(options.body||"{}");
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"PDF incelendi."}]}}]}),{status:200});
+  });
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const pdf=Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"PDF dosyasını özetle."}],
+    document:{mimeType:"application/pdf",data:pdf}
+  }});
+  assert.equal(result.status,200);
+  assert.equal(capturedPayload.contents[0].parts[1].inlineData.mimeType,"application/pdf");
 });
 
 test("image generation requires an authenticated session", async () => {
