@@ -4,10 +4,14 @@ Production resources must not be shared with branch Previews. Cloudflare Worker 
 
 ## 1. Create isolated Preview resources
 
-From the `worker/` directory, or in the Cloudflare dashboard:
+From the `worker/` directory, create the isolated resources with Wrangler (or create them in the Cloudflare dashboard):
 
-- Create a D1 database named `mina-ai-db-preview`.
-- Create a private R2 bucket named `mina-temporary-files-preview` (Public access disabled; Standard storage).
+```sh
+npx wrangler d1 create mina-ai-db-preview
+npx wrangler r2 bucket create mina-temporary-files-preview
+```
+
+Copy the D1 `database_id` from the command output into the Preview configuration below. Keep the R2 bucket private (Public access disabled; Standard storage).
 
 Keep the existing production resources unchanged:
 - D1: `mina-ai-db`
