@@ -92,6 +92,7 @@
   function queueCloudPreferences(){
     if(!preferencesSyncReady)return;
     if(preferencesSyncTimer)clearTimeout(preferencesSyncTimer);
+    setPreferencesSyncMessage("Ayarlar kaydediliyor…");
     preferencesSyncTimer=setTimeout(async()=>{
       try{await saveCloudPreferences();}
       catch(error){setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}

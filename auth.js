@@ -64,7 +64,7 @@
     try{
       const response=await nativeFetch(API_BASE+"/api/auth/me",{headers:{Authorization:"Bearer "+current}});
       if(token()!==current)return;
-      if(response.ok){const data=await response.json().catch(()=>({}));setProfile(data.user?.username||"Argion");enterApp();return;}
+      if(response.ok){const data=await response.json().catch(()=>({}));setProfile(data.user?.username||"Argion");enterApp();window.dispatchEvent(new CustomEvent("mina:authenticated"));return;}
     }catch{}
     if(token()!==current)return;
     setToken("");

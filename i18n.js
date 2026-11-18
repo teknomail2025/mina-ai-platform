@@ -87,6 +87,7 @@
     "Hesap tercihlerin (tema ve dil) ile MinaData hafızası bulutta eşitlenir. Sohbetler, projeler ve kitaplık şimdilik yalnızca bu cihazda saklanır.": "Account preferences (theme and language) and MinaData memory are synced in the cloud. Chats, projects and the library are currently stored only on this device.",
     "Henüz eşitlenmedi.": "Not synced yet.",
     "Ayarlar eşitleniyor…": "Syncing settings…",
+    "Ayarlar kaydediliyor…": "Saving settings…",
     "Ayarlar bulutla eşitlendi.": "Settings synced to the cloud.",
     "Ayarlar bu cihazda korundu; bulut eşitlemesi şu anda kullanılamıyor.": "Settings are preserved on this device; cloud sync is currently unavailable.",
     "Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.": "Settings were saved on this device; cloud sync failed.",
