@@ -1130,9 +1130,11 @@ test("scheduled cleanup deletes expired R2 objects and keeps live files", async 
   const { worker, mockR2, r2Objects } = createWorker();
   await mockR2.put("Argion/expired",Uint8Array.of(1),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()-1000)}});
   await mockR2.put("Argion/live",Uint8Array.of(2),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()+60000)}});
+  await mockR2.put("unrelated/keep",Uint8Array.of(3),{customMetadata:{expiresAt:String(Date.now()-1000)}});
   await worker.scheduled({}, {...env,MINA_FILES:mockR2});
   assert.equal(r2Objects.has("Argion/expired"), false);
   assert.equal(r2Objects.has("Argion/live"), true);
+  assert.equal(r2Objects.has("unrelated/keep"), true);
 });
 
 test("file quota uses the original uploaded binary size rather than extracted text size", () => {
