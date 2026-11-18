@@ -130,6 +130,21 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaMemoryEditor").fill("Mina cross-device memory test");
     await page.locator("#saveMinaMemory").click();
     await page.waitForFunction(() => document.getElementById("memorySaveStatus").textContent === "MinaData memory was securely saved to your account.", null, { timeout: 15000 });
+    await page.locator("#generateSessionSecret").click();
+    const generatedSecretLength = await page.locator("#generatedSessionSecret").inputValue().then(value => value.length);
+    assert.ok(generatedSecretLength >= 60, "session secret generator must create a cryptographically strong value");
+    assert.equal(await page.locator("#sessionSecretOutput").isHidden(), false);
+    await page.evaluate(() => { document.getElementById("generatedSessionSecret").value = ""; });
+    const exportPromise = page.waitForEvent("download");
+    await page.locator("#exportMinaData").click();
+    const exportDownload = await exportPromise;
+    assert.equal(exportDownload.suggestedFilename(), "mina-ai-verilerim.json");
+    const exportStream = await exportDownload.createReadStream();
+    let exportContent = "";
+    for await (const chunk of exportStream) exportContent += chunk.toString("utf8");
+    const exportedData = JSON.parse(exportContent);
+    assert.equal(exportedData.memory, "Mina cross-device memory test");
+    assert.equal(await page.locator("#dataExportStatus").innerText(), "Mina’s local data has been exported.");
     await page.locator("#requestNotificationPermission").click();
     assert.equal(await page.locator("#notificationPermissionStatus").innerText(), "Permission granted");
     await page.locator("#refreshMinaHealth").click();
@@ -189,6 +204,10 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "response language must restore from D1");
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "tr", "interface language must restore from D1");
     assert.equal(await page.locator("#minaMemoryEditor").inputValue(), "Mina cross-device memory test", "MinaData memory must restore from D1 after local cache deletion");
+    await page.evaluate(() => { window.confirm = () => true; });
+    await page.locator("#clearMinaMemory").click();
+    await page.waitForFunction(() => document.getElementById("memorySaveStatus").textContent === "MinaData memory deleted.", null, { timeout: 15000 });
+    assert.equal(await page.locator("#minaMemoryEditor").inputValue(), "", "clearing MinaData must clear the editor");
     await closeDialog();
 
     await page.evaluate(() => localStorage.setItem("mina-ai-conversations-v1", JSON.stringify([{
@@ -216,6 +235,7 @@ const watchdog = setTimeout(() => {
     await openSettings();
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "Interface language must persist after reload");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "Response language must persist independently");
+    assert.equal(await page.locator("#minaMemoryEditor").inputValue(), "", "cleared MinaData memory must remain cleared after reload");
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.deepEqual(pageErrors, [], "Browser runtime must not produce uncaught JavaScript errors");
