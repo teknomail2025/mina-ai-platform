@@ -1095,6 +1095,13 @@ test("Mina discipline does not punish neutral discussion of an insult word", asy
 });
 
 
+test("Wrangler declares Worker Preview settings at the top level", () => {
+  const config=fs.readFileSync(path.join(workerDir,"wrangler.toml"),"utf8");
+  assert.match(config,/^preview_urls = true$/m);
+  assert.match(config,/^previews = \{\}$/m);
+  assert.ok(config.indexOf("previews = {}")<config.indexOf("[vars]"));
+});
+
 test("temporary R2 files require login, retain original bytes, and can be downloaded and deleted", async () => {
   const { worker, r2Objects } = createWorker();
   const guest = await call(worker, "/api/files", { method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
