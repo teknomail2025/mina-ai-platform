@@ -57,7 +57,7 @@ async function ensureDisciplineSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_mina_discipline_events_user_created ON mina_discipline_events(user_id, created_at DESC)").run();
   disciplineSchemaReady = true;
 }
-const DAILY_USAGE_LIMITS = Object.freeze({chat:5,image_generation:5,image_analysis:5});
+const DAILY_USAGE_LIMITS = Object.freeze({chat:5,image_generation:5,image_analysis:5,live_minutes:10});
 let usageSchemaReady = false;
 async function ensureUsageSchema(db) {
   if (usageSchemaReady) return;
@@ -469,10 +469,21 @@ export default {
     if(result.minutes===0)return json({ok:true,violation:true,warning:true,message:"Baba, lütfen benimle hakaret etmeden konuş. Saygılı biçimde devam edelim."},200,cors);
     return json({ok:false,violation:true,restricted:true,violation_count:result.count,restriction_minutes:result.minutes,restricted_until:result.restrictedUntil,error:"Saygısız iletişim nedeniyle "+result.minutes+" dakika sesli ve yazılı sohbet kısıtlaması uygulandı."},429,cors);
   }
+  if(url.pathname==="/api/live-minute"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Canlı ses kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    try{
+      const quota=await reserveDailyUsage(env.MINA_DB,userId,"live_minutes");
+      if(!quota.allowed)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0}},429,cors);
+      return json({ok:true,usedMinutes:quota.used,remainingMinutes:quota.remaining,limitMinutes:quota.limit,day:quota.day},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Canlı ses kullanım kotası kontrol edilemedi."},503,cors);}
+  }
   if(url.pathname==="/api/live-token"&&request.method==="POST"){
     if(!env.MINA_DB)return json({error:"Canlı ses için disiplin veritabanı bağlantısı gerekli."},503,cors);
     const voiceDiscipline=await getDisciplineState(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"));
     if(Number(voiceDiscipline?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ettiği için sesli sohbet geçici olarak kapalı.",restricted:true,restricted_until:voiceDiscipline.restricted_until},429,cors);
+    const liveUsage=await readDailyUsage(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"),"live_minutes");
+    if(liveUsage.remaining<=0)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:liveUsage.used,limit:liveUsage.limit,remaining:0}},429,cors);
     if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
     try{
       const r=await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens",{
