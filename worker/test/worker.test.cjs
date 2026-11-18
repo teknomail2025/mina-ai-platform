@@ -163,6 +163,7 @@ test("CORS preflight allows MinaData PUT with authorization", async () => {
   const response = await worker.fetch(request, env);
   assert.equal(response.status, 204);
   assert.match(response.headers.get("Access-Control-Allow-Methods") || "", /PUT/);
+  assert.match(response.headers.get("Access-Control-Allow-Methods") || "", /DELETE/);
   assert.match(response.headers.get("Access-Control-Allow-Headers") || "", /Authorization/i);
 });
 
