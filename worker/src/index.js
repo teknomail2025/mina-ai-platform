@@ -143,7 +143,7 @@ function corsHeaders(request, env) {
   const origin = request.headers.get("Origin") || "";
   const configured = (env.ALLOWED_ORIGINS || "").split(",").map(v=>v.trim()).filter(Boolean);
   const allowed = configured.includes(origin) || origin === "http://localhost:8000" || origin === "http://127.0.0.1:8000";
-  return {"Access-Control-Allow-Origin":allowed ? origin : (configured[0] || "null"),"Access-Control-Allow-Methods":"GET, POST, PUT, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"86400","Vary":"Origin"};
+  return {"Access-Control-Allow-Origin":allowed ? origin : (configured[0] || "null"),"Access-Control-Allow-Methods":"GET, POST, PUT, DELETE, OPTIONS","Access-Control-Allow-Headers":"Content-Type, Authorization","Access-Control-Max-Age":"86400","Vary":"Origin"};
 }
 function json(data,status,cors){return new Response(JSON.stringify(data),{status,headers:{...JSON_HEADERS,...cors}});}
 async function readJsonLimited(request,maxBytes){
@@ -265,7 +265,49 @@ function safeEqual(a, b) {
 }
 // MINA_ADMIN_AUTH_V1
 
+
+const STORED_FILE_TTL_MS = 24 * 60 * 60 * 1000;
+const STORED_FILE_MAX_BYTES = 10 * 1024 * 1024;
+const STORED_FILE_TYPES = Object.freeze({
+  pdf:"application/pdf",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt:"text/plain",rpy:"text/plain",md:"text/markdown",csv:"text/csv",json:"application/json",
+  html:"text/html",css:"text/css",js:"text/javascript",py:"text/x-python",log:"text/plain",
+  ts:"text/plain",tsx:"text/plain",jsx:"text/plain",java:"text/plain",cs:"text/plain",
+  cpp:"text/plain",h:"text/plain",xml:"application/xml",yaml:"text/plain",yml:"text/plain",
+  toml:"text/plain",ini:"text/plain",sql:"text/plain"
+});
+function safeStoredFileName(value) {
+  const raw=String(value||"").normalize("NFC").trim();
+  if(raw.includes("/")||raw.includes("\\"))return "";
+  const name=raw.replace(/[\x00-\x1f\x7f]/g,"_");
+  return name && name.length<=255 ? name : "";
+}
+function decodeStoredFile(data,name) {
+  if(!name||typeof data!=="string"||!data||data.length>Math.ceil(STORED_FILE_MAX_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length%4!==0)return null;
+  let binary;try{binary=atob(data);}catch{return null;}
+  if(!binary.length||binary.length>STORED_FILE_MAX_BYTES)return null;
+  const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+  const ext=name.split(".").pop().toLowerCase();
+  if(!Object.hasOwn(STORED_FILE_TYPES,ext))return null;
+  if(ext==="pdf"&&new TextDecoder().decode(bytes.slice(0,5))!=="%PDF-")return null;
+  if(ext==="docx"&&(bytes.length<4||bytes[0]!==0x50||bytes[1]!==0x4b))return null;
+  return {bytes,mimeType:STORED_FILE_TYPES[ext]};
+}
+function storedFileKey(userId,id){return encodeURIComponent(userId)+"/"+id;}
+async function cleanupExpiredStoredFiles(bucket,now=Date.now(),prefix="") {
+  if(!bucket)return {deleted:0};
+  let cursor,deleted=0;
+  do {
+    const page=await bucket.list({prefix,cursor,limit:1000,include:["customMetadata"]});
+    const expired=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)<=now).map(object=>object.key);
+    if(expired.length){await bucket.delete(expired);deleted+=expired.length;}
+    cursor=page.truncated?page.cursor:undefined;
+  } while(cursor);
+  return {deleted};
+}
+
 export default {
+ async scheduled(controller,env){ await cleanupExpiredStoredFiles(env.MINA_FILES,Date.now(),encodeURIComponent(String(env.ADMIN_USERNAME||"admin"))+"/"); },
  async fetch(request,env){
   const cors=corsHeaders(request,env);
   if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
@@ -289,6 +331,57 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+
+  if(url.pathname==="/api/files"&&request.method==="POST"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const parsedFile=await readJsonLimited(request,14_500_000);
+    if(parsedFile.tooLarge)return json({error:"Dosya yükleme isteği 14,5 MB sınırını aşıyor."},413,cors);
+    const name=safeStoredFileName(parsedFile.value?.name);
+    const decoded=decodeStoredFile(parsedFile.value?.data,name);
+    if(parsedFile.invalid||!name||!decoded)return json({error:"Dosya adı, türü veya içeriği geçersiz. Desteklenen dosyalar en fazla 10 MB olabilir."},400,cors);
+    if(!env.MINA_DB)return json({error:"Dosya kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    let quota;
+    try{quota=await reserveDailyFileBytes(env.MINA_DB,userId,decoded.bytes.byteLength);}
+    catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
+    if(!quota.allowed)return json({error:"Günlük 100 MB dosya yükleme kotan doldu.",fileQuota:{usedBytes:quota.used,limitBytes:quota.limit,remainingBytes:0}},429,cors);
+    const now=Date.now(),id=crypto.randomUUID(),expiresAt=now+STORED_FILE_TTL_MS;
+    const key=storedFileKey(userId,id);
+    try{
+      await env.MINA_FILES.put(key,decoded.bytes.buffer,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt),quotaDay:quota.day,quotaBytes:String(decoded.bytes.byteLength)}});
+      return json({saved:true,id,name,size:decoded.bytes.byteLength,uploadedAt:now,expiresAt,downloadPath:"/api/files/"+id,fileQuota:{usedBytes:quota.used,limitBytes:quota.limit,remainingBytes:quota.remaining}},201,{...cors,"Cache-Control":"no-store"});
+    }catch(error){await refundDailyFileBytes(env.MINA_DB,userId,decoded.bytes.byteLength,quota.day);return json({error:"Dosya güvenli depoya kaydedilemedi."},503,cors);}
+  }
+  if(url.pathname==="/api/files"&&request.method==="GET"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),prefix=encodeURIComponent(userId)+"/";
+    try{
+      const page=await env.MINA_FILES.list({prefix,limit:1000,include:["customMetadata"]});
+      const now=Date.now();
+      const files=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)>now).map(object=>({id:object.key.slice(prefix.length),name:object.customMetadata?.fileName||"dosya",size:object.size,uploadedAt:Number(object.customMetadata?.uploadedAt)||object.uploaded?.getTime?.()||null,expiresAt:Number(object.customMetadata?.expiresAt),downloadPath:"/api/files/"+object.key.slice(prefix.length)}));
+      return json({files,truncated:!!page.truncated},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Dosya listesi okunamadı."},503,cors);}
+  }
+  const storedFileMatch=url.pathname.match(/^\/api\/files\/([0-9a-f-]{36})$/i);
+  if(storedFileMatch&&request.method==="GET"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),key=storedFileKey(userId,storedFileMatch[1]);
+    try{
+      const object=await env.MINA_FILES.get(key);
+      if(!object)return json({error:"Dosya bulunamadı veya süresi doldu."},404,cors);
+      const expiresAt=Number(object.customMetadata?.expiresAt||0);
+      if(object.customMetadata?.owner!==userId||!expiresAt||expiresAt<=Date.now()){await env.MINA_FILES.delete(key);return json({error:"Dosyanın saklama süresi doldu."},404,cors);}
+      const name=safeStoredFileName(object.customMetadata?.fileName)||"dosya";
+      const asciiName=name.replace(/[^A-Za-z0-9._-]/g,"_");
+      return new Response(object.body,{status:200,headers:{...cors,"Content-Type":object.httpMetadata?.contentType||"application/octet-stream","Content-Disposition":"attachment; filename=\""+asciiName+"\"; filename*=UTF-8''"+encodeURIComponent(name),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }catch(error){return json({error:"Dosya indirilemedi."},503,cors);}
+  }
+  if(storedFileMatch&&request.method==="DELETE"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    try{await env.MINA_FILES.delete(storedFileKey(String(env.ADMIN_USERNAME||"admin"),storedFileMatch[1]));return json({deleted:true},200,{...cors,"Cache-Control":"no-store"});}
+    catch(error){return json({error:"Dosya silinemedi."},503,cors);}
+  }
+
   if(url.pathname==="/api/usage"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"Kullanım kotası veritabanı yapılandırılmamış."},503,cors);
     try{
@@ -517,15 +610,40 @@ export default {
   const body=parsedChat.value;
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-  if(body.image&&body.document)return json({error:"Tek istekte hem resim hem PDF eklenemez."},400,cors);
-  if(body.document&&!pdfDataIsValid(body.document))return json({error:"PDF geçersiz veya 10 MB sınırını aşıyor."},400,cors);
-  let attachmentBytes=0;
-  if(body.fileAttachment!==undefined){
-    if(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||typeof body.fileAttachment.content!=="string")return json({error:"Dosya eki geçersiz."},400,cors);
-    attachmentBytes=new TextEncoder().encode(body.fileAttachment.content).byteLength;
-    if(!attachmentBytes||attachmentBytes>10*1024*1024||body.fileAttachment.name.length>255)return json({error:"Dosya içeriği boş veya 10 MB sınırını aşıyor."},413,cors);
+  if(body.image&&(body.document||body.fileAttachment)||body.document&&body.fileAttachment)return json({error:"Tek istekte yalnızca bir belge veya resim eki kullanılabilir."},400,cors);
+  if(body.document&&body.document.mimeType!=="application/pdf")return json({error:"PDF dosya türü geçersiz."},400,cors);
+  if(body.fileAttachment!==undefined&&(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||body.fileAttachment.name.length>255||body.fileAttachment.content!==undefined&&typeof body.fileAttachment.content!=="string"))return json({error:"Dosya eki geçersiz."},400,cors);
+  let attachmentBytes=0,storedAttachment=null;
+  if(body.document||body.fileAttachment){
+    if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depo kaydı doğrulanamadı."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),key=storedFileKey(userId,body.storedFileId);
+    try{
+      storedAttachment=await env.MINA_FILES.get(key);
+      if(!storedAttachment||storedAttachment.customMetadata?.owner!==userId||Number(storedAttachment.customMetadata?.expiresAt||0)<=Date.now())return json({error:"Dosyanın güvenli depo kaydı bulunamadı veya süresi doldu."},404,cors);
+      const storedName=safeStoredFileName(storedAttachment.customMetadata?.fileName);
+      if(!storedName||(body.fileAttachment&&storedName!==body.fileAttachment.name)||(body.document&&!storedName.toLowerCase().endsWith(".pdf")))return json({error:"Dosya adı veya türü depo kaydıyla uyuşmuyor."},404,cors);
+      attachmentBytes=Number(storedAttachment.size);
+      if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES)return json({error:"Dosya boyutu sınır dışında."},413,cors);
+      const storedBytes=new Uint8Array(await storedAttachment.arrayBuffer());
+      if(storedBytes.byteLength!==attachmentBytes)return json({error:"Depodaki dosya eksik veya bozuk."},502,cors);
+      const extension=storedName.split(".").pop().toLowerCase();
+      if(extension==="pdf"){
+        if(new TextDecoder().decode(storedBytes.slice(0,5))!=="%PDF-")return json({error:"Saklanan PDF imzası geçersiz."},400,cors);
+        let binary="";for(let i=0;i<storedBytes.length;i+=0x8000)binary+=String.fromCharCode(...storedBytes.subarray(i,i+0x8000));
+        body.document={mimeType:"application/pdf",data:btoa(binary)};
+        body.fileAttachment=undefined;
+      }else{
+        if(extension==="docx"){
+          if(storedBytes[0]!==0x50||storedBytes[1]!==0x4b||typeof body.fileAttachment?.content!=="string"||!body.fileAttachment.content.trim())return json({error:"DOCX içeriği okunamadı; belgeyi yeniden ekle."},400,cors);
+          if(new TextEncoder().encode(body.fileAttachment.content).byteLength>STORED_FILE_MAX_BYTES)return json({error:"DOCX metin içeriği 10 MB sınırını aşıyor."},413,cors);
+        }else{
+          if(body.fileAttachment.content!==undefined)return json({error:"Metin dosyalarının içeriği yalnızca güvenli R2 deposundan okunmalıdır."},400,cors);
+          body.fileAttachment={name:storedName,content:new TextDecoder("utf-8",{fatal:false}).decode(storedBytes)};
+        }
+        if(!body.fileAttachment.content||new TextEncoder().encode(body.fileAttachment.content).byteLength>STORED_FILE_MAX_BYTES)return json({error:"Dosyanın metin içeriği boş veya çok büyük."},413,cors);
+      }
+    }catch(error){return json({error:"Dosya güvenli depodan okunamadı."},503,cors);}
   }
-  if(body.document)attachmentBytes=atob(body.document.data).length;
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
@@ -589,16 +707,10 @@ export default {
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   const usageType=body.image?"image_analysis":"chat";
   const usageUserId=String(env.ADMIN_USERNAME||"admin");
-  let fileReservation=null;
-  if(attachmentBytes>0){
-    try{fileReservation=await reserveDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes);}
-    catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
-    if(!fileReservation.allowed)return json({error:"Bugünkü 100 MB dosya ekleme kotan doldu.",fileQuota:{usedBytes:fileReservation.used,limitBytes:fileReservation.limit,remainingBytes:0}},429,cors);
-  }
   let usageReservation;
   try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType);}
-  catch(error){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
-  if(!usageReservation.allowed){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
+  catch(error){return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
+  if(!usageReservation.allowed){return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
     let upstream;
     const requestedModel = model;
@@ -611,12 +723,12 @@ export default {
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
     else {await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);}
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
-    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,provider_detail:detail,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
+    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,provider_detail:detail,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
     const parts=parsed?.candidates?.[0]?.content?.parts||[];
     const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
-    if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);}
+    if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);}
     const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
     return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
-  }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
+  }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
  }
 };
