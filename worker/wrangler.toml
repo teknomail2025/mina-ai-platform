@@ -19,5 +19,5 @@ binding = "MINA_FILES"
 bucket_name = "mina-temporary-files"
 
 [triggers]
-crons = ["0 * * * *"]
+crons = ["*/15 * * * *"]
 
