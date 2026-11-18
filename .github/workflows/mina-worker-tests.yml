@@ -23,6 +23,8 @@ jobs:
           node-version: 22
       - name: Check Worker syntax
         run: node --check worker/src/index.js
+      - name: Check frontend syntax
+        run: node --check app.js
       - name: Run Worker regression tests
         run: node --test worker/test/*.test.cjs
       - name: Validate Wrangler configuration
