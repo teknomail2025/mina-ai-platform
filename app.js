@@ -548,7 +548,8 @@
     const c = current(); const userText = text.trim();
     let prompt = userText;
     const imageAttachment = attachedFile?.kind === "image" ? attachedFile : null;
-    if (attachedFile && !imageAttachment) prompt += (prompt ? "\n\n" : "") + "Ekli dosya içeriği (" + attachedFile.name + "):\n" + attachedFile.content;
+    if (attachedFile?.kind === "text") prompt += (prompt ? "\n\n" : "") + "Ekli metin/kod dosyası: " + attachedFile.name + " (dosya içeriği ayrı ek olarak gönderiliyor).";
+    if (attachedFile?.kind === "pdf") prompt += (prompt ? "\n\n" : "") + "Ekli PDF belgesi: " + attachedFile.name + ". Belgeyi incele ve sorumu yanıtla.";
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
     await memorySyncPromise;
@@ -560,7 +561,7 @@
     try {
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf",data:file.data.split(",")[1]}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,content:file.content}:undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if(typeof data.memory_updated==="string"){
@@ -1083,9 +1084,29 @@
   $("removeFileBtn").addEventListener("click", () => { attachedFile=null; els.fileChip.hidden=true; els.fileInput.value=""; els.imageInput.value=""; });
   els.fileInput.addEventListener("change", async () => {
     const f=els.fileInput.files?.[0]; if(!f) return;
-    if(f.size > 1024*1024) { alert(uiText("Şimdilik en fazla 1 MB metin/kod dosyası ekleyebilirsin.")); els.fileInput.value=""; return; }
-    try { attachedFile={kind:"text",name:f.name,content:await f.text()}; if ([".js",".ts",".tsx",".jsx",".py",".html",".css",".json",".sql",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml"].some(ext => f.name.toLowerCase().endsWith(ext))) els.codeEditor.value=attachedFile.content; els.fileName.textContent="📄 "+f.name; els.fileChip.hidden=false; }
-    catch { alert(uiText("Dosya okunamadı. PDF/DOCX gibi ikili dosyalar henüz metne dönüştürülmüyor.")); }
+    if(f.size>10*1024*1024){alert(uiText("Dosya başına en fazla 10 MB ekleyebilirsin."));els.fileInput.value="";return;}
+    const lower=f.name.toLowerCase();
+    try{
+      if(lower.endsWith(".pdf")){
+        if(f.type!=="application/pdf")throw new Error("PDF dosyasının türü doğrulanamadı.");
+        const reader=new FileReader();
+        reader.onload=()=>{attachedFile={kind:"pdf",name:f.name,data:reader.result,size:f.size};els.fileName.textContent="📕 "+f.name;els.fileChip.hidden=false;};
+        reader.onerror=()=>alert(uiText("PDF dosyası okunamadı."));
+        reader.readAsDataURL(f);return;
+      }
+      if(lower.endsWith(".docx")){
+        if(!window.mammoth)throw new Error("DOCX okuyucusu yüklenemedi. Dosyayı PDF veya TXT olarak kaydedip tekrar dene.");
+        const result=await window.mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()});
+        if(!result.value.trim())throw new Error("DOCX dosyasında okunabilir metin bulunamadı.");
+        attachedFile={kind:"text",name:f.name,content:result.value,size:f.size};
+      }else{
+        const allowed=[".txt",".rpy",".md",".csv",".json",".html",".css",".js",".py",".log",".ts",".tsx",".jsx",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml",".ini",".sql"];
+        if(!allowed.some(ext=>lower.endsWith(ext)))throw new Error("Bu dosya türü desteklenmiyor.");
+        attachedFile={kind:"text",name:f.name,content:await f.text(),size:f.size};
+      }
+      if([".js",".ts",".tsx",".jsx",".py",".rpy",".html",".css",".json",".sql",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml"].some(ext=>lower.endsWith(ext)))els.codeEditor.value=attachedFile.content;
+      els.fileName.textContent="📄 "+f.name;els.fileChip.hidden=false;
+    }catch(error){alert(uiText(error.message||"Dosya okunamadı."));els.fileInput.value="";}
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
