@@ -93,7 +93,13 @@ jobs:
           const memoryLoad = await fetch(base + "/api/memory", { headers: { Authorization: "Bearer " + loginData.token } });
           assert.equal(memoryLoad.status, 200, "authenticated D1 memory read must work");
           assert.equal((await memoryLoad.json()).memory, "CI MinaData persistence check");
-          console.log("Worker startup, health, guest rejection, admin login, session validation, D1 memory read/write and shutdown trap: passed");
+          const preferences = { theme: "light", language: "tr", interfaceLanguage: "en" };
+          const preferencesSave = await fetch(base + "/api/preferences", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + loginData.token }, body: JSON.stringify({ preferences }) });
+          assert.equal(preferencesSave.status, 200, "authenticated D1 preferences write must work");
+          const preferencesLoad = await fetch(base + "/api/preferences", { headers: { Authorization: "Bearer " + loginData.token } });
+          assert.equal(preferencesLoad.status, 200, "authenticated D1 preferences read must work");
+          assert.deepEqual((await preferencesLoad.json()).preferences, preferences);
+          console.log("Worker startup, health, guest rejection, admin login, session validation, D1 memory and preferences read/write, and shutdown trap: passed");
           NODE
           cat /tmp/mina-wrangler.log
 
@@ -157,7 +163,6 @@ jobs:
           test -s worker/test/ui-language.browser.cjs
           test -s worker/migrations/0001_auth_and_user_data.sql
           test -s worker/migrations/0002_mina_admin_memory.sql
-          test -s worker/migrations/0004_mina_admin_preferences.sql
       - name: Configure Pages
         uses: actions/configure-pages@v5
       - name: Upload site artifact
