@@ -555,7 +555,7 @@ test("failed document processing refunds chat usage but keeps uploaded-byte quot
   assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Review this script"}],
-    fileAttachment:{name:"main.rpy",content},
+    fileAttachment:{name:"main.rpy"},
     storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,502);
@@ -576,7 +576,7 @@ test("chat accepts a validated temporary text attachment and accounts its origin
   assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
-    fileAttachment:{name:"script.rpy",content:"THIS IS CLIENT-SUPPLIED AND MUST BE IGNORED"},
+    fileAttachment:{name:"script.rpy"},
     storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
@@ -585,6 +585,21 @@ test("chat accepts a validated temporary text attachment and accounts its origin
   assert.ok(!capturedPayload.contents[0].parts[1].text.includes("CLIENT-SUPPLIED"));
   const usage=await call(worker,"/api/usage",{token:login.data.token});
   assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
+});
+
+test("chat rejects client-supplied text content and requires the R2 source file", async () => {
+  const { worker, requestedModels }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const original="trusted stored source";
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"source.txt",data:Buffer.from(original).toString("base64")}});
+  assert.equal(uploaded.status,201);
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Read the file"}],
+    fileAttachment:{name:"source.txt",content:"forged client content"},
+    storedFileId:uploaded.data.id
+  }});
+  assert.equal(result.status,400);
+  assert.equal(requestedModels.length,0);
 });
 
 test("file upload rejects files larger than 10 MB", async () => {
