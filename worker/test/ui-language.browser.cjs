@@ -88,7 +88,7 @@ const watchdog = setTimeout(() => {
       "Language & communication", "Interface language", "Mina's response language",
       "Account & security", "Appearance", "Voice & microphone", "Memory",
       "Chats & data", "Notifications", "Devices & sync", "System status",
-      "Session security · SESSION_SECRET", "Account preferences (theme and language) and MinaData memory are synced in the cloud.",
+      "Session security · SESSION_SECRET", "Account preferences, MinaData memory, chats, projects, pinned chats and the library are securely synced with your admin account. Local data is never automatically deleted when sync conflicts occur.",
       "Mina manages her own preferences", "Interface and communication language", "Mina's core approach"
     ]) assert.ok(settingsText.includes(expected), "Missing English settings text: " + expected);
     assert.deepEqual(await untranslatedTurkishUi(), [], "English interface must not contain untranslated Turkish UI text");
@@ -104,7 +104,7 @@ const watchdog = setTimeout(() => {
       });
       window.__dialogMessages = [];
       window.confirm = message => { window.__dialogMessages.push({ type: "confirm", message }); return false; };
-      window.prompt = message => { window.__dialogMessages.push({ type: "prompt", message }); return null; };
+      window.prompt = message => { window.__dialogMessages.push({ type: "prompt", message }); return "Cloud Sync Test Project"; };
       const bubble = document.createElement("div");
       bubble.className = "bubble";
       const image = document.createElement("img");
@@ -156,6 +156,8 @@ const watchdog = setTimeout(() => {
     const dialogsEn = await page.evaluate(() => window.__dialogMessages);
     assert.ok(dialogsEn.some(item => item.message === "Do you want to permanently delete all chat history?"));
     assert.ok(dialogsEn.some(item => item.message === "New project name:"));
+    await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Chats, projects and library synced to the cloud.", null, { timeout: 15000 });
+    assert.ok((await page.evaluate(() => JSON.parse(localStorage.getItem("mina-ai-projects-v1") || "[]"))).some(project => project.name === "Cloud Sync Test Project"), "new project must remain in local storage after cloud sync");
     await page.locator("#toolsToggle").click();
     assert.equal(await page.locator("#fileToolBtn").innerText(), "📎 Attach file");
     assert.equal(await page.locator("#webBtn").innerText(), "🌐 Search the web");
@@ -239,6 +241,21 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
     assert.deepEqual(pageErrors, [], "Browser runtime must not produce uncaught JavaScript errors");
+
+    stage = "verifying workspace restore from cloud";
+    await closeDialog();
+    await page.evaluate(() => {
+      for (const key of ["mina-ai-conversations-v1", "mina-ai-projects-v1", "mina-ai-pinned-v1", "mina-ai-library-v1"]) localStorage.removeItem(key);
+    });
+    await page.reload({ waitUntil: "networkidle" });
+    await page.locator("body.mina-authenticated").waitFor();
+    await openSettings();
+    await page.waitForFunction(() => ["Chats, projects and library loaded from the cloud.", "Chats, projects and library synced to the cloud."].includes(document.getElementById("workspaceSyncStatus")?.textContent), null, { timeout: 15000 });
+    const restoredProjects = await page.evaluate(() => JSON.parse(localStorage.getItem("mina-ai-projects-v1") || "[]"));
+    assert.ok(restoredProjects.some(project => project.name === "Cloud Sync Test Project"), "project must restore from D1 after local workspace data is cleared");
+    const restoredConversations = await page.evaluate(() => JSON.parse(localStorage.getItem("mina-ai-conversations-v1") || "[]"));
+    assert.ok(restoredConversations.some(conversation => conversation.id === "i18n-runtime-test"), "conversation must restore from D1 after local workspace data is cleared");
+    assert.deepEqual(pageErrors, [], "workspace restore must not produce browser runtime errors");
 
     stage = "checking localized sign-in errors";
     await closeDialog();
