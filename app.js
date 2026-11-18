@@ -182,9 +182,9 @@
   function saveWorkspaceLocal() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-      persistWorkspaceCollection(PROJECTS_KEY,projects);
-      persistWorkspaceCollection(PINNED_KEY,pinnedIds);
-      persistWorkspaceCollection(LIBRARY_KEY,libraryItems);
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+      localStorage.setItem(PINNED_KEY, JSON.stringify(pinnedIds));
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryItems));
     } catch (error) { console.warn("Mina çalışma alanı yerel olarak kaydedilemedi", error); }
   }
   async function putCloudWorkspace(data, version) {
