@@ -294,11 +294,11 @@ function decodeStoredFile(data,name) {
   return {bytes,mimeType:STORED_FILE_TYPES[ext]};
 }
 function storedFileKey(userId,id){return encodeURIComponent(userId)+"/"+id;}
-async function cleanupExpiredStoredFiles(bucket,now=Date.now()) {
+async function cleanupExpiredStoredFiles(bucket,now=Date.now(),prefix="") {
   if(!bucket)return {deleted:0};
   let cursor,deleted=0;
   do {
-    const page=await bucket.list({cursor,limit:1000,include:["customMetadata"]});
+    const page=await bucket.list({prefix,cursor,limit:1000,include:["customMetadata"]});
     const expired=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)<=now).map(object=>object.key);
     if(expired.length){await bucket.delete(expired);deleted+=expired.length;}
     cursor=page.truncated?page.cursor:undefined;
@@ -307,7 +307,7 @@ async function cleanupExpiredStoredFiles(bucket,now=Date.now()) {
 }
 
 export default {
- async scheduled(controller,env){ await cleanupExpiredStoredFiles(env.MINA_FILES); },
+ async scheduled(controller,env){ await cleanupExpiredStoredFiles(env.MINA_FILES,Date.now(),encodeURIComponent(String(env.ADMIN_USERNAME||"admin"))+"/"); },
  async fetch(request,env){
   const cors=corsHeaders(request,env);
   if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
