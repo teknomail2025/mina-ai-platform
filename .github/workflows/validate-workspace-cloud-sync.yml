@@ -1,0 +1,20 @@
+name: Validate Mina workspace sync branch
+
+on:
+  push:
+    branches: [feature/workspace-cloud-sync-api]
+
+permissions:
+  contents: read
+
+jobs:
+  test:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - run: node --check worker/src/index.js
+      - run: node --test worker/test/*.test.cjs
