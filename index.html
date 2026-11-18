@@ -98,7 +98,7 @@
       <section class="composer-wrap">
         <div class="file-chip" id="fileChip" hidden><span id="fileName" data-i18n-ignore></span><button id="removeFileBtn" aria-label="Dosyayı kaldır">×</button></div>
         <form class="composer" id="chatForm">
-          <input type="file" id="fileInput" accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql" hidden>
+          <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.rpy,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql" hidden>
           <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
           <button class="attach-button" type="button" id="attachBtn" aria-label="Dosya ekle" title="Kod veya metin dosyası ekle" hidden>＋</button>
           <div class="tools-menu">
@@ -140,6 +140,7 @@
   <script src="./pwa.js" defer></script>
   <script src="./i18n.js" defer></script>
   <script src="./auth.js" defer></script>
+  <script src="https://unpkg.com/mammoth@1.9.0/mammoth.browser.min.js" defer></script>
   <script src="./app.js" defer></script>
   <script src="./voice.js" defer></script>
 </body>
