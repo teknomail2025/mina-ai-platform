@@ -298,7 +298,7 @@ async function cleanupExpiredStoredFiles(bucket,now=Date.now()) {
   if(!bucket)return {deleted:0};
   let cursor,deleted=0;
   do {
-    const page=await bucket.list({cursor,limit:1000});
+    const page=await bucket.list({cursor,limit:1000,include:["customMetadata"]});
     const expired=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)<=now).map(object=>object.key);
     if(expired.length){await bucket.delete(expired);deleted+=expired.length;}
     cursor=page.truncated?page.cursor:undefined;
@@ -356,7 +356,7 @@ export default {
     if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
     const userId=String(env.ADMIN_USERNAME||"admin"),prefix=encodeURIComponent(userId)+"/";
     try{
-      const page=await env.MINA_FILES.list({prefix,limit:1000});
+      const page=await env.MINA_FILES.list({prefix,limit:1000,include:["customMetadata"]});
       const now=Date.now();
       const files=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)>now).map(object=>({id:object.key.slice(prefix.length),name:object.customMetadata?.fileName||"dosya",size:object.size,uploadedAt:Number(object.customMetadata?.uploadedAt)||object.uploaded?.getTime?.()||null,expiresAt:Number(object.customMetadata?.expiresAt),downloadPath:"/api/files/"+object.key.slice(prefix.length)}));
       return json({files,truncated:!!page.truncated},200,{...cors,"Cache-Control":"no-store"});
