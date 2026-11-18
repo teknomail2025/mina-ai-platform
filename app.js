@@ -250,6 +250,7 @@
         setWorkspaceSyncMessage("Bu cihazdaki veriler buluta aktarıldı.");
       } else if (remote.initialized && resolution === "download") {
         applyCloudWorkspace(remote);
+        localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(currentWorkspaceData()));
         workspaceSyncConflict = false;
         setWorkspaceSyncMessage("Buluttaki veriler bu cihaza yüklendi.");
       } else if (!remote.initialized) {
@@ -1077,6 +1078,5 @@
   render(); checkHealth(); setupVoiceInput();
   window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();});
   if(window.MINA_AUTHENTICATED===true||document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();}
-  window.addEventListener("focus",()=>{if(window.MINA_AUTHENTICATED===true)syncCloudWorkspace();});
   document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&window.MINA_AUTHENTICATED===true)syncCloudWorkspace();});
 })();
