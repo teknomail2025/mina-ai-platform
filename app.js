@@ -905,5 +905,5 @@
   if (!activeId) createConversation();
   render(); checkHealth(); setupVoiceInput();
   window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();});
-  if(document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();}
+  if(window.MINA_AUTHENTICATED===true||document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();}
 })();

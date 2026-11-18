@@ -17,6 +17,7 @@
   const token=()=>{try{return localStorage.getItem(TOKEN_KEY)||sessionStorage.getItem(TOKEN_KEY)||"";}catch{return "";}};
   const setToken=(value,rememberMe=false)=>{try{localStorage.removeItem(TOKEN_KEY);sessionStorage.removeItem(TOKEN_KEY);if(value){if(rememberMe)localStorage.setItem(TOKEN_KEY,value);else sessionStorage.setItem(TOKEN_KEY,value);}}catch{}};
   function showLogin(message=""){
+    window.MINA_AUTHENTICATED=false;
     window.dispatchEvent(new CustomEvent("mina:unauthenticated"));
     document.body.classList.remove("mina-authenticated");
     screen.hidden=false;
@@ -25,6 +26,7 @@
     setTimeout(()=>username.focus(),0);
   }
   function enterApp(){
+    window.MINA_AUTHENTICATED=true;
     screen.hidden=true;
     document.body.classList.add("mina-authenticated");
   }
