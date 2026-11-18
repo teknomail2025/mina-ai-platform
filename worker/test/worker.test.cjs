@@ -50,6 +50,23 @@ function createWorker(fetchOverride) {
   const workspaceStore = { row: null };
   const disciplineStore = { row: null, events: [] };
   const usageStore = new Map();
+  const r2Objects = new Map();
+  const mockR2 = {
+    async put(key,value,options={}) {
+      const bytes=value instanceof Uint8Array?value:new Uint8Array(value);
+      r2Objects.set(key,{bytes:new Uint8Array(bytes),httpMetadata:options.httpMetadata||{},customMetadata:options.customMetadata||{},size:bytes.byteLength,uploaded:new Date()});
+    },
+    async get(key) {
+      const item=r2Objects.get(key);if(!item)return null;
+      return {body:new Response(item.bytes).body,size:item.size,httpMetadata:item.httpMetadata,customMetadata:item.customMetadata};
+    },
+    async head(key) { const item=r2Objects.get(key);return item?{size:item.size,customMetadata:item.customMetadata}:null; },
+    async delete(keys) { for(const key of (Array.isArray(keys)?keys:[keys]))r2Objects.delete(key); },
+    async list(options={}) {
+      const all=[...r2Objects.entries()].filter(([key])=>!options.prefix||key.startsWith(options.prefix)).map(([key,item])=>({key,size:item.size,uploaded:item.uploaded,customMetadata:item.customMetadata}));
+      return {objects:all,truncated:false,cursor:undefined};
+    }
+  };
   const usageKey = (userId, type, day) => [userId, type, day].join("|");
   const mockDb = {
     prepare(sql) {
@@ -115,9 +132,9 @@ function createWorker(fetchOverride) {
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
     const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
-    return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
+    return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), MINA_FILES: mockR2, ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey };
+  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -1049,4 +1066,57 @@ test("Mina discipline does not punish neutral discussion of an insult word", asy
   const result = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal kelimesinin anlamı nedir?" }] } });
   assert.equal(result.status, 200);
   assert.equal(disciplineStore.row, null);
+});
+
+
+test("temporary R2 files require login, retain original bytes, and can be downloaded and deleted", async () => {
+  const { worker, r2Objects } = createWorker();
+  const guest = await call(worker, "/api/files", { method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
+  assert.equal(guest.status, 401);
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const uploaded = await call(worker, "/api/files", { token: login.data.token, method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
+  assert.equal(uploaded.status, 201);
+  assert.equal(uploaded.data.name, "hello.txt");
+  assert.equal(uploaded.data.size, 5);
+  assert.equal(uploaded.data.expiresAt-uploaded.data.uploadedAt, 24*60*60*1000);
+  assert.equal(r2Objects.size, 1);
+  const listed = await call(worker, "/api/files", { token: login.data.token });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.data.files.length, 1);
+  const downloaded = await worker.fetch(new Request("https://mina-test.workers.dev"+uploaded.data.downloadPath,{headers:{Origin:"https://teknomail2025.github.io",Authorization:"Bearer "+login.data.token}}),{...env});
+  assert.equal(downloaded.status, 200);
+  assert.equal(await downloaded.text(), "hello");
+  assert.match(downloaded.headers.get("Content-Disposition"), /hello.txt/);
+  const removed = await call(worker, uploaded.data.downloadPath, { method: "DELETE", token: login.data.token });
+  assert.equal(removed.status, 200);
+  assert.equal(r2Objects.size, 0);
+});
+
+test("temporary file endpoint rejects invalid types, malformed base64 and oversized content", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  for (const body of [
+    { name: "malware.exe", data: "aGVsbG8=" },
+    { name: "bad.txt", data: "not base64!" },
+    { name: "../secret.txt", data: "aGVsbG8=" }
+  ]) {
+    const result = await call(worker, "/api/files", { token: login.data.token, method: "POST", body });
+    assert.equal(result.status, 400);
+  }
+});
+
+test("scheduled cleanup deletes expired R2 objects and keeps live files", async () => {
+  const { worker, mockR2, r2Objects } = createWorker();
+  await mockR2.put("Argion/expired",{1},{customMetadata:{owner:"Argion",expiresAt:String(Date.now()-1000)}});
+  await mockR2.put("Argion/live",{2},{customMetadata:{owner:"Argion",expiresAt:String(Date.now()+60000)}});
+  await worker.scheduled({}, {...env,MINA_FILES:mockR2});
+  assert.equal(r2Objects.has("Argion/expired"), false);
+  assert.equal(r2Objects.has("Argion/live"), true);
+});
+
+test("file quota uses the original uploaded binary size rather than extracted text size", () => {
+  assert.match(workerSource, /Number\\.isSafeInteger\\(body\\.fileAttachment\\.originalSize\\)/);
+  assert.match(frontendSource, /originalSize:file\\.size/);
+  assert.match(frontendSource, /rawBase64:await fileToBase64\\(f\\)/);
+  assert.match(frontendSource, /m\\.fileId/);
 });
