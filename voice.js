@@ -42,6 +42,7 @@
     return error?.message||"Sesli sohbet başlatılamadı.";
   }
   async function consumeLiveMinute(){
+    if(!active)return false;
     try{
       const response=await fetch(API_BASE+"/api/live-minute",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
       const data=await response.json().catch(()=>({}));
