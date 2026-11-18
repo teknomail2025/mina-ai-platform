@@ -206,7 +206,7 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#minaMemoryEditor").inputValue(), "Mina cross-device memory test", "MinaData memory must restore from D1 after local cache deletion");
     await page.evaluate(() => { window.confirm = () => true; });
     await page.locator("#clearMinaMemory").click();
-    await page.waitForFunction(() => document.getElementById("memorySaveStatus").textContent === "MinaData memory was deleted.", null, { timeout: 15000 });
+    await page.waitForFunction(() => document.getElementById("memorySaveStatus").textContent === "MinaData hafızası silindi.", null, { timeout: 15000 });
     assert.equal(await page.locator("#minaMemoryEditor").inputValue(), "", "clearing MinaData must clear the editor");
     await closeDialog();
 
