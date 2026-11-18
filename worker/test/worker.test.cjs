@@ -580,7 +580,7 @@ test("chat accepts a validated temporary text attachment and accounts its origin
     storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
-  assert.match(capturedPayload.contents[0].parts[1].text,/script\\.rpy/);
+  assert.ok(capturedPayload.contents[0].parts[1].text.includes("script.rpy"));
   const usage=await call(worker,"/api/usage",{token:login.data.token});
   assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
