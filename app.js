@@ -830,6 +830,8 @@
         <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
         <div class="settings-info-row"><strong>API bağlantısı</strong><span id="minaApiStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Yapay zekâ servisi</strong><span id="minaProviderStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Günlük kullanım kotaları</strong><span id="minaUsageStatus">Kontrol ediliyor…</span></div>
+        <button type="button" class="settings-action secondary" id="refreshMinaUsage">Kotaları yenile</button>
         <button type="button" class="settings-action secondary" id="refreshMinaHealth">Durumu yenile</button>
       </section>
       <section class="session-secret-panel" data-settings-extra="account" aria-labelledby="sessionSecretTitle">
@@ -942,6 +944,19 @@
       catch{$("minaApiStatus").textContent=uiText("Bağlantı kurulamadı");$("minaProviderStatus").textContent=uiText("Bilinmiyor");$("adminConfigStatus").textContent=uiText("Kontrol edilemedi");$("voiceSupportStatus").textContent=uiText("Kontrol edilemedi");}
     };
     $("refreshMinaHealth").addEventListener("click",refreshHealth);
+    const refreshUsage=async()=>{
+      const status=$("minaUsageStatus");
+      status.textContent=uiText("Kullanım bilgisi yükleniyor…");
+      try{
+        const response=await fetch(API_BASE+"/api/usage",{cache:"no-store"});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"Kullanım bilgisi alınamadı.");
+        const usage=data.usage||{};
+        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/5 · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/5 · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/5";
+      }catch(error){status.textContent=error.message||uiText("Kullanım bilgisi alınamadı.");}
+    };
+    $("refreshMinaUsage").addEventListener("click",refreshUsage);
+    refreshUsage();
     refreshHealth();
     $("syncWorkspaceNow").addEventListener("click",async()=>{const button=$("syncWorkspaceNow");button.disabled=true;await syncCloudWorkspace();button.disabled=false;});
     $("syncWorkspaceUpload").addEventListener("click",async()=>{
