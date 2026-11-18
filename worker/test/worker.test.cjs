@@ -117,7 +117,7 @@ function createWorker(fetchOverride) {
     const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore };
+  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -502,6 +502,33 @@ test("image analysis has its own five-request daily quota", async () => {
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.type,"image_analysis");
   assert.equal(requestedModels.length,5);
+});
+
+test("daily 100 MB file quota is enforced by the Worker", async () => {
+  const { worker, usageStore, usageKey, requestedModels }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  usageStore.set(usageKey("Argion","file_bytes",day),{used:100*1024*1024});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Read this file"}],
+    fileAttachment:{name:"notes.txt",content:"one more byte"}
+  }});
+  assert.equal(result.status,429);
+  assert.equal(result.data.fileQuota.remainingBytes,0);
+  assert.equal(requestedModels.length,0);
+});
+
+test("failed document processing refunds both request and file-byte reservations", async () => {
+  const { worker }=createWorker(async()=>new Response(JSON.stringify({error:{message:"temporary failure"}}),{status:503}));
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Review this script"}],
+    fileAttachment:{name:"main.rpy",content:"label start:\n    return"}
+  }});
+  assert.equal(result.status,502);
+  const usage=await call(worker,"/api/usage",{token:login.data.token});
+  assert.equal(usage.data.usage.chat.used,0);
+  assert.equal(usage.data.usage.files.usedBytes,0);
 });
 
 test("chat accepts a validated temporary text attachment and accounts its bytes", async () => {
