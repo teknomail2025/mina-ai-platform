@@ -1108,8 +1108,8 @@ test("temporary file endpoint rejects invalid types, malformed base64 and oversi
 
 test("scheduled cleanup deletes expired R2 objects and keeps live files", async () => {
   const { worker, mockR2, r2Objects } = createWorker();
-  await mockR2.put("Argion/expired",{1},{customMetadata:{owner:"Argion",expiresAt:String(Date.now()-1000)}});
-  await mockR2.put("Argion/live",{2},{customMetadata:{owner:"Argion",expiresAt:String(Date.now()+60000)}});
+  await mockR2.put("Argion/expired",Uint8Array.of(1),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()-1000)}});
+  await mockR2.put("Argion/live",Uint8Array.of(2),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()+60000)}});
   await worker.scheduled({}, {...env,MINA_FILES:mockR2});
   assert.equal(r2Objects.has("Argion/expired"), false);
   assert.equal(r2Objects.has("Argion/live"), true);
