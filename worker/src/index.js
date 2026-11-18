@@ -277,11 +277,13 @@ const STORED_FILE_TYPES = Object.freeze({
   toml:"text/plain",ini:"text/plain",sql:"text/plain"
 });
 function safeStoredFileName(value) {
-  const name=String(value||"").normalize("NFC").replace(/[\\/\\0-\\x1f\\x7f]/g,"_").trim();
+  const raw=String(value||"").normalize("NFC").trim();
+  if(raw.includes("/")||raw.includes("\\"))return "";
+  const name=raw.replace(/[\x00-\x1f\x7f]/g,"_");
   return name && name.length<=255 ? name : "";
 }
 function decodeStoredFile(data,name) {
-  if(typeof data!=="string"||!data||data.length>Math.ceil(STORED_FILE_MAX_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length%4!==0)return null;
+  if(!name||typeof data!=="string"||!data||data.length>Math.ceil(STORED_FILE_MAX_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length%4!==0)return null;
   let binary;try{binary=atob(data);}catch{return null;}
   if(!binary.length||binary.length>STORED_FILE_MAX_BYTES)return null;
   const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
@@ -608,10 +610,19 @@ export default {
   let attachmentBytes=0;
   if(body.fileAttachment!==undefined){
     if(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||typeof body.fileAttachment.content!=="string")return json({error:"Dosya eki geçersiz."},400,cors);
-    attachmentBytes=Number.isSafeInteger(body.fileAttachment.originalSize)?body.fileAttachment.originalSize:new TextEncoder().encode(body.fileAttachment.content).byteLength;
+    attachmentBytes=new TextEncoder().encode(body.fileAttachment.content).byteLength;
     if(!attachmentBytes||attachmentBytes>10*1024*1024||body.fileAttachment.name.length>255)return json({error:"Dosya içeriği boş veya 10 MB sınırını aşıyor."},413,cors);
   }
   if(body.document)attachmentBytes=atob(body.document.data).length;
+  if(attachmentBytes>0){
+    if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depodaki kaydı doğrulanamadı."},400,cors);
+    try{
+      const stored=await env.MINA_FILES.head(storedFileKey(String(env.ADMIN_USERNAME||"admin"),body.storedFileId));
+      if(!stored||stored.customMetadata?.owner!==String(env.ADMIN_USERNAME||"admin")||Number(stored.customMetadata?.expiresAt||0)<=Date.now())return json({error:"Dosyanın güvenli depo kaydı bulunamadı veya süresi doldu."},404,cors);
+      attachmentBytes=Number(stored.size);
+      if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES||(body.document&&attachmentBytes!==atob(body.document.data).length))return json({error:"Dosya boyutu veya depo kaydı uyuşmuyor."},413,cors);
+    }catch(error){return json({error:"Dosya depodaki kaydı doğrulanamadı."},503,cors);}
+  }
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
