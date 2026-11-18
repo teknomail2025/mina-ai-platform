@@ -21,6 +21,9 @@ test("voice moderation preserves every completed utterance and checks them in or
     if (String(url).endsWith("/api/live-token")) {
       return { ok: true, status: 200, json: async () => ({ token: "ephemeral-test-token", model: "models/gemini-3.8-live" }) };
     }
+    if (String(url).endsWith("/api/live-minute")) {
+      return { ok: true, status: 200, json: async () => ({ ok: true, usedMinutes: 1, remainingMinutes: 9 }) };
+    }
     if (String(url).endsWith("/api/discipline/voice-check")) {
       const payload = JSON.parse(options.body);
       moderationRequests.push(payload.text);
