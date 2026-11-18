@@ -21,4 +21,5 @@ jobs:
       - name: Validate Worker and run tests
         run: |
           node --check worker/src/index.js
+          node --check voice.js
           node --test worker/test/*.test.cjs

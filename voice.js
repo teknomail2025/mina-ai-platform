@@ -7,26 +7,39 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, setupTimer=null, intentionalClose=false;
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, intentionalClose=false;
   const ui = value => window.MinaI18n?.t(value) || value;
   const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
   async function moderateVoiceText(text) {
-    if(!text||moderationBusy)return;
+    if(!text)return;
+    moderationQueue.push(text);
+    if(moderationBusy)return;
     moderationBusy=true;
     try{
-      const response=await fetch(API_BASE+"/api/discipline/voice-check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text})});
-      const data=await response.json().catch(()=>({}));
-      if(data.warning){
-        transcript.textContent=ui("Mina: ")+(data.message||"Baba, lütfen saygılı konuşalım.");
-        setStatus("Mina sana bir uyarı verdi.","listening");
+      while(moderationQueue.length&&active){
+        const spoken=moderationQueue.shift();
+        try{
+          const response=await fetch(API_BASE+"/api/discipline/voice-check",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({text:spoken})});
+          const data=await response.json().catch(()=>({}));
+          if(data.warning){
+            transcript.textContent=ui("Mina: ")+(data.message||"Baba, lütfen saygılı konuşalım.");
+            setStatus("Mina sana bir uyarı verdi.","listening");
+          }
+          if(response.status===429||data.restricted){
+            transcript.textContent=ui("Mina: ")+(data.error||"Sesli sohbet geçici olarak kısıtlandı.");
+            moderationQueue.length=0;
+            await cleanup(false);
+            setStatus(data.error||"Sesli sohbet geçici olarak kısıtlandı.","error");
+          }
+        }catch(error){console.warn("Sesli iletişim denetimi yapılamadı:",error);}
       }
-      if(response.status===429||data.restricted){
-        transcript.textContent=ui("Mina: ")+(data.error||"Sesli sohbet geçici olarak kısıtlandı.");
-        await cleanup(false);
-        setStatus(data.error||"Sesli sohbet geçici olarak kısıtlandı.","error");
-      }
-    }catch(error){console.warn("Sesli iletişim denetimi yapılamadı:",error);}
-    finally{moderationBusy=false;}
+    }finally{moderationBusy=false;}
+  }
+  function friendlyVoiceError(error) {
+    if(error?.name==="NotAllowedError"||error?.name==="SecurityError")return "Mikrofon izni verilmedi. Tarayıcı adres çubuğundaki mikrofon iznini açıp yeniden dene.";
+    if(error?.name==="NotFoundError")return "Kullanılabilir mikrofon bulunamadı. Mikrofonun bağlı olduğundan emin ol.";
+    if(error?.name==="NotReadableError")return "Mikrofon başka bir uygulama tarafından kullanılıyor veya açılamıyor.";
+    return error?.message||"Sesli sohbet başlatılamadı.";
   }
   function pcmToBase64(float32, inputRate) {
     const ratio=inputRate/16000, length=Math.floor(float32.length/ratio), pcm=new Int16Array(length);
@@ -53,7 +66,7 @@
   }
   async function start() {
     if(active)return;
-    panel.hidden=false;openBtn.disabled=true;intentionalClose=false;setStatus("Güvenli ses bağlantısı kuruluyor…");
+    panel.hidden=false;openBtn.disabled=true;intentionalClose=false;pendingInputText="";moderationQueue.length=0;setStatus("Güvenli ses bağlantısı kuruluyor…");
     try{
       if(!navigator.mediaDevices?.getUserMedia||!(window.AudioContext||window.webkitAudioContext)||!window.WebSocket) throw new Error("Bu tarayıcı canlı ses veya mikrofon erişimini desteklemiyor. Güncel Chrome ya da Edge kullan.");
       const tokenResponse=await fetch(API_BASE+"/api/live-token",{method:"POST"});
@@ -76,7 +89,7 @@
         if(msg.serverContent?.interrupted){stopPlayback();setStatus("Seni dinliyorum…","listening");}
         const inputText=msg.serverContent?.inputTranscription?.text;
         const outputText=msg.serverContent?.outputTranscription?.text;
-        if(inputText){pendingInputText=inputText;transcript.textContent=ui("Sen: ")+inputText;}
+        if(inputText){pendingInputText+=inputText;transcript.textContent=ui("Sen: ")+pendingInputText;}
         if(outputText) transcript.textContent=ui("Mina: ")+outputText;
         const parts=msg.serverContent?.modelTurn?.parts||[];
         for(const part of parts){const data=part.inlineData?.data||part.inline_data?.data;if(data)playPcm(data);}
@@ -95,7 +108,7 @@
           void cleanup(false);
         }
       };
-    }catch(error){setStatus(error.message||"Sesli sohbet başlatılamadı.","error");await cleanup(false);}
+    }catch(error){setStatus(friendlyVoiceError(error),"error");await cleanup(false);}
     finally{openBtn.disabled=false;}
   }
   function startMicStream(){
@@ -113,7 +126,7 @@
   async function cleanup(hide=true){
     intentionalClose=true;
     if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
-    active=false;muted=false;stopPlayback();
+    active=false;muted=false;pendingInputText="";moderationQueue.length=0;stopPlayback();
     try{processor?.disconnect();source?.disconnect();}catch{}
     processor=null;source=null;
     stream?.getTracks().forEach(t=>t.stop());stream=null;
