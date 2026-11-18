@@ -576,11 +576,13 @@ test("chat accepts a validated temporary text attachment and accounts its origin
   assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
-    fileAttachment:{name:"script.rpy",content},
+    fileAttachment:{name:"script.rpy",content:"THIS IS CLIENT-SUPPLIED AND MUST BE IGNORED"},
     storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
   assert.ok(capturedPayload.contents[0].parts[1].text.includes("script.rpy"));
+  assert.ok(capturedPayload.contents[0].parts[1].text.includes(content));
+  assert.ok(!capturedPayload.contents[0].parts[1].text.includes("CLIENT-SUPPLIED"));
   const usage=await call(worker,"/api/usage",{token:login.data.token});
   assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
@@ -608,11 +610,12 @@ test("chat sends a validated, stored PDF attachment to Gemini as application/pdf
   assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"PDF dosyasını özetle."}],
-    document:{mimeType:"application/pdf",data:pdf},
+    document:{mimeType:"application/pdf"},
     storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
   assert.equal(capturedPayload.contents[0].parts[1].inlineData.mimeType,"application/pdf");
+  assert.equal(capturedPayload.contents[0].parts[1].inlineData.data,pdf);
 });
 
 test("image generation requires an authenticated session", async () => {
