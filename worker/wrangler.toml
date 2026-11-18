@@ -13,3 +13,11 @@ binding = "MINA_DB"
 database_name = "mina-ai-db"
 database_id = "bdf7737f-b4b2-4158-982b-b7c7483ca702"
 migrations_dir = "migrations"
+
+[[r2_buckets]]
+binding = "MINA_FILES"
+bucket_name = "mina-temporary-files"
+
+[triggers]
+crons = ["0 * * * *"]
+
