@@ -348,7 +348,7 @@ export default {
     const now=Date.now(),id=crypto.randomUUID(),expiresAt=now+STORED_FILE_TTL_MS;
     const key=storedFileKey(userId,id);
     try{
-      await env.MINA_FILES.put(key,decoded.bytes,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt),quotaDay:quota.day,quotaBytes:String(decoded.bytes.byteLength)}});
+      await env.MINA_FILES.put(key,decoded.bytes.buffer,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt),quotaDay:quota.day,quotaBytes:String(decoded.bytes.byteLength)}});
       return json({saved:true,id,name,size:decoded.bytes.byteLength,uploadedAt:now,expiresAt,downloadPath:"/api/files/"+id,fileQuota:{usedBytes:quota.used,limitBytes:quota.limit,remainingBytes:quota.remaining}},201,{...cors,"Cache-Control":"no-store"});
     }catch(error){await refundDailyFileBytes(env.MINA_DB,userId,decoded.bytes.byteLength,quota.day);return json({error:"Dosya güvenli depoya kaydedilemedi."},503,cors);}
   }
@@ -373,7 +373,7 @@ export default {
       if(object.customMetadata?.owner!==userId||!expiresAt||expiresAt<=Date.now()){await env.MINA_FILES.delete(key);return json({error:"Dosyanın saklama süresi doldu."},404,cors);}
       const name=safeStoredFileName(object.customMetadata?.fileName)||"dosya";
       const asciiName=name.replace(/[^A-Za-z0-9._-]/g,"_");
-      return new Response(object.body,{status:200,headers:{...cors,"Content-Type":object.httpMetadata?.contentType||"application/octet-stream","Content-Length":String(object.size),"Content-Disposition":"attachment; filename=\""+asciiName+"\"; filename*=UTF-8''"+encodeURIComponent(name),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+      return new Response(object.body,{status:200,headers:{...cors,"Content-Type":object.httpMetadata?.contentType||"application/octet-stream","Content-Disposition":"attachment; filename=\""+asciiName+"\"; filename*=UTF-8''"+encodeURIComponent(name),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
     }catch(error){return json({error:"Dosya indirilemedi."},503,cors);}
   }
   if(storedFileMatch&&request.method==="DELETE"){
