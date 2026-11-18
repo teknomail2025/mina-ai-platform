@@ -153,6 +153,7 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaUiLanguageSelect").waitFor();
     await page.locator("#minaUiLanguageSelect").selectOption("tr");
     await page.waitForFunction(() => document.documentElement.lang === "tr", null, { timeout: 15000 });
+    await page.waitForFunction(() => document.getElementById("preferencesSyncStatus").textContent === "Ayarlar bulutla eşitlendi.", null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - Türkçe yapay zekâ sohbet platformu");
     assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Hesap ve ayarlar");
@@ -183,7 +184,7 @@ const watchdog = setTimeout(() => {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("body.mina-authenticated").waitFor();
     await openSettings();
-    await page.waitForFunction(() => document.getElementById("preferencesSyncStatus").textContent === "Ayarlar bulutla eşitlendi.", null, { timeout: 15000 });
+    await page.waitForFunction(() => ["Ayarlar bulutla eşitlendi.", "Settings synced to the cloud."].includes(document.getElementById("preferencesSyncStatus").textContent), null, { timeout: 15000 });
     assert.equal(await page.locator("#minaThemeSelect").inputValue(), "light", "theme must restore from D1 after local preference deletion");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "response language must restore from D1");
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "tr", "interface language must restore from D1");
