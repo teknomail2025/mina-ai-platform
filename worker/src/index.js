@@ -21,6 +21,12 @@ function detectDisrespect(text) {
   const directedAbuse = /\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\b/i;
   return directInsult.test(value) || directedInsult.test(value) || directedAbuse.test(value);
 }
+let preferencesSchemaReady = false;
+async function ensurePreferencesSchema(db) {
+  if (preferencesSchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_admin_preferences (id INTEGER PRIMARY KEY CHECK (id = 1), preferences_json TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL)").run();
+  preferencesSchemaReady = true;
+}
 let disciplineSchemaReady = false;
 async function ensureDisciplineSchema(db) {
   if (disciplineSchemaReady) return;
@@ -197,6 +203,7 @@ export default {
   if(url.pathname==="/api/preferences"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
     try{
+      await ensurePreferencesSchema(env.MINA_DB);
       const row=await env.MINA_DB.prepare("SELECT preferences_json, updated_at FROM mina_admin_preferences WHERE id = 1").first();
       let preferences={};
       if(row?.preferences_json){try{preferences=JSON.parse(row.preferences_json);}catch{}}
@@ -210,6 +217,7 @@ export default {
     const preferences=parsedPreferences.value?.preferences;
     if(parsedPreferences.invalid||!preferences||typeof preferences!=="object"||!["dark","light"].includes(preferences.theme)||!["auto","tr","en"].includes(preferences.language)||!["tr","en"].includes(preferences.interfaceLanguage))return json({error:"Geçersiz Mina ayarları."},400,cors);
     try{
+      await ensurePreferencesSchema(env.MINA_DB);
       const updatedAt=Date.now();
       const encoded=JSON.stringify({theme:preferences.theme,language:preferences.language,interfaceLanguage:preferences.interfaceLanguage});
       await env.MINA_DB.prepare("INSERT INTO mina_admin_preferences (id, preferences_json, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET preferences_json = excluded.preferences_json, updated_at = excluded.updated_at").bind(encoded,updatedAt).run();
