@@ -256,7 +256,41 @@ const watchdog = setTimeout(() => {
     assert.ok(restoredProjects.some(project => project.name === "Cloud Sync Test Project"), "project must restore from D1 after local workspace data is cleared");
     const restoredConversations = await page.evaluate(() => JSON.parse(localStorage.getItem("mina-ai-conversations-v1") || "[]"));
     assert.ok(restoredConversations.some(conversation => conversation.id === "i18n-runtime-test"), "conversation must restore from D1 after local workspace data is cleared");
-    assert.deepEqual(pageErrors, [], "workspace restore must not produce browser runtime errors");
+    await closeDialog();
+    const remoteChange = await page.evaluate(async () => {
+      const token = sessionStorage.getItem("mina-admin-session-v1") || localStorage.getItem("mina-admin-session-v1");
+      const version = Number(localStorage.getItem("mina-ai-workspace-version-v1"));
+      const data = {
+        conversations: JSON.parse(localStorage.getItem("mina-ai-conversations-v1") || "[]"),
+        projects: [...JSON.parse(localStorage.getItem("mina-ai-projects-v1") || "[]"), { id: "remote-device-project", name: "Remote Device Project" }],
+        pinnedIds: JSON.parse(localStorage.getItem("mina-ai-pinned-v1") || "[]"),
+        libraryItems: JSON.parse(localStorage.getItem("mina-ai-library-v1") || "[]")
+      };
+      const response = await fetch("http://127.0.0.1:8787/api/workspace", { method: "PUT", headers: { "Content-Type": "application/json", Authorization: "Bearer " + token }, body: JSON.stringify({ version, data }) });
+      return response.status;
+    });
+    assert.equal(remoteChange, 200, "simulated second device update must save to D1");
+    await page.evaluate(() => { window.prompt = () => "Local Conflict Project"; window.confirm = () => true; });
+    await page.locator("#addProjectBtn").click();
+    await page.waitForTimeout(1300);
+    await openSettings();
+    await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli.", null, { timeout: 15000 });
+    assert.equal(await page.locator("#syncWorkspaceUpload").isHidden(), false, "conflict must offer an explicit local upload choice");
+    assert.equal(await page.locator("#syncWorkspaceDownload").isHidden(), false, "conflict must offer an explicit cloud restore choice");
+    const backupPromise = page.waitForEvent("download");
+    await page.locator("#syncWorkspaceUpload").click();
+    const conflictBackup = await backupPromise;
+    assert.equal(conflictBackup.suggestedFilename(), "mina-calisma-alani-yedek.json");
+    await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Bu cihazdaki veriler buluta aktarıldı.", null, { timeout: 15000 });
+    assert.equal(await page.locator("#syncWorkspaceUpload").isHidden(), true, "resolved conflict must hide resolution actions");
+    const uploadedWorkspace = await page.evaluate(async () => {
+      const token = sessionStorage.getItem("mina-admin-session-v1") || localStorage.getItem("mina-admin-session-v1");
+      const response = await fetch("http://127.0.0.1:8787/api/workspace", { headers: { Authorization: "Bearer " + token } });
+      return (await response.json()).data;
+    });
+    assert.ok(uploadedWorkspace.projects.some(project => project.name === "Local Conflict Project"), "explicit local upload must save this device's data");
+    assert.ok(!uploadedWorkspace.projects.some(project => project.name === "Remote Device Project"), "explicit local upload must replace the remote snapshot only after confirmation");
+    assert.deepEqual(pageErrors, [], "workspace restore and conflict resolution must not produce browser runtime errors");
 
     stage = "checking localized sign-in errors";
     await closeDialog();
