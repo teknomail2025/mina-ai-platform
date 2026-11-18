@@ -1095,11 +1095,16 @@ test("Mina discipline does not punish neutral discussion of an insult word", asy
 });
 
 
-test("Wrangler declares Worker Preview settings at the top level", () => {
-  const config=fs.readFileSync(path.join(workerDir,"wrangler.toml"),"utf8");
-  assert.match(config,/^preview_urls = true$/m);
-  assert.match(config,/^previews = \{\}$/m);
-  assert.ok(config.indexOf("previews = {}")<config.indexOf("[vars]"));
+test("Wrangler declares isolated Worker Preview settings", () => {
+  const config = fs.readFileSync(path.join(workerDir, "wrangler.toml"), "utf8");
+  assert.match(config, /^preview_urls = true$/m);
+  assert.match(config, /^\[previews\.vars\]$/m);
+  assert.match(config, /^\[\[previews\.d1_databases\]\]$/m);
+  assert.match(config, /^database_name = "mina-ai-db-preview"$/m);
+  assert.match(config, /^database_id = "[0-9a-f-]{36}"$/m);
+  assert.match(config, /^\[\[previews\.r2_buckets\]\]$/m);
+  assert.match(config, /^bucket_name = "mina-temporary-files-preview"$/m);
+  assert.doesNotMatch(config, /^previews = \{\}$/m);
 });
 
 test("temporary R2 files require login, retain original bytes, and can be downloaded and deleted", async () => {
