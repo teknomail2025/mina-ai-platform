@@ -666,6 +666,17 @@ test("timer workspace persists an end timestamp and recalculates remaining time"
   assert.match(frontendSource, /timer\.endsAt-Date\.now\(\)/);
 });
 
+test("chat UI supports 10 MB PDF DOCX TXT and Ren'Py attachments", () => {
+  const html=fs.readFileSync(path.join(workerDir,"..","index.html"),"utf8");
+  assert.match(html,/\.pdf/);
+  assert.match(html,/\.docx/);
+  assert.match(html,/\.rpy/);
+  assert.match(html,/mammoth@1\.9\.0/);
+  assert.match(frontendSource,/f\.size>10\*1024\*1024/);
+  assert.match(frontendSource,/mammoth\.extractRawText/);
+  assert.match(frontendSource,/kind==="pdf"/);
+});
+
 test("library supports bounded text file import, download and deletion", () => {
   assert.match(frontendSource, /file\.size>500000/);
   assert.match(frontendSource, /await file\.text\(\)/);
