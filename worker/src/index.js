@@ -610,23 +610,37 @@ export default {
   const body=parsedChat.value;
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-  if(body.image&&body.document||body.document&&body.fileAttachment)return json({error:"Tek istekte yalnızca bir belge veya resim eki kullanılabilir."},400,cors);
-  if(body.document&&!pdfDataIsValid(body.document))return json({error:"PDF geçersiz veya 10 MB sınırını aşıyor."},400,cors);
-  let attachmentBytes=0;
-  if(body.fileAttachment!==undefined){
-    if(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||typeof body.fileAttachment.content!=="string")return json({error:"Dosya eki geçersiz."},400,cors);
-    attachmentBytes=new TextEncoder().encode(body.fileAttachment.content).byteLength;
-    if(!attachmentBytes||attachmentBytes>10*1024*1024||body.fileAttachment.name.length>255)return json({error:"Dosya içeriği boş veya 10 MB sınırını aşıyor."},413,cors);
-  }
-  if(body.document)attachmentBytes=atob(body.document.data).length;
-  if(attachmentBytes>0){
-    if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depodaki kaydı doğrulanamadı."},400,cors);
+  if(body.image&&(body.document||body.fileAttachment)||body.document&&body.fileAttachment)return json({error:"Tek istekte yalnızca bir belge veya resim eki kullanılabilir."},400,cors);
+  if(body.document&&body.document.mimeType!=="application/pdf")return json({error:"PDF dosya türü geçersiz."},400,cors);
+  if(body.fileAttachment!==undefined&&(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||body.fileAttachment.name.length>255||body.fileAttachment.content!==undefined&&typeof body.fileAttachment.content!=="string"))return json({error:"Dosya eki geçersiz."},400,cors);
+  let attachmentBytes=0,storedAttachment=null;
+  if(body.document||body.fileAttachment){
+    if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depo kaydı doğrulanamadı."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),key=storedFileKey(userId,body.storedFileId);
     try{
-      const stored=await env.MINA_FILES.head(storedFileKey(String(env.ADMIN_USERNAME||"admin"),body.storedFileId));
-      if(!stored||stored.customMetadata?.owner!==String(env.ADMIN_USERNAME||"admin")||Number(stored.customMetadata?.expiresAt||0)<=Date.now()||(body.fileAttachment&&stored.customMetadata?.fileName!==body.fileAttachment.name)||(body.document&&!String(stored.customMetadata?.fileName||"").toLowerCase().endsWith(".pdf")))return json({error:"Dosyanın güvenli depo kaydı bulunamadı, adı uyuşmuyor veya süresi doldu."},404,cors);
-      attachmentBytes=Number(stored.size);
-      if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES||(body.document&&attachmentBytes!==atob(body.document.data).length))return json({error:"Dosya boyutu veya depo kaydı uyuşmuyor."},413,cors);
-    }catch(error){return json({error:"Dosya depodaki kaydı doğrulanamadı."},503,cors);}
+      storedAttachment=await env.MINA_FILES.get(key);
+      if(!storedAttachment||storedAttachment.customMetadata?.owner!==userId||Number(storedAttachment.customMetadata?.expiresAt||0)<=Date.now())return json({error:"Dosyanın güvenli depo kaydı bulunamadı veya süresi doldu."},404,cors);
+      const storedName=safeStoredFileName(storedAttachment.customMetadata?.fileName);
+      if(!storedName||(body.fileAttachment&&storedName!==body.fileAttachment.name)||(body.document&&!storedName.toLowerCase().endsWith(".pdf")))return json({error:"Dosya adı veya türü depo kaydıyla uyuşmuyor."},404,cors);
+      attachmentBytes=Number(storedAttachment.size);
+      if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES)return json({error:"Dosya boyutu sınır dışında."},413,cors);
+      const storedBytes=new Uint8Array(await storedAttachment.arrayBuffer());
+      if(storedBytes.byteLength!==attachmentBytes)return json({error:"Depodaki dosya eksik veya bozuk."},502,cors);
+      const extension=storedName.split(".").pop().toLowerCase();
+      if(extension==="pdf"){
+        if(new TextDecoder().decode(storedBytes.slice(0,5))!=="%PDF-")return json({error:"Saklanan PDF imzası geçersiz."},400,cors);
+        let binary="";for(let i=0;i<storedBytes.length;i+=0x8000)binary+=String.fromCharCode(...storedBytes.subarray(i,i+0x8000));
+        body.document={mimeType:"application/pdf",data:btoa(binary)};
+        body.fileAttachment=undefined;
+      }else{
+        if(extension==="docx"){
+          if(storedBytes[0]!==0x50||storedBytes[1]!==0x4b||typeof body.fileAttachment?.content!=="string"||!body.fileAttachment.content.trim())return json({error:"DOCX içeriği okunamadı; belgeyi yeniden ekle."},400,cors);
+        }else{
+          body.fileAttachment={name:storedName,content:new TextDecoder("utf-8",{fatal:false}).decode(storedBytes)};
+        }
+        if(!body.fileAttachment.content||new TextEncoder().encode(body.fileAttachment.content).byteLength>STORED_FILE_MAX_BYTES)return json({error:"Dosyanın metin içeriği boş veya çok büyük."},413,cors);
+      }
+    }catch(error){return json({error:"Dosya güvenli depodan okunamadı."},503,cors);}
   }
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
