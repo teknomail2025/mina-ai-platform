@@ -102,7 +102,7 @@
     preferencesSyncReady=false;
     setPreferencesSyncMessage("Ayarlar eşitleniyor…");
     try{
-      const response=await fetch(API_BASE+"/api/preferences",{headers:{Accept:"application/json","Cache-Control":"no-store"}});
+      const response=await fetch(API_BASE+"/api/preferences",{cache:"no-store",headers:{Accept:"application/json"}});
       const data=await response.json().catch(()=>({}));
       if(!response.ok)throw new Error(data.error||"Mina ayarları alınamadı.");
       if(data.initialized&&data.preferences){
