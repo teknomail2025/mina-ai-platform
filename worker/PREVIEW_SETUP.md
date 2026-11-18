@@ -11,7 +11,7 @@ npx wrangler d1 create mina-ai-db-preview
 npx wrangler r2 bucket create mina-temporary-files-preview
 ```
 
-Copy the D1 `database_id` from the command output into the Preview configuration below. Keep the R2 bucket private (Public access disabled; Standard storage).
+The isolated Preview D1 database has been created. Its ID is already configured in `worker/wrangler.toml`: `a0c9df12-44bc-4e58-866c-25a3651edd66`. Create the isolated Preview R2 bucket `mina-temporary-files-preview` if you have not already; keep it private (Public access disabled; Standard storage).
 
 Keep the existing production resources unchanged:
 - D1: `mina-ai-db`
@@ -19,7 +19,7 @@ Keep the existing production resources unchanged:
 
 ## 2. Add Preview bindings to `worker/wrangler.toml`
 
-Replace the current empty `previews = {}` block with the following. Replace `<PREVIEW_D1_DATABASE_ID>` with the ID returned by Cloudflare:
+The Preview-only bindings are now configured in `worker/wrangler.toml`. The configuration must use the isolated Preview D1 and R2 resources shown below:
 
 ```toml
 [previews.vars]
@@ -29,7 +29,7 @@ GEMINI_MODEL = "gemini-3.8-flash"
 [[previews.d1_databases]]
 binding = "MINA_DB"
 database_name = "mina-ai-db-preview"
-database_id = "<PREVIEW_D1_DATABASE_ID>"
+database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"
 migrations_dir = "migrations"
 
 [[previews.r2_buckets]]
