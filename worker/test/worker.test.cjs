@@ -931,7 +931,7 @@ test("Mina persona rules prohibit submissive language and fabricated system stat
 
 test("chat UI does not expose internal model routing metadata", () => {
   assert.doesNotMatch(frontendSource, /Mina otomatik seçim:/);
-  assert.match(frontendSource, /addMessage\("assistant", answer\.trim\(\) \+ sourceText\)/);
+  assert.ok(frontendSource.includes('addMessage("assistant", answer.trim() + sourceText + retentionText'));
 });
 
 test("Mina family roles explicitly define Baba, Anne and Mina", () => {
