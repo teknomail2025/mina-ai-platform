@@ -249,8 +249,8 @@
         workspaceSyncConflict = false;
         setWorkspaceSyncMessage("Bu cihazdaki veriler buluta aktarıldı.");
       } else if (remote.initialized && resolution === "download") {
-        workspaceSyncConflict = false;
         applyCloudWorkspace(remote);
+        workspaceSyncConflict = false;
         setWorkspaceSyncMessage("Buluttaki veriler bu cihaza yüklendi.");
       } else if (!remote.initialized) {
         await putCloudWorkspace(local, 0);
