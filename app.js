@@ -178,6 +178,33 @@
     workspaceSyncMessage = value;
     const status = $("workspaceSyncStatus");
     if (status) status.textContent = uiText(value);
+    const upload = $("syncWorkspaceUpload");
+    const download = $("syncWorkspaceDownload");
+    if (upload) upload.hidden = !workspaceSyncConflict;
+    if (download) download.hidden = !workspaceSyncConflict;
+  }
+  function applyCloudWorkspace(remote) {
+    conversations = remote.data.conversations;
+    projects = remote.data.projects;
+    pinnedIds = remote.data.pinnedIds;
+    libraryItems = remote.data.libraryItems;
+    workspaceVersion = remote.version;
+    saveWorkspaceLocal();
+    localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+    localStorage.setItem(WORKSPACE_HASH_KEY, "");
+    hashWorkspace(currentWorkspaceData()).then(hash => localStorage.setItem(WORKSPACE_HASH_KEY, hash)).catch(() => {});
+    activeId = conversations.find(item => item.id === activeId)?.id || conversations[0]?.id || null;
+    if (!activeId) createConversation();
+    render();
+  }
+  function downloadWorkspaceBackup() {
+    const payload = { exportedAt: new Date().toISOString(), format: "mina-ai-workspace-backup-v1", ...currentWorkspaceData() };
+    const url = URL.createObjectURL(new Blob([JSON.stringify(payload, null, 2)], { type: "application/json;charset=utf-8" }));
+    const link = document.createElement("a");
+    link.href = url;
+    link.download = "mina-calisma-alani-yedek.json";
+    link.click();
+    URL.revokeObjectURL(url);
   }
   function saveWorkspaceLocal() {
     try {
@@ -205,7 +232,7 @@
     setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık bulutla eşitlendi.");
     return true;
   }
-  async function syncCloudWorkspace() {
+  async function syncCloudWorkspace(resolution = "") {
     if (workspaceSyncTimer) clearTimeout(workspaceSyncTimer);
     workspaceSyncReady = false;
     setWorkspaceSyncMessage("Çalışma alanı eşitleniyor…");
@@ -217,20 +244,19 @@
       const localHasContent = hasWorkspaceContent(local);
       const savedVersion = Number(localStorage.getItem(WORKSPACE_VERSION_KEY));
       const savedHash = localStorage.getItem(WORKSPACE_HASH_KEY) || "";
-      if (!remote.initialized) {
+      if (remote.initialized && resolution === "upload") {
+        await putCloudWorkspace(local, remote.version);
+        workspaceSyncConflict = false;
+        setWorkspaceSyncMessage("Bu cihazdaki veriler buluta aktarıldı.");
+      } else if (remote.initialized && resolution === "download") {
+        workspaceSyncConflict = false;
+        applyCloudWorkspace(remote);
+        setWorkspaceSyncMessage("Buluttaki veriler bu cihaza yüklendi.");
+      } else if (!remote.initialized) {
         await putCloudWorkspace(local, 0);
       } else if (!localHasContent) {
-        conversations = remote.data.conversations;
-        projects = remote.data.projects;
-        pinnedIds = remote.data.pinnedIds;
-        libraryItems = remote.data.libraryItems;
-        workspaceVersion = remote.version;
-        saveWorkspaceLocal();
-        localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+        applyCloudWorkspace(remote);
         localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(currentWorkspaceData()));
-        if (!conversations.length) createConversation();
-        else activeId = conversations.find(item => item.id === activeId)?.id || conversations[0].id;
-        render();
         setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık buluttan yüklendi.");
       } else if (Number.isInteger(savedVersion) && savedVersion > 0 && savedHash) {
         const localHash = await hashWorkspace(local);
@@ -242,17 +268,8 @@
             setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık bulutla eşitlendi.");
           }
         } else if (remote.version > savedVersion && !localChanged) {
-          conversations = remote.data.conversations;
-          projects = remote.data.projects;
-          pinnedIds = remote.data.pinnedIds;
-          libraryItems = remote.data.libraryItems;
-          workspaceVersion = remote.version;
-          saveWorkspaceLocal();
-          localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+          applyCloudWorkspace(remote);
           localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(currentWorkspaceData()));
-          activeId = conversations.find(item => item.id === activeId)?.id || conversations[0]?.id || null;
-          if (!activeId) createConversation();
-          render();
           setWorkspaceSyncMessage("Diğer cihazdaki güncel çalışma alanı yüklendi.");
         } else {
           workspaceSyncConflict = true;
@@ -805,6 +822,8 @@
         <div class="settings-info-row"><strong>Bulut ayar eşitlemesi</strong><span id="preferencesSyncStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Sohbetler, projeler ve kitaplık</strong><span id="workspaceSyncStatus">Henüz eşitlenmedi.</span></div>
         <button type="button" class="settings-action secondary" id="syncWorkspaceNow">Çalışma alanını eşitle</button>
+        <button type="button" class="settings-action" id="syncWorkspaceUpload" hidden>Bu cihazdaki verileri buluta aktar</button>
+        <button type="button" class="settings-action secondary" id="syncWorkspaceDownload" hidden>Buluttaki verileri bu cihaza yükle</button>
       </section>
       <section class="settings-section" data-settings-key="system">
         <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
@@ -924,7 +943,23 @@
     $("refreshMinaHealth").addEventListener("click",refreshHealth);
     refreshHealth();
     $("syncWorkspaceNow").addEventListener("click",async()=>{const button=$("syncWorkspaceNow");button.disabled=true;await syncCloudWorkspace();button.disabled=false;});
+    $("syncWorkspaceUpload").addEventListener("click",async()=>{
+      if(!confirm(uiText("Bu cihazdaki veriler buluttaki çalışma alanının yerine geçecek. Önce yerel verilerin yedeği indirilecek. Devam edilsin mi?")))return;
+      downloadWorkspaceBackup();
+      $("syncWorkspaceUpload").disabled=true;
+      await syncCloudWorkspace("upload");
+      $("syncWorkspaceUpload").disabled=false;
+    });
+    $("syncWorkspaceDownload").addEventListener("click",async()=>{
+      if(!confirm(uiText("Buluttaki çalışma alanı bu cihazdaki verilerin yerine geçecek. Önce yerel verilerin yedeği indirilecek. Devam edilsin mi?")))return;
+      downloadWorkspaceBackup();
+      $("syncWorkspaceDownload").disabled=true;
+      await syncCloudWorkspace("download");
+      $("syncWorkspaceDownload").disabled=false;
+    });
     $("workspaceSyncStatus").textContent=uiText(workspaceSyncMessage);
+    $("syncWorkspaceUpload").hidden=!workspaceSyncConflict;
+    $("syncWorkspaceDownload").hidden=!workspaceSyncConflict;
     $("speechSupportStatus").textContent=uiText((window.SpeechRecognition||window.webkitSpeechRecognition)?"Destekleniyor":"Desteklenmiyor");
     $("micPermissionStatus").textContent=uiText("Henüz kontrol edilmedi");
     if(navigator.permissions?.query){navigator.permissions.query({name:"microphone"}).then(p=>{$("micPermissionStatus").textContent=uiText(p.state==="granted"?"İzin verildi":p.state==="denied"?"Engellendi":"İzin bekleniyor");}).catch(()=>{});}
