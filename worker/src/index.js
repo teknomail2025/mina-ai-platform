@@ -694,7 +694,7 @@ export default {
   let usageReservation;
   try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType);}
   catch(error){return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
-  if(!usageReservation.allowed){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
+  if(!usageReservation.allowed){return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
     let upstream;
     const requestedModel = model;
