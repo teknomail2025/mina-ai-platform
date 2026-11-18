@@ -45,7 +45,7 @@ test("voice moderation preserves every completed utterance and checks them in or
     createScriptProcessor() { return { connect() {}, disconnect() {}, onaudioprocess: null }; }
     createGain() { return { gain: { value: 1 }, connect() {} }; }
   }
-  const window = { MINA_API_BASE: "https://mina.test", MinaI18n: { t: value => value }, addEventListener() {} };
+  const window = { MINA_API_BASE: "https://mina.test", MinaI18n: { t: value => value }, WebSocket: FakeWebSocket, AudioContext: FakeAudioContext, addEventListener() {} };
   const document = { getElementById: element };
   const navigator = { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) } };
   const context = {
