@@ -53,7 +53,7 @@ test("voice moderation preserves every completed utterance and checks them in or
   const navigator = { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) } };
   const context = {
     window, document, navigator, fetch, WebSocket: FakeWebSocket,
-    AudioContext: FakeAudioContext, setTimeout, clearTimeout, console,
+    AudioContext: FakeAudioContext, setTimeout, clearTimeout, setInterval, clearInterval, console,
     btoa: value => Buffer.from(value, "binary").toString("base64"),
     atob: value => Buffer.from(value, "base64").toString("binary")
   };
