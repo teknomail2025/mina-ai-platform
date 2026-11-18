@@ -275,14 +275,14 @@ const watchdog = setTimeout(() => {
     await page.waitForTimeout(1300);
     await openSettings();
     await page.locator("#syncWorkspaceNow").click();
-    await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli.", null, { timeout: 15000 });
+    await page.waitForFunction(() => ["Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli.", "There are different changes on your devices. Local data is preserved; the sync conflict must be resolved."].includes(document.getElementById("workspaceSyncStatus")?.textContent), null, { timeout: 15000 });
     assert.equal(await page.locator("#syncWorkspaceUpload").isHidden(), false, "conflict must offer an explicit local upload choice");
     assert.equal(await page.locator("#syncWorkspaceDownload").isHidden(), false, "conflict must offer an explicit cloud restore choice");
     const backupPromise = page.waitForEvent("download");
     await page.locator("#syncWorkspaceUpload").click();
     const conflictBackup = await backupPromise;
     assert.equal(conflictBackup.suggestedFilename(), "mina-calisma-alani-yedek.json");
-    await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Bu cihazdaki veriler buluta aktarıldı.", null, { timeout: 15000 });
+    await page.waitForFunction(() => ["Bu cihazdaki veriler buluta aktarıldı.", "This device's data was uploaded to the cloud."].includes(document.getElementById("workspaceSyncStatus")?.textContent), null, { timeout: 15000 });
     assert.equal(await page.locator("#syncWorkspaceUpload").isHidden(), true, "resolved conflict must hide resolution actions");
     const uploadedWorkspace = await page.evaluate(async () => {
       const token = sessionStorage.getItem("mina-admin-session-v1") || localStorage.getItem("mina-admin-session-v1");
