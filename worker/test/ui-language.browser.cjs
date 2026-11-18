@@ -88,7 +88,7 @@ const watchdog = setTimeout(() => {
       "Language & communication", "Interface language", "Mina's response language",
       "Account & security", "Appearance", "Voice & microphone", "Memory",
       "Chats & data", "Notifications", "Devices & sync", "System status",
-      "Session security · SESSION_SECRET", "A shared Mina account and cross-device sync",
+      "Session security · SESSION_SECRET", "Account preferences (theme and language) and MinaData memory are synced in the cloud.",
       "Mina manages her own preferences", "Interface and communication language", "Mina's core approach"
     ]) assert.ok(settingsText.includes(expected), "Missing English settings text: " + expected);
     assert.deepEqual(await untranslatedTurkishUi(), [], "English interface must not contain untranslated Turkish UI text");

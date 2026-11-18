@@ -81,6 +81,7 @@
     "Not bu tarayıcıda korundu ancak MinaData sunucusuna kaydedilemedi.": "The note is preserved in this browser but could not be saved to the MinaData server.",
     "Veriler": "Data",
     "Cihazlar": "Devices",
+    "Hesap tercihlerin (tema ve dil) ile MinaData hafızası bulutta eşitlenir. Sohbetler, projeler ve kitaplık şimdilik yalnızca bu cihazda saklanır.": "Account preferences (theme and language) and MinaData memory are synced in the cloud. Chats, projects and the library are currently stored only on this device.",
     "Henüz eşitlenmedi.": "Not synced yet.",
     "Ayarlar eşitleniyor…": "Syncing settings…",
     "Ayarlar bulutla eşitlendi.": "Settings synced to the cloud.",
