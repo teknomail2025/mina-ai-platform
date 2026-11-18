@@ -206,6 +206,7 @@
     return true;
   }
   async function syncCloudWorkspace() {
+    if (workspaceSyncTimer) clearTimeout(workspaceSyncTimer);
     workspaceSyncReady = false;
     setWorkspaceSyncMessage("Çalışma alanı eşitleniyor…");
     try {
@@ -1041,4 +1042,6 @@
   render(); checkHealth(); setupVoiceInput();
   window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();});
   if(window.MINA_AUTHENTICATED===true||document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();}
+  window.addEventListener("focus",()=>{if(window.MINA_AUTHENTICATED===true)syncCloudWorkspace();});
+  document.addEventListener("visibilitychange",()=>{if(document.visibilityState==="visible"&&window.MINA_AUTHENTICATED===true)syncCloudWorkspace();});
 })();
