@@ -587,15 +587,14 @@ test("chat accepts a validated temporary text attachment and accounts its origin
   assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
 
-test("chat rejects text attachments larger than 10 MB", async () => {
-  const { worker, requestedModels }=createWorker();
+test("file upload rejects files larger than 10 MB", async () => {
+  const { worker, r2Objects }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
-  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
-    messages:[{role:"user",content:"Read this file"}],
-    fileAttachment:{name:"large.txt",content:"x".repeat(10*1024*1024+1)}
+  const result=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{
+    name:"large.txt",data:Buffer.alloc(10*1024*1024+1,120).toString("base64")
   }});
-  assert.equal(result.status,413);
-  assert.equal(requestedModels.length,0);
+  assert.equal(result.status,400);
+  assert.equal(r2Objects.size,0);
 });
 
 test("chat sends a validated, stored PDF attachment to Gemini as application/pdf", async () => {
@@ -1127,8 +1126,9 @@ test("scheduled cleanup deletes expired R2 objects and keeps live files", async 
 });
 
 test("file quota uses the original uploaded binary size rather than extracted text size", () => {
-  assert.ok(workerSource.includes("env.MINA_FILES.head"));
-  assert.ok(workerSource.includes("attachmentBytes=Number(stored.size)"));
+  assert.ok(workerSource.includes("env.MINA_FILES.get(key)"));
+  assert.ok(workerSource.includes("attachmentBytes=Number(storedAttachment.size)"));
+  assert.ok(workerSource.includes("new Uint8Array(await storedAttachment.arrayBuffer())"));
   assert.ok(frontendSource.includes("storedFileId:storedFile?.id"));
   assert.ok(frontendSource.includes("rawBase64:await fileToBase64(f)"));
   assert.ok(frontendSource.includes("m.fileId"));
