@@ -265,7 +265,47 @@ function safeEqual(a, b) {
 }
 // MINA_ADMIN_AUTH_V1
 
+
+const STORED_FILE_TTL_MS = 24 * 60 * 60 * 1000;
+const STORED_FILE_MAX_BYTES = 10 * 1024 * 1024;
+const STORED_FILE_TYPES = Object.freeze({
+  pdf:"application/pdf",docx:"application/vnd.openxmlformats-officedocument.wordprocessingml.document",
+  txt:"text/plain",rpy:"text/plain",md:"text/markdown",csv:"text/csv",json:"application/json",
+  html:"text/html",css:"text/css",js:"text/javascript",py:"text/x-python",log:"text/plain",
+  ts:"text/plain",tsx:"text/plain",jsx:"text/plain",java:"text/plain",cs:"text/plain",
+  cpp:"text/plain",h:"text/plain",xml:"application/xml",yaml:"text/plain",yml:"text/plain",
+  toml:"text/plain",ini:"text/plain",sql:"text/plain"
+});
+function safeStoredFileName(value) {
+  const name=String(value||"").normalize("NFC").replace(/[\\/\\0-\\x1f\\x7f]/g,"_").trim();
+  return name && name.length<=255 ? name : "";
+}
+function decodeStoredFile(data,name) {
+  if(typeof data!=="string"||!data||data.length>Math.ceil(STORED_FILE_MAX_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length%4!==0)return null;
+  let binary;try{binary=atob(data);}catch{return null;}
+  if(!binary.length||binary.length>STORED_FILE_MAX_BYTES)return null;
+  const bytes=Uint8Array.from(binary,c=>c.charCodeAt(0));
+  const ext=name.split(".").pop().toLowerCase();
+  if(!Object.hasOwn(STORED_FILE_TYPES,ext))return null;
+  if(ext==="pdf"&&new TextDecoder().decode(bytes.slice(0,5))!=="%PDF-")return null;
+  if(ext==="docx"&&(bytes.length<4||bytes[0]!==0x50||bytes[1]!==0x4b))return null;
+  return {bytes,mimeType:STORED_FILE_TYPES[ext]};
+}
+function storedFileKey(userId,id){return encodeURIComponent(userId)+"/"+id;}
+async function cleanupExpiredStoredFiles(bucket,now=Date.now()) {
+  if(!bucket)return {deleted:0};
+  let cursor,deleted=0;
+  do {
+    const page=await bucket.list({cursor,limit:1000});
+    const expired=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)<=now).map(object=>object.key);
+    if(expired.length){await bucket.delete(expired);deleted+=expired.length;}
+    cursor=page.truncated?page.cursor:undefined;
+  } while(cursor);
+  return {deleted};
+}
+
 export default {
+ async scheduled(controller,env){ await cleanupExpiredStoredFiles(env.MINA_FILES); },
  async fetch(request,env){
   const cors=corsHeaders(request,env);
   if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
@@ -289,6 +329,52 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+
+  if(url.pathname==="/api/files"&&request.method==="POST"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const parsedFile=await readJsonLimited(request,14_500_000);
+    if(parsedFile.tooLarge)return json({error:"Dosya yükleme isteği 14,5 MB sınırını aşıyor."},413,cors);
+    const name=safeStoredFileName(parsedFile.value?.name);
+    const decoded=decodeStoredFile(parsedFile.value?.data,name);
+    if(parsedFile.invalid||!name||!decoded)return json({error:"Dosya adı, türü veya içeriği geçersiz. Desteklenen dosyalar en fazla 10 MB olabilir."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    const now=Date.now(),id=crypto.randomUUID(),expiresAt=now+STORED_FILE_TTL_MS;
+    const key=storedFileKey(userId,id);
+    try{
+      await env.MINA_FILES.put(key,decoded.bytes,{httpMetadata:{contentType:decoded.mimeType,cacheControl:"private, no-store"},customMetadata:{owner:userId,fileName:name,uploadedAt:String(now),expiresAt:String(expiresAt)}});
+      return json({saved:true,id,name,size:decoded.bytes.byteLength,uploadedAt:now,expiresAt,downloadPath:"/api/files/"+id},201,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Dosya güvenli depoya kaydedilemedi."},503,cors);}
+  }
+  if(url.pathname==="/api/files"&&request.method==="GET"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),prefix=encodeURIComponent(userId)+"/";
+    try{
+      const page=await env.MINA_FILES.list({prefix,limit:1000});
+      const now=Date.now();
+      const files=(page.objects||[]).filter(object=>Number(object.customMetadata?.expiresAt||0)>now).map(object=>({id:object.key.slice(prefix.length),name:object.customMetadata?.fileName||"dosya",size:object.size,uploadedAt:Number(object.customMetadata?.uploadedAt)||object.uploaded?.getTime?.()||null,expiresAt:Number(object.customMetadata?.expiresAt),downloadPath:"/api/files/"+object.key.slice(prefix.length)}));
+      return json({files,truncated:!!page.truncated},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Dosya listesi okunamadı."},503,cors);}
+  }
+  const storedFileMatch=url.pathname.match(/^\/api\/files\/([0-9a-f-]{36})$/i);
+  if(storedFileMatch&&request.method==="GET"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin"),key=storedFileKey(userId,storedFileMatch[1]);
+    try{
+      const object=await env.MINA_FILES.get(key);
+      if(!object)return json({error:"Dosya bulunamadı veya süresi doldu."},404,cors);
+      const expiresAt=Number(object.customMetadata?.expiresAt||0);
+      if(object.customMetadata?.owner!==userId||!expiresAt||expiresAt<=Date.now()){await env.MINA_FILES.delete(key);return json({error:"Dosyanın saklama süresi doldu."},404,cors);}
+      const name=safeStoredFileName(object.customMetadata?.fileName)||"dosya";
+      const asciiName=name.replace(/[^A-Za-z0-9._-]/g,"_");
+      return new Response(object.body,{status:200,headers:{...cors,"Content-Type":object.httpMetadata?.contentType||"application/octet-stream","Content-Length":String(object.size),"Content-Disposition":"attachment; filename=\""+asciiName+"\"; filename*=UTF-8''"+encodeURIComponent(name),"Cache-Control":"private, no-store","X-Content-Type-Options":"nosniff"}});
+    }catch(error){return json({error:"Dosya indirilemedi."},503,cors);}
+  }
+  if(storedFileMatch&&request.method==="DELETE"){
+    if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
+    try{await env.MINA_FILES.delete(storedFileKey(String(env.ADMIN_USERNAME||"admin"),storedFileMatch[1]));return json({deleted:true},200,{...cors,"Cache-Control":"no-store"});}
+    catch(error){return json({error:"Dosya silinemedi."},503,cors);}
+  }
+
   if(url.pathname==="/api/usage"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"Kullanım kotası veritabanı yapılandırılmamış."},503,cors);
     try{
@@ -522,7 +608,7 @@ export default {
   let attachmentBytes=0;
   if(body.fileAttachment!==undefined){
     if(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||typeof body.fileAttachment.content!=="string")return json({error:"Dosya eki geçersiz."},400,cors);
-    attachmentBytes=new TextEncoder().encode(body.fileAttachment.content).byteLength;
+    attachmentBytes=Number.isSafeInteger(body.fileAttachment.originalSize)?body.fileAttachment.originalSize:new TextEncoder().encode(body.fileAttachment.content).byteLength;
     if(!attachmentBytes||attachmentBytes>10*1024*1024||body.fileAttachment.name.length>255)return json({error:"Dosya içeriği boş veya 10 MB sınırını aşıyor."},413,cors);
   }
   if(body.document)attachmentBytes=atob(body.document.data).length;
