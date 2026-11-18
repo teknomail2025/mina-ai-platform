@@ -593,7 +593,7 @@ export default {
   if(attachmentBytes>0){
     try{fileReservation=await reserveDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes);}
     catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
-    if(!fileReservation.allowed)return json({error:"Son 24 saatlik günlük dosya ekleme kotan 100 MB sınırına ulaştı.",fileQuota:{usedBytes:fileReservation.used,limitBytes:fileReservation.limit,remainingBytes:0}},429,cors);
+    if(!fileReservation.allowed)return json({error:"Bugünkü 100 MB dosya ekleme kotan doldu.",fileQuota:{usedBytes:fileReservation.used,limitBytes:fileReservation.limit,remainingBytes:0}},429,cors);
   }
   let usageReservation;
   try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType);}
