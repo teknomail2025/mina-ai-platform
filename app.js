@@ -182,9 +182,9 @@
   function saveWorkspaceLocal() {
     try {
       localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
-      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
-      localStorage.setItem(PINNED_KEY, JSON.stringify(pinnedIds));
-      localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryItems));
+      persistWorkspaceCollection(PROJECTS_KEY,projects);
+      persistWorkspaceCollection(PINNED_KEY,pinnedIds);
+      persistWorkspaceCollection(LIBRARY_KEY,libraryItems);
     } catch (error) { console.warn("Mina çalışma alanı yerel olarak kaydedilemedi", error); }
   }
   async function putCloudWorkspace(data, version) {
@@ -304,7 +304,7 @@
     if (!window.confirm(uiLanguage === "en" ? `Delete "${title}"?` : `"${title}" sohbetini silmek istiyor musun?`)) return;
     conversations = conversations.filter(c => c.id !== id);
     pinnedIds = pinnedIds.filter(pinnedId => pinnedId !== id);
-    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch {}
+    try { persistWorkspaceCollection(PINNED_KEY,pinnedIds); } catch {}
     if (activeId === id) {
       activeId = conversations[0]?.id || null;
       if (!activeId) createConversation();
@@ -455,7 +455,7 @@
   function renderProjectsWorkspace() {
     const host=document.createElement("div");
     host.append(workspaceNote("Projelerini oluştur, sohbetleri projelere bağla ve proje içindeki konuşmaları görüntüle. Veriler bu tarayıcıda saklanır."));
-    const create=workspaceButton("＋ Yeni proje",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();renderProjectsWorkspace();});
+    const create=workspaceButton("＋ Yeni proje",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});persistWorkspaceCollection(PROJECTS_KEY,projects);renderPinnedAndProjects();renderProjectsWorkspace();});
     host.append(create);
     projects.forEach(project=>{
       const card=document.createElement("div");card.className="workspace-item";
@@ -466,7 +466,7 @@
       const actions=document.createElement("div");actions.className="workspace-item-actions";
       actions.append(workspaceButton("Bu projeyi aç",()=>{const first=linked[0];if(first){activeId=first.id;render();$("workspaceDialog").hidden=true;}else alert(uiText("Bu projeye henüz sohbet bağlanmamış. Açık sohbeti aşağıdaki düğmeyle ekleyebilirsin."));}));
       actions.append(workspaceButton(current()?.projectId===project.id?"Sohbet projede":"Açık sohbeti ekle",()=>{const c=current();if(!c){alert(uiText("Önce bir sohbet oluştur."));return;}c.projectId=project.id;persist();renderProjectsWorkspace();renderPinnedAndProjects();}));
-      actions.append(workspaceButton(uiText("Sil"),()=>{if(!confirm(uiLanguage==="en"?`Delete project "${project.name}"?`:'"'+project.name+'" projesi silinsin mi?'))return;projects=projects.filter(p=>p.id!==project.id);conversations.forEach(c=>{if(c.projectId===project.id)delete c.projectId;});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));persist();renderPinnedAndProjects();renderProjectsWorkspace();}));
+      actions.append(workspaceButton(uiText("Sil"),()=>{if(!confirm(uiLanguage==="en"?`Delete project "${project.name}"?`:'"'+project.name+'" projesi silinsin mi?'))return;projects=projects.filter(p=>p.id!==project.id);conversations.forEach(c=>{if(c.projectId===project.id)delete c.projectId;});persistWorkspaceCollection(PROJECTS_KEY,projects);persist();renderPinnedAndProjects();renderProjectsWorkspace();}));
       card.append(actions);
       linked.forEach(c=>{const row=document.createElement("div");row.className="workspace-subitem";setConversationTitle(row,c);row.addEventListener("click",()=>{activeId=c.id;render();$("workspaceDialog").hidden=true;});card.append(row);});
       host.append(card);
@@ -499,7 +499,7 @@
     const picker=document.createElement("input");picker.type="file";picker.accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql";
     picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert(uiText("Kitaplık dosyası en fazla 500 KB olabilir."));return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});persistWorkspaceCollection(LIBRARY_KEY,libraryItems);renderLibraryWorkspace();}catch{alert(uiText("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir."));}});
     const add=workspaceButton("＋ Dosya ekle",()=>picker.click());host.append(add,picker);
-    libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;title.setAttribute("data-i18n-ignore","");const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString(uiLanguage==="en"?"en-GB":"tr-TR")+" · "+item.content.length+(uiLanguage==="en"?" characters":" karakter");const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton(uiText("Sil"),()=>{if(!confirm(uiLanguage==="en"?`Delete "${item.name}" from the library?`:'"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
+    libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;title.setAttribute("data-i18n-ignore","");const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString(uiLanguage==="en"?"en-GB":"tr-TR")+" · "+item.content.length+(uiLanguage==="en"?" characters":" karakter");const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton(uiText("Sil"),()=>{if(!confirm(uiLanguage==="en"?`Delete "${item.name}" from the library?`:'"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);persistWorkspaceCollection(LIBRARY_KEY,libraryItems);renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
     if(!libraryItems.length)host.append(workspaceNote(uiText("Kitaplık henüz boş.")));
     openWorkspace("Kitaplık",host);
   }
@@ -696,7 +696,7 @@
   });
 
 
-  $("addProjectBtn").addEventListener("click",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();});
+  $("addProjectBtn").addEventListener("click",()=>{const name=prompt(uiText("Yeni projenin adı:"));if(!name?.trim())return;projects.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:name.trim(),createdAt:Date.now()});persistWorkspaceCollection(PROJECTS_KEY,projects);renderPinnedAndProjects();});
   function renderDiscoverWorkspace() {
     const host=document.createElement("div");
     host.append(workspaceNote(uiText("Mina'nın çalışma alanları tek yerde.")));
