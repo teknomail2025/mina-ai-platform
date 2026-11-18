@@ -753,23 +753,23 @@
       userMemory=value;
       try{if(value)localStorage.setItem(MEMORY_KEY,value);else localStorage.removeItem(MEMORY_KEY);}
       catch{$("memorySaveStatus").textContent=uiText("Tarayıcı hafızası kaydedilemedi.");return;}
-      try{await saveCloudMemory(value);$("memorySaveStatus").textContent="MinaData hafızası hesabına güvenli şekilde kaydedildi.";}
-      catch{$("memorySaveStatus").textContent="Not bu tarayıcıda korundu; sunucuya kaydedilemedi.";}
+      try{await saveCloudMemory(value);$("memorySaveStatus").textContent=uiText("MinaData hafızası hesabına güvenli şekilde kaydedildi.");}
+      catch{$("memorySaveStatus").textContent=uiText("Not bu tarayıcıda korundu; sunucuya kaydedilemedi.");}
     });
     $("clearMinaMemory").addEventListener("click",async()=>{
       if(!confirm(uiText("Mina'nın hesabında tuttuğu hafıza notunu silmek istiyor musun?")))return;
       userMemory="";
       try{localStorage.removeItem(MEMORY_KEY);$("minaMemoryEditor").value="";}catch{}
-      try{await saveCloudMemory("");$("memorySaveStatus").textContent="MinaData hafızası silindi.";}
-      catch{$("memorySaveStatus").textContent="Not bu tarayıcıdan silindi; sunucu kaydı güncellenemedi.";}
+      try{await saveCloudMemory("");$("memorySaveStatus").textContent=uiText("MinaData hafızası silindi.");}
+      catch{$("memorySaveStatus").textContent=uiText("Not bu tarayıcıdan silindi; sunucu kaydı güncellenemedi.");}
     });
     $("exportMinaData").addEventListener("click",()=>{
       try{
         const payload={exportedAt:new Date().toISOString(),format:"mina-ai-local-data-v1",conversations,projects,pinnedIds,libraryItems,memory:userMemory,theme:document.documentElement.dataset.theme||"dark",responseLanguage:minaLanguage,interfaceLanguage:uiLanguage,activeTimer:readStore(TIMER_KEY,null)};
         const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
         const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="mina-ai-verilerim.json";link.click();URL.revokeObjectURL(url);
-        $("dataExportStatus").textContent="Mina'nın yerel verileri dışa aktarıldı.";
-      }catch{$("dataExportStatus").textContent="Veriler dışa aktarılamadı.";}
+        $("dataExportStatus").textContent=uiText("Mina'nın yerel verileri dışa aktarıldı.");
+      }catch{$("dataExportStatus").textContent=uiText("Veriler dışa aktarılamadı.");}
     });
     $("openClearChats").addEventListener("click",()=>{$("workspaceDialog").hidden=true;$("clearChatsBtn").click();});
     const notificationStatus=$("notificationPermissionStatus");
