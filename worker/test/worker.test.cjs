@@ -212,7 +212,7 @@ test("admin can log in and access protected endpoints", async () => {
   assert.equal(profile.data.user.username, "Argion");
 });
 
-test("remember-me login creates a session without a time limit", async () => {
+test("remember-me login creates a 30-day session", async () => {
   const { worker } = createWorker();
   const normal = await call(worker, "/api/auth/login", {
     method: "POST",
@@ -750,6 +750,7 @@ test("live voice token endpoint requires an authenticated session and creates a 
   const setup = liveTokenRequests[0].payload.bidiGenerateContentSetup;
   assert.equal(setup.model, "models/gemini-3.8-live");
   assert.deepEqual(setup.generationConfig.responseModalities, ["AUDIO"]);
+  assert.equal(setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Aoede");
   assert.ok(setup.inputAudioTranscription);
   assert.ok(setup.outputAudioTranscription);
   assert.ok(setup.sessionResumption);

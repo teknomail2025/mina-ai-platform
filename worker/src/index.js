@@ -345,7 +345,7 @@ export default {
           newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
           bidiGenerateContentSetup:{
             model:"models/gemini-3.8-live",
-            generationConfig:{responseModalities:["AUDIO"]},
+            generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Aoede"}}}},
             inputAudioTranscription:{},
             outputAudioTranscription:{},
             sessionResumption:{},
