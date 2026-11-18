@@ -58,7 +58,7 @@ function createWorker(fetchOverride) {
     },
     async get(key) {
       const item=r2Objects.get(key);if(!item)return null;
-      return {body:new Response(item.bytes).body,size:item.size,httpMetadata:item.httpMetadata,customMetadata:item.customMetadata};
+      return {body:new Response(item.bytes).body,size:item.size,httpMetadata:item.httpMetadata,customMetadata:item.customMetadata,arrayBuffer:async()=>item.bytes.buffer.slice(item.bytes.byteOffset,item.bytes.byteOffset+item.bytes.byteLength)};
     },
     async head(key) { const item=r2Objects.get(key);return item?{size:item.size,customMetadata:item.customMetadata}:null; },
     async delete(keys) { for(const key of (Array.isArray(keys)?keys:[keys]))r2Objects.delete(key); },
