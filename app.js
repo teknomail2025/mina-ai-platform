@@ -616,7 +616,8 @@
       addMessage("assistant", answer.trim() + sourceText + retentionText, storedFile?{fileId:storedFile.id,fileName:storedFile.name,fileExpiresAt:storedFile.expiresAt}:{});
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
-      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
+      const savedNotice=storedFile?"\n\n📎 "+storedFile.name+" güvenli depoda 24 saat saklanacak.":"";
+      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + savedNotice + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."), storedFile?{fileId:storedFile.id,fileName:storedFile.name,fileExpiresAt:storedFile.expiresAt}:{});
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
