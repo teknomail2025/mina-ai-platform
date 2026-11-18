@@ -43,7 +43,7 @@
   }
   async function syncCloudMemory() {
     try {
-      const response = await fetch(API_BASE + "/api/memory", {headers:{Accept:"application/json","Cache-Control":"no-store"}});
+      const response = await fetch(API_BASE + "/api/memory", {cache:"no-store",headers:{Accept:"application/json"}});
       const data = await response.json().catch(()=>({}));
       if (!response.ok) throw new Error(data.error || "MinaData bağlantısı kurulamadı.");
       if (data.initialized) {
@@ -95,7 +95,7 @@
     setPreferencesSyncMessage("Ayarlar kaydediliyor…");
     preferencesSyncTimer=setTimeout(async()=>{
       try{await saveCloudPreferences();}
-      catch(error){window.__minaPreferencesSyncError="SAVE "+String(error?.stack||error);setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}
+      catch(error){setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}
     },500);
   }
   async function syncCloudPreferences(){
@@ -120,7 +120,6 @@
       setPreferencesSyncMessage("Ayarlar bulutla eşitlendi.");
       return true;
     }catch(error){
-      window.__minaPreferencesSyncError="SYNC "+String(error?.stack||error);
       preferencesSyncReady=true;
       setPreferencesSyncMessage("Ayarlar bu cihazda korundu; bulut eşitlemesi şu anda kullanılamıyor.");
       return false;

@@ -183,26 +183,7 @@ const watchdog = setTimeout(() => {
     await page.reload({ waitUntil: "networkidle" });
     await page.locator("body.mina-authenticated").waitFor();
     await openSettings();
-    try {
-      await page.waitForFunction(() => document.getElementById("preferencesSyncStatus").textContent === "Settings synced to the cloud.", null, { timeout: 15000 });
-    } catch (error) {
-      const diagnostics = await page.evaluate(async () => {
-        const token = localStorage.getItem("mina-admin-session-v1") || sessionStorage.getItem("mina-admin-session-v1") || "";
-        const response = await fetch("http://127.0.0.1:8787/api/preferences", { headers: { Accept: "application/json" } });
-        return {
-          authenticatedFlag: window.MINA_AUTHENTICATED,
-          bodyAuthenticated: document.body.classList.contains("mina-authenticated"),
-          tokenPresent: !!token,
-          syncStatus: document.getElementById("preferencesSyncStatus")?.textContent,
-          syncError: window.__minaPreferencesSyncError||null,
-          uiLanguage: document.documentElement.lang,
-          preferencesApiStatus: response.status,
-          preferencesApiBody: await response.text()
-        };
-      });
-      console.error("CLOUD_RESTORE_DIAGNOSTICS " + JSON.stringify(diagnostics));
-      throw error;
-    }
+    await page.waitForFunction(() => document.getElementById("preferencesSyncStatus").textContent === "Settings synced to the cloud.", null, { timeout: 15000 });
     assert.equal(await page.locator("#minaThemeSelect").inputValue(), "light", "theme must restore from D1 after local preference deletion");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "en", "response language must restore from D1");
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "en", "interface language must restore from D1");
