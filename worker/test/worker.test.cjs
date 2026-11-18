@@ -114,7 +114,7 @@ function createWorker(fetchOverride) {
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
-    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
   return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey };
@@ -461,6 +461,7 @@ test("daily usage endpoint reports server-side counters and limits", async () =>
   assert.deepEqual(result.data.usage.chat, { used: 0, limit: 5, remaining: 5 });
   assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 5, remaining: 5 });
   assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 5, remaining: 5 });
+  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 10, remaining: 10 });
   assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
 });
 
@@ -502,6 +503,19 @@ test("image analysis has its own five-request daily quota", async () => {
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.type,"image_analysis");
   assert.equal(requestedModels.length,5);
+});
+
+test("Live voice is limited to ten server-counted minutes per Istanbul day", async () => {
+  const { worker }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  for(let minute=0;minute<10;minute++){
+    const result=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
+    assert.equal(result.status,200);
+    assert.equal(result.data.usedMinutes,minute+1);
+  }
+  const blocked=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.data.quota.remaining,0);
 });
 
 test("daily 100 MB file quota is enforced by the Worker", async () => {
