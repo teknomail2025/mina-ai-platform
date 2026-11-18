@@ -1115,11 +1115,11 @@ test("scheduled cleanup deletes expired R2 objects and keeps live files", async 
 });
 
 test("file quota uses the original uploaded binary size rather than extracted text size", () => {
-  assert.match(workerSource, /env\\.MINA_FILES\\.head/);
-  assert.match(workerSource, /attachmentBytes=Number\\(stored\\.size\\)/);
-  assert.match(frontendSource, /storedFileId:storedFile\\?\\.id/);
-  assert.match(frontendSource, /rawBase64:await fileToBase64\\(f\\)/);
-  assert.match(frontendSource, /m\\.fileId/);
+  assert.ok(workerSource.includes("env.MINA_FILES.head"));
+  assert.ok(workerSource.includes("attachmentBytes=Number(stored.size)"));
+  assert.ok(frontendSource.includes("storedFileId:storedFile?.id"));
+  assert.ok(frontendSource.includes("rawBase64:await fileToBase64(f)"));
+  assert.ok(frontendSource.includes("m.fileId"));
 });
 
 test("chat attachment quota is based on the stored original R2 object size", async () => {
