@@ -529,7 +529,7 @@ test("plugins workspace opens the existing tool entry points", () => {
 
 test("conversation pin and unpin controls persist and refresh the pinned workspace", () => {
   assert.match(frontendSource, /function togglePinned\(/);
-  assert.match(frontendSource, /localStorage\.setItem\(PINNED_KEY,JSON\.stringify\(pinnedIds\)\)/);
+  assert.match(frontendSource, /persistWorkspaceCollection\(PINNED_KEY,pinnedIds\)/);
   assert.match(frontendSource, /pin\.addEventListener\("click"/);
   assert.match(frontendSource, /function renderPinnedWorkspace\(/);
   assert.match(frontendSource, /\["☆","Sabitlenenler".*renderPinnedWorkspace/s);
