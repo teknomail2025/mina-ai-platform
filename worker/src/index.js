@@ -304,23 +304,21 @@ export default {
     if(Number(voiceDiscipline?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ettiği için sesli sohbet geçici olarak kapalı.",restricted:true,restricted_until:voiceDiscipline.restricted_until},429,cors);
     if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
     try{
-      const r=await fetch("https://generativelanguage.googleapis.com/v1alpha/auth_tokens",{
+      const r=await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens",{
         method:"POST",
         headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
         body:JSON.stringify({
           uses:1,
           expireTime:new Date(Date.now()+30*60*1000).toISOString(),
           newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
-          liveConnectConstraints:{
+          bidiGenerateContentSetup:{
             model:"models/gemini-3.8-live",
-            config:{
-              responseModalities:["AUDIO"],
-              inputAudioTranscription:{},
-              outputAudioTranscription:{},
-              sessionResumption:{},
-              realtimeInputConfig:{automaticActivityDetection:{disabled:false}},
-              systemInstruction:{parts:[{text:SYSTEM_PROMPT+" Sesli konuşmada kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
-            }
+            generationConfig:{responseModalities:["AUDIO"]},
+            inputAudioTranscription:{},
+            outputAudioTranscription:{},
+            sessionResumption:{},
+            realtimeInputConfig:{automaticActivityDetection:{disabled:false}},
+            systemInstruction:{parts:[{text:SYSTEM_PROMPT+" Sesli konuşmada kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
           }
         })
       });
