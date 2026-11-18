@@ -1170,7 +1170,7 @@ test("chat attachment quota is based on the stored original R2 object size", asy
     token: login.data.token,
     body: {
       messages: [{ role: "user", content: "Bu dosyayı özetle." }],
-      fileAttachment: { name: "source.txt", content: "hello" },
+      fileAttachment: { name: "source.txt" },
       storedFileId: uploaded.data.id
     }
   });
