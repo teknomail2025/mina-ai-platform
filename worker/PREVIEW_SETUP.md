@@ -63,6 +63,14 @@ npx wrangler preview
 
 Use the Preview URL—not the production Worker URL—for browser testing. Confirm that `/api/health` reports the API configured and that authenticated upload, download, delete, chat, and cleanup tests pass.
 
+For end-to-end browser testing, serve the frontend files from this branch locally (for example, `python -m http.server 8000`). In a local-only copy of `index.html`, add this script immediately before `auth.js` is loaded, replacing the URL with the Preview URL returned by Wrangler:
+
+```html
+<script>window.MINA_API_BASE = "https://YOUR-WORKER-PREVIEW-URL";</script>
+```
+
+Do not commit that local Preview URL override to the production branch. The configured `localhost:8000` CORS origin allows this local test page to call the Preview Worker.
+
 ## Safety notes
 
 - The top-level `MINA_DB` and `MINA_FILES` bindings remain production-only.
