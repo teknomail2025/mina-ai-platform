@@ -81,7 +81,7 @@ function createWorker(fetchOverride) {
             }
           };
         },
-        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : disciplineStore.row,
+        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row,
         run: async () => ({ success: true })
       };
     }
@@ -186,7 +186,7 @@ test("workspace data is private, versioned, and rejects stale device writes", as
 test("workspace API enforces payload size and D1 configuration", async () => {
   const { worker, mockDb } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
-  const missing = await call(worker, "/api/workspace", { token: login.data.token });
+  const missing = await call(worker, "/api/workspace", { token: login.data.token, env: { MINA_DB: null } });
   assert.equal(missing.status, 503);
   const oversized = await call(worker, "/api/workspace", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { version: 0, data: { conversations: [], projects: [], pinnedIds: [], libraryItems: [{ id: "x", name: "huge", content: "x".repeat(500001) }] } } });
   assert.equal(oversized.status, 400);
