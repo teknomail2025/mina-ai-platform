@@ -66,18 +66,21 @@ Sağlık kontrolü: `/api/health`
 
 Worker, kimlik doğrulama yapılandırılmadığında yönetici girişini reddeder. Genel kullanıma açılmadan önce Cloudflare tarafında giriş uç noktası için rate limiting ve kötüye kullanım koruması da etkinleştirilmelidir.
 
-## Veritabanı hazırlığı
+## Veritabanı ve kalıcılık
 
-`worker/migrations/0001_auth_and_user_data.sql` dosyası D1 için kullanıcılar, oturumlar, sohbetler, projeler, hafıza, sabitlenmiş sohbetler, kitaplık dosyaları ve e-posta tokenları tablolarını tanımlar.
-
-Bu migration henüz canlı veritabanına uygulanmış değildir ve Worker'da D1 binding'i kullanılmamaktadır. Mevcut yönetici girişi D1 yerine Cloudflare Worker Secrets ve imzalı 8 saatlik oturum tokenı kullanır.
+- Cloudflare Worker, `worker/wrangler.toml` içindeki `MINA_DB` D1 binding'i ile `mina-ai-db` veritabanına bağlanır.
+- MinaData yönetici hafızası, tema/dil tercihleri ve iletişim disiplini kayıtları D1 üzerinde tutulur. İlgili tablolar Worker tarafından ilk kullanımda `CREATE TABLE IF NOT EXISTS` ile güvenli biçimde hazırlanır.
+- Sohbet geçmişi, projeler, zamanlayıcılar ve kitaplık bu sürümde tarayıcı depolamasında kalır; bunlar henüz cihazlar arasında eşitlenmez.
+- `0001_auth_and_user_data.sql` çok kullanıcılı hesap mimarisi için eski şema taslağıdır; mevcut tek yönetici oturum akışının parçası değildir. `0002` ve `0003` migration dosyaları hafıza ve disiplin tablolarının şemasını ayrıca belgeler.
 
 ## Güvenlik ve sınırlar
 
 - Kayıt ve genel kullanıcı girişi kapalıdır; tek yönetici kimliği kullanılır.
-- Yönetici dışındaki API istekleri reddedilir; yalnızca sağlık kontrolü ve CORS preflight herkese açıktır.
-- Oturum tokenları HMAC-SHA256 ile imzalanır. Tarayıcı çıkış yaptığında yerel token silinir; sunucu tarafında token iptal listesi yoktur, bu nedenle çalınmış bir token süresi dolana kadar geçerli kalabilir.
-- Giriş denemeleri için Cloudflare rate limiting kuralı henüz kurulmamıştır.
-- Sohbet geçmişi ve hafıza yereldir; tarayıcı verileri silinirse kaybolabilir.
+- Yönetici gerektiren API uç noktaları imzalı oturum ister; yalnızca sağlık kontrolü ve CORS preflight herkese açıktır.
+- Oturum tokenları HMAC-SHA256 ile imzalanır. Normal oturum 8 saat, “Oturumumu açık tut” oturumu 30 gün geçerlidir. Sunucu tarafında token iptal listesi yoktur; çalınmış bir token süresi dolana kadar geçerli kalabilir.
+- Cloudflare tarafında giriş uç noktası için rate limiting ayrıca yapılandırılmalıdır; bu kuralın etkinliği bu depodaki otomatik testlerle doğrulanamaz.
+- MinaData hafızası ile tema/dil tercihleri bulutta eşitlenir. Sohbetler, projeler, zamanlayıcılar ve kitaplık cihaz yerelidir.
 - Kod alanı yerel bir editördür; kullanıcının bilgisayarındaki dosyaları otomatik değiştirmez veya kod çalıştırmaz.
+- GitHub OAuth/depo yazma işlemleri henüz etkin değildir.
+- Otomatik testler sağlayıcıya gerçek Gemini isteği, gerçek mikrofon izni veya canlı WebSocket ses oturumu testi yapmaz.
 - Ücretsiz model kullanımı sağlayıcının güncel kota ve şartlarına bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.

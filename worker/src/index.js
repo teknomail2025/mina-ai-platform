@@ -21,6 +21,12 @@ function detectDisrespect(text) {
   const directedAbuse = /\b(?:siktir git|defol git|fuck you|shut up|you are (?:an? )?(?:idiot|moron|asshole)|ananı.{0,12}sikeyim|ağzına sıçayım)\b/i;
   return directInsult.test(value) || directedInsult.test(value) || directedAbuse.test(value);
 }
+let memorySchemaReady = false;
+async function ensureMemorySchema(db) {
+  if (memorySchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_admin_memory (id INTEGER PRIMARY KEY CHECK (id = 1), memory_text TEXT NOT NULL DEFAULT '', updated_at INTEGER NOT NULL)").run();
+  memorySchemaReady = true;
+}
 let preferencesSchemaReady = false;
 async function ensurePreferencesSchema(db) {
   if (preferencesSchemaReady) return;
@@ -227,6 +233,7 @@ export default {
   if(url.pathname==="/api/memory"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
     try{
+      await ensureMemorySchema(env.MINA_DB);
       const row=await env.MINA_DB.prepare("SELECT memory_text, updated_at FROM mina_admin_memory WHERE id = 1").first();
       return json({memory:row?.memory_text||"",initialized:!!row,updatedAt:row?.updated_at||null},200,{...cors,"Cache-Control":"no-store"});
     }catch(error){return json({error:"MinaData hafızası okunamadı. Veritabanı geçişini kontrol edin."},503,cors);}
@@ -239,6 +246,7 @@ export default {
     const memoryText=parsedMemory.value.memory.trim();
     if(memoryText.length>2000)return json({error:"Hafıza notu en fazla 2000 karakter olabilir."},400,cors);
     try{
+      await ensureMemorySchema(env.MINA_DB);
       const updatedAt=Date.now();
       await env.MINA_DB.prepare("INSERT INTO mina_admin_memory (id, memory_text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET memory_text = excluded.memory_text, updated_at = excluded.updated_at").bind(memoryText,updatedAt).run();
       return json({saved:true,memory:memoryText,updatedAt},200,{...cors,"Cache-Control":"no-store"});
