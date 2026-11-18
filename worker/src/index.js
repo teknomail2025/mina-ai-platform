@@ -635,7 +635,9 @@ export default {
       }else{
         if(extension==="docx"){
           if(storedBytes[0]!==0x50||storedBytes[1]!==0x4b||typeof body.fileAttachment?.content!=="string"||!body.fileAttachment.content.trim())return json({error:"DOCX içeriği okunamadı; belgeyi yeniden ekle."},400,cors);
+          if(new TextEncoder().encode(body.fileAttachment.content).byteLength>STORED_FILE_MAX_BYTES)return json({error:"DOCX metin içeriği 10 MB sınırını aşıyor."},413,cors);
         }else{
+          if(body.fileAttachment.content!==undefined)return json({error:"Metin dosyalarının içeriği yalnızca güvenli R2 deposundan okunmalıdır."},400,cors);
           body.fileAttachment={name:storedName,content:new TextDecoder("utf-8",{fatal:false}).decode(storedBytes)};
         }
         if(!body.fileAttachment.content||new TextEncoder().encode(body.fileAttachment.content).byteLength>STORED_FILE_MAX_BYTES)return json({error:"Dosyanın metin içeriği boş veya çok büyük."},413,cors);
