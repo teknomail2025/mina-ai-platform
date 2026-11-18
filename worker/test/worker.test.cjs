@@ -1103,6 +1103,16 @@ test("temporary R2 files require login, retain original bytes, and can be downlo
   assert.equal(r2Objects.size, 0);
 });
 
+test("expired R2 files cannot be downloaded and are removed on access", async () => {
+  const { worker, mockR2, r2Objects }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  await mockR2.put("Argion/"+id,Uint8Array.of(65),{customMetadata:{owner:"Argion",fileName:"expired.txt",expiresAt:String(Date.now()-1)}});
+  const result=await call(worker,"/api/files/"+id,{token:login.data.token});
+  assert.equal(result.status,404);
+  assert.equal(r2Objects.has("Argion/"+id),false);
+});
+
 test("temporary file endpoint rejects invalid types, malformed base64 and oversized content", async () => {
   const { worker } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
