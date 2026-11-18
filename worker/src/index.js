@@ -193,7 +193,30 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
-  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});  if(url.pathname==="/api/memory"&&request.method==="GET"){
+  if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
+  if(url.pathname==="/api/preferences"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
+    try{
+      const row=await env.MINA_DB.prepare("SELECT preferences_json, updated_at FROM mina_admin_preferences WHERE id = 1").first();
+      let preferences={};
+      if(row?.preferences_json){try{preferences=JSON.parse(row.preferences_json);}catch{}}
+      return json({preferences,initialized:!!row,updatedAt:row?.updated_at||null},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Mina ayarları okunamadı. Veritabanı geçişini kontrol edin."},503,cors);}
+  }
+  if(url.pathname==="/api/preferences"&&request.method==="PUT"){
+    if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
+    const parsedPreferences=await readJsonLimited(request,8192);
+    if(parsedPreferences.tooLarge)return json({error:"Ayar eşitleme isteği çok büyük."},413,cors);
+    const preferences=parsedPreferences.value?.preferences;
+    if(parsedPreferences.invalid||!preferences||typeof preferences!=="object"||!["dark","light"].includes(preferences.theme)||!["auto","tr","en"].includes(preferences.language)||!["tr","en"].includes(preferences.interfaceLanguage))return json({error:"Geçersiz Mina ayarları."},400,cors);
+    try{
+      const updatedAt=Date.now();
+      const encoded=JSON.stringify({theme:preferences.theme,language:preferences.language,interfaceLanguage:preferences.interfaceLanguage});
+      await env.MINA_DB.prepare("INSERT INTO mina_admin_preferences (id, preferences_json, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET preferences_json = excluded.preferences_json, updated_at = excluded.updated_at").bind(encoded,updatedAt).run();
+      return json({saved:true,preferences:JSON.parse(encoded),updatedAt},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Mina ayarları kaydedilemedi. Veritabanı geçişini kontrol edin."},503,cors);}
+  }
+  if(url.pathname==="/api/memory"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
     try{
       const row=await env.MINA_DB.prepare("SELECT memory_text, updated_at FROM mina_admin_memory WHERE id = 1").first();

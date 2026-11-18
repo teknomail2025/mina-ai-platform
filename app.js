@@ -68,8 +68,62 @@
   let minaLanguage = "auto"; try { minaLanguage = localStorage.getItem(LANGUAGE_KEY) || "auto"; } catch {}
   if (!["auto","tr","en"].includes(minaLanguage)) minaLanguage = "auto";
   let uiLanguage = window.MinaI18n?.language || "tr";
+  let preferencesSyncReady = false;
+  let preferencesSyncMessage = "Henüz eşitlenmedi.";
+  let preferencesSyncTimer = null;
+  let preferencesSyncPromise = Promise.resolve();
   const uiText = value => window.MinaI18n?.t(value) ?? String(value);
   const uiError = value => uiText(String(value ?? ""));
+  function currentCloudPreferences(){
+    return {theme:document.documentElement.dataset.theme==="light"?"light":"dark",language:minaLanguage,interfaceLanguage:uiLanguage};
+  }
+  function setPreferencesSyncMessage(value){
+    preferencesSyncMessage=value;
+    const status=$("preferencesSyncStatus");
+    if(status)status.textContent=uiText(value);
+  }
+  async function saveCloudPreferences(){
+    const response=await fetch(API_BASE+"/api/preferences",{method:"PUT",headers:{"Content-Type":"application/json"},body:JSON.stringify({preferences:currentCloudPreferences()})});
+    const data=await response.json().catch(()=>({}));
+    if(!response.ok)throw new Error(data.error||"Mina ayarları eşitlenemedi.");
+    setPreferencesSyncMessage("Ayarlar bulutla eşitlendi.");
+    return data;
+  }
+  function queueCloudPreferences(){
+    if(!preferencesSyncReady)return;
+    if(preferencesSyncTimer)clearTimeout(preferencesSyncTimer);
+    preferencesSyncTimer=setTimeout(async()=>{
+      try{await saveCloudPreferences();}
+      catch(error){setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}
+    },500);
+  }
+  async function syncCloudPreferences(){
+    preferencesSyncReady=false;
+    setPreferencesSyncMessage("Ayarlar eşitleniyor…");
+    try{
+      const response=await fetch(API_BASE+"/api/preferences",{headers:{Accept:"application/json","Cache-Control":"no-store"}});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok)throw new Error(data.error||"Mina ayarları alınamadı.");
+      if(data.initialized&&data.preferences){
+        const prefs=data.preferences;
+        if(["dark","light"].includes(prefs.theme))applyTheme(prefs.theme);
+        if(["auto","tr","en"].includes(prefs.language)){
+          minaLanguage=prefs.language;
+          try{localStorage.setItem(LANGUAGE_KEY,minaLanguage);}catch{}
+        }
+        if(["tr","en"].includes(prefs.interfaceLanguage))setInterfaceLanguage(prefs.interfaceLanguage);
+      }else{
+        await saveCloudPreferences();
+      }
+      preferencesSyncReady=true;
+      setPreferencesSyncMessage("Ayarlar bulutla eşitlendi.");
+      return true;
+    }catch(error){
+      preferencesSyncReady=true;
+      setPreferencesSyncMessage("Ayarlar bu cihazda korundu; bulut eşitlemesi şu anda kullanılamıyor.");
+      return false;
+    }
+  }
   const formatChatCount = count => uiLanguage === "en" ? `${count} ${count === 1 ? "chat" : "chats"}` : `${count} sohbet`;
   const formatTimerLabel = minutes => uiLanguage === "en" ? `${minutes}-minute timer` : `${minutes} dakikalık sayaç`;
   let activeTimerUpdate = null;
@@ -77,6 +131,7 @@
   window.addEventListener("mina:ui-language-changed", event => {
     uiLanguage = event.detail?.language === "en" ? "en" : "tr";
     activeTimerUpdate?.();
+    queueCloudPreferences();
   });
 
   const MINA_THEME_KEY = "mina-ai-theme-v1";
@@ -89,6 +144,7 @@
       themeToggle.setAttribute("aria-label", uiText(selected === "light" ? "Koyu temaya geç" : "Açık temaya geç"));
     }
     try { localStorage.setItem(MINA_THEME_KEY, selected); } catch {}
+    queueCloudPreferences();
   }
   let savedTheme = "dark";
   try { savedTheme = localStorage.getItem(MINA_THEME_KEY) || "dark"; } catch {}
@@ -610,9 +666,10 @@
         <button type="button" class="settings-action" id="requestNotificationPermission">Bildirim iznini ayarla</button>
       </section>
       <section class="settings-section" data-settings-key="devices">
-        <h3>Cihazlar ve senkronizasyon</h3><p>Android, Windows, macOS ve web için ortak Mina hesabı ve cihazlar arası senkronizasyon henüz etkin değil. Yerel veriler cihazlar arasında otomatik aktarılmaz.</p>
+        <h3>Cihazlar ve senkronizasyon</h3><p>Hesap tercihlerin (tema ve dil) ile MinaData hafızası bulutta eşitlenir. Sohbetler, projeler ve kitaplık şimdilik yalnızca bu cihazda saklanır.</p>
         <div class="settings-info-row"><strong>Bu cihaz</strong><span>Web tarayıcısı</span></div>
-        <div class="settings-info-row"><strong>Bulut senkronizasyonu</strong><span>Henüz kullanıma açık değil</span></div>
+        <div class="settings-info-row"><strong>Bulut ayar eşitlemesi</strong><span id="preferencesSyncStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Sohbetler, projeler ve kitaplık</strong><span>Bu cihazda saklanıyor</span></div>
       </section>
       <section class="settings-section" data-settings-key="system">
         <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
@@ -643,9 +700,11 @@
     $("minaLanguageSelect").addEventListener("change",e=>{
       minaLanguage=["auto","tr","en"].includes(e.target.value)?e.target.value:"auto";
       try{localStorage.setItem(LANGUAGE_KEY,minaLanguage);}catch{}
+      queueCloudPreferences();
     });
     $("minaThemeSelect").value=theme;
     $("minaMemoryEditor").value=userMemory;
+    $("preferencesSyncStatus").textContent=uiText(preferencesSyncMessage);
     window.MinaI18n?.apply(host);
     $("minaThemeSelect").addEventListener("change",e=>applyTheme(e.target.value));
     const refreshDiscipline=async()=>{
@@ -844,6 +903,6 @@
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
   if (!activeId) createConversation();
   render(); checkHealth(); setupVoiceInput();
-  window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();});
-  if(document.body.classList.contains("mina-authenticated"))memorySyncPromise=syncCloudMemory();
+  window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();});
+  if(document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();}
 })();

@@ -46,17 +46,20 @@ function createWorker(fetchOverride) {
     throw new Error("Beklenmeyen dış istek: " + target);
   };
   const memoryStore = { row: null };
+  const preferencesStore = { row: null };
   const disciplineStore = { row: null, events: [] };
   const mockDb = {
     prepare(sql) {
       return {
         bind(...values) {
           return {
-            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : disciplineStore.row,
+            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : disciplineStore.row,
             all: async () => ({ results: disciplineStore.events.slice().reverse() }),
             run: async () => {
               if (sql.startsWith("INSERT INTO mina_admin_memory")) {
                 memoryStore.row = { memory_text: values[0], updated_at: values[1] };
+              } else if (sql.startsWith("INSERT INTO mina_admin_preferences")) {
+                preferencesStore.row = { preferences_json: values[0], updated_at: values[1] };
               } else if (sql.startsWith("INSERT INTO mina_discipline_state")) {
                 disciplineStore.row = { user_id: values[0], violation_count: values[1], restricted_until: values[2], appeal_status: "none", appeal_text: null, updated_at: values[3] };
               } else if (sql.startsWith("INSERT INTO mina_discipline_events")) {
@@ -81,7 +84,7 @@ function createWorker(fetchOverride) {
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
-    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
   return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore };
@@ -122,6 +125,27 @@ test("health endpoint is public and reports service status", async () => {
   assert.equal(result.status, 200);
   assert.equal(result.data.ok, true);
   assert.equal(result.data.adminAuthConfigured, true);
+});
+
+test("Mina preferences are private and sync through the D1 binding", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  assert.equal(login.status, 200);
+  const guest = await call(worker, "/api/preferences");
+  assert.equal(guest.status, 401);
+  const initial = await call(worker, "/api/preferences", { token: login.data.token });
+  assert.equal(initial.status, 200);
+  assert.equal(initial.data.initialized, false);
+  const preferences = { theme: "light", language: "tr", interfaceLanguage: "en" };
+  const saved = await call(worker, "/api/preferences", { method: "PUT", token: login.data.token, body: { preferences } });
+  assert.equal(saved.status, 200);
+  assert.deepEqual(saved.data.preferences, preferences);
+  const loaded = await call(worker, "/api/preferences", { token: login.data.token });
+  assert.equal(loaded.status, 200);
+  assert.equal(loaded.data.initialized, true);
+  assert.deepEqual(loaded.data.preferences, preferences);
+  const invalid = await call(worker, "/api/preferences", { method: "PUT", token: login.data.token, body: { preferences: { ...preferences, theme: "neon" } } });
+  assert.equal(invalid.status, 400);
 });
 
 test("MinaData memory is private and persists through the D1 binding", async () => {

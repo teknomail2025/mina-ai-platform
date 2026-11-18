@@ -22,7 +22,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 
 ## Veri ve entegrasyon sınırları
 
-- Sohbetler, projeler, zamanlayıcı durumu, kitaplık ve hafıza şu anda tarayıcı localStorage alanında tutulur; cihazlar arası eşitleme ve sunucu tarafı kalıcı saklama yoktur.
+- MinaData hafızası ile tema ve dil tercihleri yönetici hesabına bağlı D1 veritabanında saklanır ve cihazlar arasında eşitlenir. Sohbetler, projeler, zamanlayıcı durumu ve kitaplık şimdilik tarayıcı localStorage alanında kalır; bunlar için cihazlar arası eşitleme henüz yoktur.
 - Projeler: tarayıcıda proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
 - Zamanlayıcılar: sekme açıkken çalışan geri sayım; sayfa yeniden açıldığında bitiş zamanından kalan süre hesaplanır. Tarayıcı kapalıyken sistem bildirimi garantisi yoktur.
 - Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme. Sunucuya yükleme ve cihazlar arası eşitleme yoktur.
