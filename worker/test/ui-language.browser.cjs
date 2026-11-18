@@ -65,6 +65,7 @@ const watchdog = setTimeout(() => {
     stage = "checking English settings and dynamic UI";
 
     await openSettings();
+    await page.waitForFunction(() => ["Chats, projects and library synced to the cloud.", "Chats, projects and library loaded from the cloud."].includes(document.getElementById("workspaceSyncStatus")?.textContent), null, { timeout: 15000 });
     assert.equal(await page.locator("#minaUiLanguageSelect").inputValue(), "tr");
     assert.equal(await page.locator("#minaLanguageSelect").inputValue(), "auto");
     await page.locator("#minaLanguageSelect").selectOption("en");
