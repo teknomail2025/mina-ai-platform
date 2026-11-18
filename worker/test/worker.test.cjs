@@ -536,48 +536,53 @@ test("Live voice is limited to ten server-counted minutes per Istanbul day", asy
   assert.equal(blocked.data.quota.remaining,0);
 });
 
-test("daily 100 MB file quota is enforced by the Worker", async () => {
-  const { worker, usageStore, usageKey, requestedModels }=createWorker();
+test("daily 100 MB file quota is enforced at R2 upload time", async () => {
+  const { worker, usageStore, usageKey }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
   const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   usageStore.set(usageKey("Argion","file_bytes",day),{used:100*1024*1024});
-  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
-    messages:[{role:"user",content:"Read this file"}],
-    fileAttachment:{name:"notes.txt",content:"one more byte"}
-  }});
+  const result=await call(worker,"/api/files",{method:"POST",token:login.data.token,body:{name:"notes.txt",data:Buffer.from("one more byte").toString("base64")}});
   assert.equal(result.status,429);
   assert.equal(result.data.fileQuota.remainingBytes,0);
-  assert.equal(requestedModels.length,0);
+  assert.equal(usageStore.get(usageKey("Argion","file_bytes",day)).used,100*1024*1024);
 });
 
-test("failed document processing refunds both request and file-byte reservations", async () => {
+test("failed document processing refunds chat usage but keeps uploaded-byte quota", async () => {
   const { worker }=createWorker(async()=>new Response(JSON.stringify({error:{message:"temporary failure"}}),{status:503}));
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const content="label start:\\n    return";
+  const uploaded=await call(worker,"/api/files",{method:"POST",token:login.data.token,body:{name:"main.rpy",data:Buffer.from(content).toString("base64")}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Review this script"}],
-    fileAttachment:{name:"main.rpy",content:"label start:\n    return"}
+    fileAttachment:{name:"main.rpy",content},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,502);
   const usage=await call(worker,"/api/usage",{token:login.data.token});
   assert.equal(usage.data.usage.chat.used,0);
-  assert.equal(usage.data.usage.files.usedBytes,0);
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
 
-test("chat accepts a validated temporary text attachment and accounts its bytes", async () => {
+test("chat accepts a validated temporary text attachment and accounts its original bytes", async () => {
   let capturedPayload;
   const { worker } = createWorker(async (url, options) => {
     capturedPayload=JSON.parse(options.body||"{}");
     return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"Dosya incelendi."}]}}]}),{status:200});
   });
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const content="label start:\\n    return";
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"script.rpy",data:Buffer.from(content).toString("base64")}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
-    fileAttachment:{name:"script.rpy",content:"label start:\n    return"}
+    fileAttachment:{name:"script.rpy",content},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
-  assert.match(capturedPayload.contents[0].parts[1].text,/script\.rpy/);
+  assert.match(capturedPayload.contents[0].parts[1].text,/script\\.rpy/);
   const usage=await call(worker,"/api/usage",{token:login.data.token});
-  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode("label start:\n    return").byteLength);
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
 
 test("chat rejects text attachments larger than 10 MB", async () => {
@@ -591,17 +596,20 @@ test("chat rejects text attachments larger than 10 MB", async () => {
   assert.equal(requestedModels.length,0);
 });
 
-test("chat sends valid PDF attachments to Gemini as application/pdf", async () => {
+test("chat sends a validated, stored PDF attachment to Gemini as application/pdf", async () => {
   let capturedPayload;
   const { worker }=createWorker(async(url,options)=>{
     capturedPayload=JSON.parse(options.body||"{}");
     return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"PDF incelendi."}]}}]}),{status:200});
   });
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
-  const pdf=Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const pdf=Buffer.from("%PDF-1.4\\n%%EOF").toString("base64");
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"report.pdf",data:pdf}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"PDF dosyasını özetle."}],
-    document:{mimeType:"application/pdf",data:pdf}
+    document:{mimeType:"application/pdf",data:pdf},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
   assert.equal(capturedPayload.contents[0].parts[1].inlineData.mimeType,"application/pdf");
