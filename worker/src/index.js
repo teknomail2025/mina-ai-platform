@@ -610,7 +610,7 @@ export default {
   const body=parsedChat.value;
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-  if(body.image&&body.document)return json({error:"Tek istekte hem resim hem PDF eklenemez."},400,cors);
+  if(body.image&&body.document||body.document&&body.fileAttachment)return json({error:"Tek istekte yalnızca bir belge veya resim eki kullanılabilir."},400,cors);
   if(body.document&&!pdfDataIsValid(body.document))return json({error:"PDF geçersiz veya 10 MB sınırını aşıyor."},400,cors);
   let attachmentBytes=0;
   if(body.fileAttachment!==undefined){
@@ -623,7 +623,7 @@ export default {
     if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depodaki kaydı doğrulanamadı."},400,cors);
     try{
       const stored=await env.MINA_FILES.head(storedFileKey(String(env.ADMIN_USERNAME||"admin"),body.storedFileId));
-      if(!stored||stored.customMetadata?.owner!==String(env.ADMIN_USERNAME||"admin")||Number(stored.customMetadata?.expiresAt||0)<=Date.now())return json({error:"Dosyanın güvenli depo kaydı bulunamadı veya süresi doldu."},404,cors);
+      if(!stored||stored.customMetadata?.owner!==String(env.ADMIN_USERNAME||"admin")||Number(stored.customMetadata?.expiresAt||0)<=Date.now()||(body.fileAttachment&&stored.customMetadata?.fileName!==body.fileAttachment.name)||(body.document&&!String(stored.customMetadata?.fileName||"").toLowerCase().endsWith(".pdf")))return json({error:"Dosyanın güvenli depo kaydı bulunamadı, adı uyuşmuyor veya süresi doldu."},404,cors);
       attachmentBytes=Number(stored.size);
       if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES||(body.document&&attachmentBytes!==atob(body.document.data).length))return json({error:"Dosya boyutu veya depo kaydı uyuşmuyor."},413,cors);
     }catch(error){return json({error:"Dosya depodaki kaydı doğrulanamadı."},503,cors);}
