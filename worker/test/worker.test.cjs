@@ -36,7 +36,7 @@ function createWorker(fetchOverride) {
       const payload = JSON.parse(options.body || "{}");
       const wantsImage = payload.generationConfig?.responseModalities?.includes("IMAGE");
       const parts = wantsImage
-        ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }]
+        ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }]
         : [{ text: "Gemini test yanıtı" }];
       return new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), {
         status: 200,
@@ -421,15 +421,29 @@ test("image understanding validates input and reaches Gemini", async () => {
     token: login.data.token,
     body: {
       messages: [{ role: "user", content: "Bu resimde ne var?" }],
-      image: { mimeType: "image/png", data: "aGVsbG8=" }
+      image: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" }
     }
   });
   assert.equal(valid.status, 200);
   assert.equal(valid.data.task, "vision");
 });
 
-test("image generation uses the current image model and returns image data", async () => {
+test("image generation requires an authenticated session", async () => {
   const { worker, requestedModels } = createWorker();
+  const result = await call(worker, "/api/image", { body: { prompt: "A test image" } });
+  assert.equal(result.status, 401);
+  assert.equal(requestedModels.length, 0);
+});
+
+test("image generation uses Nano Banana 2.1 with explicit 1K square output and validates returned PNG", async () => {
+  let capturedPayload;
+  const { worker, requestedModels } = createWorker(async (url, options) => {
+    capturedPayload = JSON.parse(options.body || "{}");
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [
+      { text: "Test görsel açıklaması" },
+      { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }
+    ] } }] }), { status: 200 });
+  });
   const login = await call(worker, "/api/auth/login", {
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
@@ -441,7 +455,26 @@ test("image generation uses the current image model and returns image data", asy
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.image.mimeType, "image/png");
+  assert.equal(result.data.image.data, "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=");
   assert.ok(requestedModels[0].includes("gemini-nano-banana-2.1"));
+  assert.deepEqual(capturedPayload.generationConfig.responseModalities, ["TEXT", "IMAGE"]);
+  assert.deepEqual(capturedPayload.generationConfig.imageConfig, { aspectRatio: "1:1", imageSize: "1K" });
+});
+
+test("image generation rejects malformed provider image bytes", async () => {
+  const { worker } = createWorker(async () => new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }] } }]
+  }), { status: 200 }));
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    body: { prompt: "A test image" }
+  });
+  assert.equal(result.status, 502);
 });
 
 test("expired admin sessions are rejected", async () => {
@@ -595,7 +628,7 @@ test("disabled chat and vision capabilities are rejected by the Worker", async (
     token: login.data.token,
     body: {
       messages: [{ role: "user", content: "Bu resimde ne var?" }],
-      image: { mimeType: "image/png", data: "aGVsbG8=" },
+      image: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" },
       capabilities: { vision: false }
     }
   });
