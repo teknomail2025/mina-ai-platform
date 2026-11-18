@@ -953,7 +953,8 @@
         const data=await response.json().catch(()=>({}));
         if(!response.ok)throw new Error(data.error||"Kullanım bilgisi alınamadı.");
         const usage=data.usage||{};
-        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/5 · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/5 · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/5";
+        const fileUsed=((usage.files?.usedBytes||0)/1048576).toFixed(1);
+        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/5 · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/5 · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/5 · "+uiText("Dosya")+" "+fileUsed+"/100 MB";
       }catch(error){status.textContent=error.message||uiText("Kullanım bilgisi alınamadı.");}
     };
     $("refreshMinaUsage").addEventListener("click",refreshUsage);
