@@ -57,6 +57,38 @@ async function ensureDisciplineSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_mina_discipline_events_user_created ON mina_discipline_events(user_id, created_at DESC)").run();
   disciplineSchemaReady = true;
 }
+const DAILY_USAGE_LIMITS = Object.freeze({chat:5,image_generation:5,image_analysis:5});
+let usageSchemaReady = false;
+async function ensureUsageSchema(db) {
+  if (usageSchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_daily_usage (user_id TEXT NOT NULL, usage_type TEXT NOT NULL, usage_day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, usage_type, usage_day))").run();
+  usageSchemaReady = true;
+}
+function istanbulUsageDay(timestamp=Date.now()) {
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(timestamp));
+  const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+  return values.year+"-"+values.month+"-"+values.day;
+}
+async function reserveDailyUsage(db,userId,usageType) {
+  const limit=DAILY_USAGE_LIMITS[usageType];
+  if(!limit)throw new Error("Bilinmeyen kullanım kotası.");
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay();
+  const now=Date.now();
+  const row=await db.prepare("INSERT INTO mina_daily_usage (user_id, usage_type, usage_day, used, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(user_id, usage_type, usage_day) DO UPDATE SET used = used + 1, updated_at = excluded.updated_at WHERE used < ? RETURNING used").bind(userId,usageType,day,now,limit).first();
+  if(!row)return {allowed:false,used:limit,limit,remaining:0,day};
+  return {allowed:true,used:Number(row.used)||1,limit,remaining:Math.max(0,limit-(Number(row.used)||1)),day};
+}
+async function refundDailyUsage(db,userId,usageType,day) {
+  await db.prepare("UPDATE mina_daily_usage SET used = MAX(0, used - 1), updated_at = ? WHERE user_id = ? AND usage_type = ? AND usage_day = ?").bind(Date.now(),userId,usageType,day).run();
+}
+async function readDailyUsage(db,userId,usageType) {
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay();
+  const row=await db.prepare("SELECT used FROM mina_daily_usage WHERE user_id = ? AND usage_type = ? AND usage_day = ?").bind(userId,usageType,day).first();
+  const limit=DAILY_USAGE_LIMITS[usageType],used=Number(row?.used)||0;
+  return {used,limit,remaining:Math.max(0,limit-used)};
+}
 async function getDisciplineState(db, userId) {
   await ensureDisciplineSchema(db);
   return db.prepare("SELECT user_id, violation_count, restricted_until, appeal_status, appeal_text, updated_at FROM mina_discipline_state WHERE user_id = ?").bind(userId).first();
@@ -233,6 +265,15 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+  if(url.pathname==="/api/usage"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"Kullanım kotası veritabanı yapılandırılmamış."},503,cors);
+    try{
+      const userId=String(env.ADMIN_USERNAME||"admin");
+      const usage={};
+      for(const type of Object.keys(DAILY_USAGE_LIMITS))usage[type]=await readDailyUsage(env.MINA_DB,userId,type);
+      return json({day:istanbulUsageDay(),timezone:"Europe/Istanbul",usage},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Günlük kullanım bilgisi okunamadı."},503,cors);}
+  }
   if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   if(url.pathname==="/api/preferences"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
@@ -368,18 +409,24 @@ export default {
     if(!body||typeof body!=="object")return json({error:"Geçersiz görsel isteği."},400,cors);
     const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    if(!env.MINA_DB)return json({error:"Görsel üretim kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
+    let quota;
+    try{quota=await reserveDailyUsage(env.MINA_DB,userId,"image_generation");}
+    catch(error){return json({error:"Görsel üretim kotası kontrol edilemedi."},503,cors);}
+    if(!quota.allowed)return json({error:"Günlük görsel üretim limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0,day:quota.day}},429,cors);
     try{
       const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}});
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
-      if(!r.ok) return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);
+      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);}
       const parts=d.candidates?.[0]?.content?.parts||[];
       const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
       const textPart=parts.find(p=>p.text);
       const blob=imagePart?.inlineData||imagePart?.inline_data;
       const image={mimeType:blob?.mimeType||blob?.mime_type||"image/png",data:blob?.data};
-      if(!imageDataIsValid(image)) return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);
+      if(!imageDataIsValid(image)){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);}
       return json({image,caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
-    }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
+    }catch(e){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
   if(url.pathname==="/api/discipline/voice-check"&&request.method==="POST"){
