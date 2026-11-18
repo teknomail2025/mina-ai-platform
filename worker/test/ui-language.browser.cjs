@@ -274,6 +274,7 @@ const watchdog = setTimeout(() => {
     await page.locator("#addProjectBtn").click();
     await page.waitForTimeout(1300);
     await openSettings();
+    await page.locator("#syncWorkspaceNow").click();
     await page.waitForFunction(() => document.getElementById("workspaceSyncStatus")?.textContent === "Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli.", null, { timeout: 15000 });
     assert.equal(await page.locator("#syncWorkspaceUpload").isHidden(), false, "conflict must offer an explicit local upload choice");
     assert.equal(await page.locator("#syncWorkspaceDownload").isHidden(), false, "conflict must offer an explicit cloud restore choice");
