@@ -10,7 +10,7 @@ test("voice moderation preserves every completed utterance and checks them in or
   const element = id => {
     if (!elements.has(id)) elements.set(id, {
       id, hidden: true, disabled: false, textContent: "", text: "", dataset: {},
-      handlers: {}, addEventListener(name, callback) { this.handlers[name] = callback; }
+      handlers: {}, addEventListener(name, callback) { (this.handlers[name] ||= []).push(callback); }
     });
     return elements.get(id);
   };
@@ -55,7 +55,7 @@ test("voice moderation preserves every completed utterance and checks them in or
     atob: value => Buffer.from(value, "base64").toString("binary")
   };
   vm.runInNewContext(source, context, { filename: "voice.js" });
-  await element("voiceModeBtn").handlers.click();
+  for (const handler of element("voiceModeBtn").handlers.click) await handler();
   for (let i = 0; i < 20 && !socket; i++) await new Promise(resolve => setImmediate(resolve));
   assert.ok(socket, "voice startup must create the WebSocket");
   socket.onopen();
@@ -72,5 +72,5 @@ test("voice moderation preserves every completed utterance and checks them in or
   firstModerationResolve();
   for (let i = 0; i < 20 && moderationRequests.length < 2; i++) await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(moderationRequests, ["İlk konuşma", "İkinci konuşma"]);
-  await element("liveVoiceClose").handlers.click();
+  for (const handler of element("liveVoiceClose").handlers.click) await handler();
 });
