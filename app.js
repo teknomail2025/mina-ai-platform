@@ -158,7 +158,139 @@
     try { const v = JSON.parse(localStorage.getItem(STORAGE_KEY) || "[]"); return Array.isArray(v) ? v : []; }
     catch { return []; }
   }
-  function persist() { try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)); } catch (e) { console.warn("Sohbet geçmişi kaydedilemedi", e); } }
+  const WORKSPACE_VERSION_KEY = "mina-ai-workspace-version-v1";
+  const WORKSPACE_HASH_KEY = "mina-ai-workspace-hash-v1";
+  let workspaceVersion = 0;
+  let workspaceSyncReady = false;
+  let workspaceSyncConflict = false;
+  let workspaceSyncTimer = null;
+  let workspaceSyncMessage = "Henüz eşitlenmedi.";
+  function currentWorkspaceData() { return { conversations, projects, pinnedIds, libraryItems }; }
+  function hasWorkspaceContent(data) {
+    return data.conversations.some(item => item && (item.messages?.length || item.projectId)) || data.projects.length > 0 || data.pinnedIds.length > 0 || data.libraryItems.length > 0;
+  }
+  async function hashWorkspace(data) {
+    const bytes = new TextEncoder().encode(JSON.stringify(data));
+    const digest = await crypto.subtle.digest("SHA-256", bytes);
+    return Array.from(new Uint8Array(digest), byte => byte.toString(16).padStart(2, "0")).join("");
+  }
+  function setWorkspaceSyncMessage(value) {
+    workspaceSyncMessage = value;
+    const status = $("workspaceSyncStatus");
+    if (status) status.textContent = uiText(value);
+  }
+  function saveWorkspaceLocal() {
+    try {
+      localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations));
+      localStorage.setItem(PROJECTS_KEY, JSON.stringify(projects));
+      localStorage.setItem(PINNED_KEY, JSON.stringify(pinnedIds));
+      localStorage.setItem(LIBRARY_KEY, JSON.stringify(libraryItems));
+    } catch (error) { console.warn("Mina çalışma alanı yerel olarak kaydedilemedi", error); }
+  }
+  async function putCloudWorkspace(data, version) {
+    const response = await fetch(API_BASE + "/api/workspace", {
+      method: "PUT", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ version, data })
+    });
+    const result = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      if (response.status === 409) workspaceSyncConflict = true;
+      throw new Error(result.error || "Çalışma alanı buluta kaydedilemedi.");
+    }
+    workspaceVersion = result.version;
+    try {
+      localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+      localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(data));
+    } catch {}
+    setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık bulutla eşitlendi.");
+    return true;
+  }
+  async function syncCloudWorkspace() {
+    workspaceSyncReady = false;
+    setWorkspaceSyncMessage("Çalışma alanı eşitleniyor…");
+    try {
+      const response = await fetch(API_BASE + "/api/workspace", { cache: "no-store", headers: { Accept: "application/json" } });
+      const remote = await response.json().catch(() => ({}));
+      if (!response.ok) throw new Error(remote.error || "Bulut çalışma alanı alınamadı.");
+      const local = currentWorkspaceData();
+      const localHasContent = hasWorkspaceContent(local);
+      const savedVersion = Number(localStorage.getItem(WORKSPACE_VERSION_KEY));
+      const savedHash = localStorage.getItem(WORKSPACE_HASH_KEY) || "";
+      if (!remote.initialized) {
+        await putCloudWorkspace(local, 0);
+      } else if (!localHasContent) {
+        conversations = remote.data.conversations;
+        projects = remote.data.projects;
+        pinnedIds = remote.data.pinnedIds;
+        libraryItems = remote.data.libraryItems;
+        workspaceVersion = remote.version;
+        saveWorkspaceLocal();
+        localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+        localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(currentWorkspaceData()));
+        if (!conversations.length) createConversation();
+        else activeId = conversations.find(item => item.id === activeId)?.id || conversations[0].id;
+        render();
+        setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık buluttan yüklendi.");
+      } else if (Number.isInteger(savedVersion) && savedVersion > 0 && savedHash) {
+        const localHash = await hashWorkspace(local);
+        const localChanged = localHash !== savedHash;
+        if (remote.version === savedVersion) {
+          if (localChanged) await putCloudWorkspace(local, remote.version);
+          else {
+            workspaceVersion = remote.version;
+            setWorkspaceSyncMessage("Sohbetler, projeler ve kitaplık bulutla eşitlendi.");
+          }
+        } else if (remote.version > savedVersion && !localChanged) {
+          conversations = remote.data.conversations;
+          projects = remote.data.projects;
+          pinnedIds = remote.data.pinnedIds;
+          libraryItems = remote.data.libraryItems;
+          workspaceVersion = remote.version;
+          saveWorkspaceLocal();
+          localStorage.setItem(WORKSPACE_VERSION_KEY, String(workspaceVersion));
+          localStorage.setItem(WORKSPACE_HASH_KEY, await hashWorkspace(currentWorkspaceData()));
+          activeId = conversations.find(item => item.id === activeId)?.id || conversations[0]?.id || null;
+          if (!activeId) createConversation();
+          render();
+          setWorkspaceSyncMessage("Diğer cihazdaki güncel çalışma alanı yüklendi.");
+        } else {
+          workspaceSyncConflict = true;
+          setWorkspaceSyncMessage("Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli.");
+        }
+      } else {
+        workspaceSyncConflict = true;
+        setWorkspaceSyncMessage("Bu cihazda buluta aktarılmamış eski kayıtlar var. Veri kaybını önlemek için otomatik eşitleme durduruldu; önce dışa aktar.");
+      }
+      workspaceSyncReady = !workspaceSyncConflict;
+      return workspaceSyncReady;
+    } catch (error) {
+      workspaceSyncReady = false;
+      setWorkspaceSyncMessage(error.message || "Çalışma alanı şu anda eşitlenemiyor.");
+      return false;
+    }
+  }
+  function queueCloudWorkspace() {
+    if (!workspaceSyncReady || workspaceSyncConflict) return;
+    if (workspaceSyncTimer) clearTimeout(workspaceSyncTimer);
+    setWorkspaceSyncMessage("Çalışma alanı kaydediliyor…");
+    workspaceSyncTimer = setTimeout(async () => {
+      try { await putCloudWorkspace(currentWorkspaceData(), workspaceVersion); }
+      catch (error) {
+        workspaceSyncReady = false;
+        setWorkspaceSyncMessage(workspaceSyncConflict ? "Cihazlarda farklı değişiklikler var. Yerel veriler korundu; eşitleme çakışması çözülmeli." : "Veriler bu cihazda korundu; bulut eşitlemesi başarısız.");
+      }
+    }, 900);
+  }
+  function persistWorkspaceCollection(key, value) {
+    try { localStorage.setItem(key, JSON.stringify(value)); }
+    catch (error) { console.warn("Mina çalışma alanı yerel olarak kaydedilemedi", error); }
+    queueCloudWorkspace();
+  }
+  function persist() {
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify(conversations)); }
+    catch (e) { console.warn("Sohbet geçmişi kaydedilemedi", e); }
+    queueCloudWorkspace();
+  }
   function createConversation() {
     const c = {id: crypto.randomUUID ? crypto.randomUUID() : String(Date.now()), title:"Yeni sohbet", model:"auto", messages:[]};
     conversations.unshift(c); activeId = c.id; persist(); return c.id;
@@ -279,7 +411,7 @@
 
   function togglePinned(id) {
     pinnedIds = pinnedIds.includes(id) ? pinnedIds.filter(value=>value!==id) : [id,...pinnedIds];
-    try { localStorage.setItem(PINNED_KEY,JSON.stringify(pinnedIds)); } catch { alert(uiText("Sabitlenenler kaydedilemedi.")); }
+    persistWorkspaceCollection(PINNED_KEY,pinnedIds);
     renderList();
   }
   function renderPinnedWorkspace() {
@@ -299,7 +431,7 @@
       b.addEventListener("click",()=>{activeId=c.id;render();els.sidebar.classList.remove("open");});pinned.append(b);
     });
     if(!pinned.children.length){const e=document.createElement("small");e.textContent="Henüz sabitlenen sohbet yok";pinned.append(e);}
-    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.setAttribute("data-i18n-ignore","");b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title=uiText("Projeyi sil");del.addEventListener("click",()=>{if(confirm(uiLanguage === "en" ? `Delete project "${p.name}"?` : '"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);localStorage.setItem(PROJECTS_KEY,JSON.stringify(projects));renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
+    projects.forEach((p,index)=>{const row=document.createElement("div");row.className="project-row";const b=document.createElement("button");b.className="mini-item";b.textContent="▣ "+p.name;b.title=p.name;b.setAttribute("data-i18n-ignore","");b.addEventListener("click",()=>renderProjectsWorkspace());const del=document.createElement("button");del.className="project-delete";del.textContent="×";del.title=uiText("Projeyi sil");del.addEventListener("click",()=>{if(confirm(uiLanguage === "en" ? `Delete project "${p.name}"?` : '"'+p.name+'" projesi silinsin mi?')){projects.splice(index,1);persistWorkspaceCollection(PROJECTS_KEY,projects);renderPinnedAndProjects();}});row.append(b,del);projectList.append(row);});
     if(!projectList.children.length){const e=document.createElement("small");e.textContent="Henüz proje yok";projectList.append(e);}
     window.MinaI18n?.apply(pinned);window.MinaI18n?.apply(projectList);
   }
@@ -364,7 +496,7 @@
     const host=document.createElement("div");
     host.append(workspaceNote("Metin ve kod dosyalarını bu tarayıcının kitaplığına kaydet. Dosyalar sunucuya yüklenmez; tarayıcı verilerini temizlersen silinebilir."));
     const picker=document.createElement("input");picker.type="file";picker.accept=".txt,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql";
-    picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert(uiText("Kitaplık dosyası en fazla 500 KB olabilir."));return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}catch{alert(uiText("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir."));}});
+    picker.addEventListener("change",async()=>{const file=picker.files?.[0];if(!file)return;if(file.size>500000) {alert(uiText("Kitaplık dosyası en fazla 500 KB olabilir."));return;}try{const content=await file.text();libraryItems.unshift({id:crypto.randomUUID?crypto.randomUUID():String(Date.now()),name:file.name,content,createdAt:Date.now()});persistWorkspaceCollection(LIBRARY_KEY,libraryItems);renderLibraryWorkspace();}catch{alert(uiText("Dosya kitaplığa kaydedilemedi. Tarayıcı depolama alanı dolmuş olabilir."));}});
     const add=workspaceButton("＋ Dosya ekle",()=>picker.click());host.append(add,picker);
     libraryItems.forEach(item=>{const card=document.createElement("div");card.className="workspace-item";const title=document.createElement("strong");title.textContent=item.name;title.setAttribute("data-i18n-ignore","");const meta=document.createElement("small");meta.textContent=new Date(item.createdAt||Date.now()).toLocaleString(uiLanguage==="en"?"en-GB":"tr-TR")+" · "+item.content.length+(uiLanguage==="en"?" characters":" karakter");const actions=document.createElement("div");actions.className="workspace-item-actions";actions.append(workspaceButton("Aç",()=>{const c=createConversation();const conversation=conversations.find(x=>x.id===c);conversation.messages.push({role:"user",content:"Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content});persist();render();$("workspaceDialog").hidden=true;sendMessage("Kitaplığımdaki dosyayı incele: "+item.name+"\n\n"+item.content,{existingUser:true});}));actions.append(workspaceButton("İndir",()=>{const url=URL.createObjectURL(new Blob([item.content],{type:"text/plain;charset=utf-8"}));const a=document.createElement("a");a.href=url;a.download=item.name;a.click();URL.revokeObjectURL(url);}));actions.append(workspaceButton(uiText("Sil"),()=>{if(!confirm(uiLanguage==="en"?`Delete "${item.name}" from the library?`:'"'+item.name+'" kitaplıktan silinsin mi?'))return;libraryItems=libraryItems.filter(x=>x.id!==item.id);localStorage.setItem(LIBRARY_KEY,JSON.stringify(libraryItems));renderLibraryWorkspace();}));card.append(title,meta,actions);host.append(card);});
     if(!libraryItems.length)host.append(workspaceNote(uiText("Kitaplık henüz boş.")));
@@ -667,10 +799,11 @@
         <button type="button" class="settings-action" id="requestNotificationPermission">Bildirim iznini ayarla</button>
       </section>
       <section class="settings-section" data-settings-key="devices">
-        <h3>Cihazlar ve senkronizasyon</h3><p>Hesap tercihlerin (tema ve dil) ile MinaData hafızası bulutta eşitlenir. Sohbetler, projeler ve kitaplık şimdilik yalnızca bu cihazda saklanır.</p>
+        <h3>Cihazlar ve senkronizasyon</h3><p>Hesap tercihleri, MinaData hafızası, sohbetler, projeler, sabitlenenler ve kitaplık yönetici hesabınla güvenli biçimde eşitlenir. Eşitleme çakışmalarında yerel kayıtlar otomatik olarak silinmez.</p>
         <div class="settings-info-row"><strong>Bu cihaz</strong><span>Web tarayıcısı</span></div>
         <div class="settings-info-row"><strong>Bulut ayar eşitlemesi</strong><span id="preferencesSyncStatus">Kontrol ediliyor…</span></div>
-        <div class="settings-info-row"><strong>Sohbetler, projeler ve kitaplık</strong><span>Bu cihazda saklanıyor</span></div>
+        <div class="settings-info-row"><strong>Sohbetler, projeler ve kitaplık</strong><span id="workspaceSyncStatus">Henüz eşitlenmedi.</span></div>
+        <button type="button" class="settings-action secondary" id="syncWorkspaceNow">Çalışma alanını eşitle</button>
       </section>
       <section class="settings-section" data-settings-key="system">
         <h3>Sistem durumu</h3><p>Mina API bağlantısını canlı olarak kontrol et.</p>
@@ -789,6 +922,8 @@
     };
     $("refreshMinaHealth").addEventListener("click",refreshHealth);
     refreshHealth();
+    $("syncWorkspaceNow").addEventListener("click",async()=>{const button=$("syncWorkspaceNow");button.disabled=true;await syncCloudWorkspace();button.disabled=false;});
+    $("workspaceSyncStatus").textContent=uiText(workspaceSyncMessage);
     $("speechSupportStatus").textContent=uiText((window.SpeechRecognition||window.webkitSpeechRecognition)?"Destekleniyor":"Desteklenmiyor");
     $("micPermissionStatus").textContent=uiText("Henüz kontrol edilmedi");
     if(navigator.permissions?.query){navigator.permissions.query({name:"microphone"}).then(p=>{$("micPermissionStatus").textContent=uiText(p.state==="granted"?"İzin verildi":p.state==="denied"?"Engellendi":"İzin bekleniyor");}).catch(()=>{});}
@@ -904,6 +1039,6 @@
   $("menuBtn").addEventListener("click",()=>els.sidebar.classList.toggle("open"));
   if (!activeId) createConversation();
   render(); checkHealth(); setupVoiceInput();
-  window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();});
-  if(window.MINA_AUTHENTICATED===true||document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();}
+  window.addEventListener("mina:authenticated",()=>{memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();});
+  if(window.MINA_AUTHENTICATED===true||document.body.classList.contains("mina-authenticated")){memorySyncPromise=syncCloudMemory();preferencesSyncPromise=syncCloudPreferences();syncCloudWorkspace();}
 })();
