@@ -1115,8 +1115,27 @@ test("scheduled cleanup deletes expired R2 objects and keeps live files", async 
 });
 
 test("file quota uses the original uploaded binary size rather than extracted text size", () => {
-  assert.match(workerSource, /Number\\.isSafeInteger\\(body\\.fileAttachment\\.originalSize\\)/);
-  assert.match(frontendSource, /originalSize:file\\.size/);
+  assert.match(workerSource, /env\\.MINA_FILES\\.head/);
+  assert.match(workerSource, /attachmentBytes=Number\\(stored\\.size\\)/);
+  assert.match(frontendSource, /storedFileId:storedFile\\?\\.id/);
   assert.match(frontendSource, /rawBase64:await fileToBase64\\(f\\)/);
   assert.match(frontendSource, /m\\.fileId/);
+});
+
+test("chat attachment quota is based on the stored original R2 object size", async () => {
+  const { worker, mockR2, usageStore, usageKey } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const uploaded = await call(worker, "/api/files", { token: login.data.token, method: "POST", body: { name: "source.txt", data: "aGVsbG8gd29ybGQ=" } });
+  assert.equal(uploaded.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu dosyayı özetle." }],
+      fileAttachment: { name: "source.txt", content: "hello" },
+      storedFileId: uploaded.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  const row = usageStore.get(usageKey("Argion", "file_bytes", result.data.quota?.day || Object.keys(Object.fromEntries(usageStore)).find(key=>key.includes("file_bytes"))?.split("|")[2]));
+  assert.ok([...usageStore.entries()].some(([key,value])=>key.includes("|file_bytes|")&&value.used===11));
 });
