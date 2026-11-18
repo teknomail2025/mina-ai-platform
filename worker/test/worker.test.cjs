@@ -1136,6 +1136,5 @@ test("chat attachment quota is based on the stored original R2 object size", asy
     }
   });
   assert.equal(result.status, 200);
-  const row = usageStore.get(usageKey("Argion", "file_bytes", result.data.quota?.day || Object.keys(Object.fromEntries(usageStore)).find(key=>key.includes("file_bytes"))?.split("|")[2]));
   assert.ok([...usageStore.entries()].some(([key,value])=>key.includes("|file_bytes|")&&value.used===11));
 });
