@@ -110,7 +110,19 @@ async function readJsonLimited(request,maxBytes){
   }catch{return {invalid:true};}
 }
 function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
-function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
+function imageDataIsValid(image){
+  if(!image||typeof image.data!=="string"||!["image/jpeg","image/png","image/webp"].includes(image.mimeType))return false;
+  const encoded=image.data;
+  if(!encoded||encoded.length>Math.ceil(8*1024*1024/3)*4||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)||encoded.length%4!==0)return false;
+  let binary;
+  try{binary=atob(encoded);}catch{return false;}
+  if(!binary.length||binary.length>8*1024*1024)return false;
+  const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
+  const png=bytes.length>=8&&[137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value);
+  const jpeg=bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+  const webp=bytes.length>=12&&String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP";
+  return (image.mimeType==="image/png"&&png)||(image.mimeType==="image/jpeg"&&jpeg)||(image.mimeType==="image/webp"&&webp);
+}
 async function callGemini(env,model,payload){
   const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent";
   const options={method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)};
@@ -357,15 +369,16 @@ export default {
     const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
     try{
-      const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create an image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"]}});
+      const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}});
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
       if(!r.ok) return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);
       const parts=d.candidates?.[0]?.content?.parts||[];
       const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
       const textPart=parts.find(p=>p.text);
       const blob=imagePart?.inlineData||imagePart?.inline_data;
-      if(!blob?.data) return json({error:"Görsel modeli metin döndürdü ancak görsel verisi gelmedi.",provider_detail:textPart?.text||"Görsel bulunamadı."},502,cors);
-      return json({image:{mimeType:blob.mimeType||blob.mime_type||"image/png",data:blob.data},caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
+      const image={mimeType:blob?.mimeType||blob?.mime_type||"image/png",data:blob?.data};
+      if(!imageDataIsValid(image)) return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);
+      return json({image,caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
     }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
