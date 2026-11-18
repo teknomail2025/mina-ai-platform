@@ -202,7 +202,10 @@ test("remember-me login creates a session without a time limit", async () => {
     body: { username: "Argion", password: env.ADMIN_PASSWORD, rememberMe: true }
   });
   assert.equal(remembered.status, 200);
-  assert.equal(remembered.data.expires_in, null);
+  assert.equal(remembered.data.expires_in, 30 * 24 * 60 * 60);
+  const rememberedPayload = JSON.parse(Buffer.from(remembered.data.token.split(".")[0], "base64url").toString("utf8"));
+  assert.equal(rememberedPayload.remembered, true);
+  assert.equal(rememberedPayload.exp - rememberedPayload.iat, 30 * 24 * 60 * 60);
   assert.equal(remembered.data.remembered, true);
   const profile = await call(worker, "/api/auth/me", { token: remembered.data.token });
   assert.equal(profile.status, 200);

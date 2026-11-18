@@ -559,7 +559,7 @@
         <h3>Hesap ve güvenlik</h3><p>Tek yönetici hesabı. Hesap oluşturma ve herkese açık kayıt kapalıdır.</p>
         <div class="settings-info-row"><strong>Yönetici hesabı</strong><span>Argion</span></div>
         <div class="settings-info-row"><strong>Yönetici yapılandırması</strong><span id="adminConfigStatus">Kontrol ediliyor…</span></div>
-        <div class="settings-info-row"><strong>Oturum</strong><span>Güvenli oturum belirteci</span></div>
+        <div class="settings-info-row"><strong>Oturum</strong><span>8 saat · açık tut seçeneğiyle 30 gün</span></div>
       </section>
       <section class="settings-section" data-settings-key="appearance">
         <h3>Görünüm</h3><p>Tema tercihi bu tarayıcıda saklanır.</p>
@@ -567,7 +567,7 @@
         <select id="minaThemeSelect" class="settings-select"><option value="dark">Koyu tema</option><option value="light">Açık tema</option></select>
       </section>
       <section class="settings-section" data-settings-key="voice">
-        <h3>Ses ve mikrofon</h3><p>Ses özellikleri kullandığın tarayıcının mikrofon ve konuşma desteğine bağlıdır. Mikrofon izni yalnızca test düğmesine bastığında istenir.</p>
+        <h3>Ses ve mikrofon</h3><p>Ses özellikleri tarayıcı desteğine ve sunucu yapılandırmasına bağlıdır. Mikrofon izni mikrofon testi veya canlı sohbet başlatıldığında istenir.</p>
         <div class="settings-info-row"><strong>Canlı ses</strong><span id="voiceSupportStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Konuşmayı yazıya çevirme</strong><span id="speechSupportStatus">Kontrol ediliyor…</span></div>
         <div class="settings-info-row"><strong>Mikrofon izni</strong><span id="micPermissionStatus">Kontrol ediliyor…</span></div>
@@ -706,27 +706,29 @@
     });
     $("exportMinaData").addEventListener("click",()=>{
       try{
-        const payload={exportedAt:new Date().toISOString(),format:"mina-ai-local-data-v1",conversations,projects,pinnedIds,libraryItems,memory:userMemory,theme:document.documentElement.dataset.theme||"dark"};
+        const payload={exportedAt:new Date().toISOString(),format:"mina-ai-local-data-v1",conversations,projects,pinnedIds,libraryItems,memory:userMemory,theme:document.documentElement.dataset.theme||"dark",responseLanguage:minaLanguage,interfaceLanguage:uiLanguage,activeTimer:readStore(TIMER_KEY,null)};
         const blob=new Blob([JSON.stringify(payload,null,2)],{type:"application/json;charset=utf-8"});
         const url=URL.createObjectURL(blob);const link=document.createElement("a");link.href=url;link.download="mina-ai-verilerim.json";link.click();URL.revokeObjectURL(url);
         $("dataExportStatus").textContent="Mina'nın yerel verileri dışa aktarıldı.";
       }catch{$("dataExportStatus").textContent="Veriler dışa aktarılamadı.";}
     });
     $("openClearChats").addEventListener("click",()=>{$("workspaceDialog").hidden=true;$("clearChatsBtn").click();});
+    const notificationStatus=$("notificationPermissionStatus");
+    if(!("Notification" in window))notificationStatus.textContent=uiText("Bu tarayıcı bildirimleri desteklemiyor.");
+    else notificationStatus.textContent=uiText(Notification.permission==="granted"?"İzin verildi":Notification.permission==="denied"?"Engellendi":"İzin bekleniyor");
     $("requestNotificationPermission").addEventListener("click",async()=>{
       const status=$("notificationPermissionStatus");
       if(!("Notification"in window)){status.textContent=uiText("Bu tarayıcı bildirimleri desteklemiyor.");return;}
       try{const permission=await Notification.requestPermission();status.textContent=uiText(permission==="granted"?"İzin verildi":permission==="denied"?"Engellendi":"İzin bekleniyor");}catch{status.textContent=uiText("İzin isteği başarısız.");}
     });
+    const liveAudio=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.WebSocket);
     const refreshHealth=async()=>{
-      $("minaApiStatus").textContent=uiText("Kontrol ediliyor…");$("minaProviderStatus").textContent=uiText("Kontrol ediliyor…");$("adminConfigStatus").textContent=uiText("Kontrol ediliyor…");
-      try{const response=await fetch(API_BASE+"/api/health",{cache:"no-store"});const data=await response.json();$("minaApiStatus").textContent=uiText(response.ok&&data.ok?"Bağlı":"Yanıt hatası");$("minaProviderStatus").textContent=uiText(data.configured?"Hazır":"Yapılandırılmamış");$("adminConfigStatus").textContent=uiText(data.adminAuthConfigured?"Etkin":"Yapılandırılmamış");}
-      catch{$("minaApiStatus").textContent=uiText("Bağlantı kurulamadı");$("minaProviderStatus").textContent=uiText("Bilinmiyor");$("adminConfigStatus").textContent=uiText("Kontrol edilemedi");}
+      $("minaApiStatus").textContent=uiText("Kontrol ediliyor…");$("minaProviderStatus").textContent=uiText("Kontrol ediliyor…");$("adminConfigStatus").textContent=uiText("Kontrol ediliyor…");$("voiceSupportStatus").textContent=uiText("Kontrol ediliyor…");
+      try{const response=await fetch(API_BASE+"/api/health",{cache:"no-store"});const data=await response.json();$("minaApiStatus").textContent=uiText(response.ok&&data.ok?"Bağlı":"Yanıt hatası");$("minaProviderStatus").textContent=uiText(data.configured?"Hazır":"Yapılandırılmamış");$("adminConfigStatus").textContent=uiText(data.adminAuthConfigured?"Etkin":"Yapılandırılmamış");$("voiceSupportStatus").textContent=uiText(!liveAudio?"Desteklenmiyor":data.configured&&data.memoryConfigured?"Sunucu yapılandırılmış; canlı bağlantı henüz test edilmedi.":"Sunucu yapılandırması eksik");}
+      catch{$("minaApiStatus").textContent=uiText("Bağlantı kurulamadı");$("minaProviderStatus").textContent=uiText("Bilinmiyor");$("adminConfigStatus").textContent=uiText("Kontrol edilemedi");$("voiceSupportStatus").textContent=uiText("Kontrol edilemedi");}
     };
     $("refreshMinaHealth").addEventListener("click",refreshHealth);
     refreshHealth();
-    const liveAudio=!!(navigator.mediaDevices&&navigator.mediaDevices.getUserMedia&&window.WebSocket);
-    $("voiceSupportStatus").textContent=uiText(liveAudio?"Tarayıcı destekliyor":"Desteklenmiyor");
     $("speechSupportStatus").textContent=uiText((window.SpeechRecognition||window.webkitSpeechRecognition)?"Destekleniyor":"Desteklenmiyor");
     $("micPermissionStatus").textContent=uiText("Henüz kontrol edilmedi");
     if(navigator.permissions?.query){navigator.permissions.query({name:"microphone"}).then(p=>{$("micPermissionStatus").textContent=uiText(p.state==="granted"?"İzin verildi":p.state==="denied"?"Engellendi":"İzin bekleniyor");}).catch(()=>{});}

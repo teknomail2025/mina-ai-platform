@@ -18,7 +18,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme.
 - Eklenti merkezi: mevcut araçları listeleme ve ilgili arayüzleri açma.
 - Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
-- Yönetici oturumu 8 saat geçerlidir. Oturum tarayıcı sekmesinin sessionStorage alanında tutulur.
+- Normal yönetici oturumu 8 saat geçerlidir ve sessionStorage alanında tutulur. “Oturumumu açık tut” seçeneği işaretlenirse belirteç localStorage alanında saklanır ve 30 gün sonra sona erer.
 
 ## Veri ve entegrasyon sınırları
 

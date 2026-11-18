@@ -127,6 +127,7 @@ async function callAnthropic(env,model,payload){
 }
 
 const AUTH_TOKEN_TTL_SECONDS = 8 * 60 * 60;
+const AUTH_REMEMBER_TTL_SECONDS = 30 * 24 * 60 * 60;
 function base64UrlEncode(bytes) {
   let binary = "";
   for (let i = 0; i < bytes.length; i++) binary += String.fromCharCode(bytes[i]);
@@ -155,7 +156,7 @@ async function verifySession(request, env) {
     const valid = await crypto.subtle.verify("HMAC", key, base64UrlDecode(parts[1]), new TextEncoder().encode(parts[0]));
     if (!valid) return false;
     const payload = JSON.parse(new TextDecoder().decode(base64UrlDecode(parts[0])));
-    return payload.sub === env.ADMIN_USERNAME && (payload.remembered === true ? payload.exp === null : Number.isFinite(payload.exp) && payload.exp > Math.floor(Date.now()/1000));
+    return payload.sub === env.ADMIN_USERNAME && typeof payload.remembered === "boolean" && Number.isFinite(payload.exp) && payload.exp > Math.floor(Date.now()/1000);
   } catch { return false; }
 }
 function safeEqual(a, b) {
@@ -186,8 +187,8 @@ export default {
     if(username.length>64||password.length>256||!safeEqual(username,env.ADMIN_USERNAME)||!safeEqual(password,env.ADMIN_PASSWORD)) return json({error:"Kullanıcı adı veya şifre hatalı."},401,cors);
     const now=Math.floor(Date.now()/1000);
     const rememberMe=credentials.rememberMe===true;
-    const expiresIn=rememberMe?null:AUTH_TOKEN_TTL_SECONDS;
-    const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:expiresIn===null?null:now+expiresIn,remembered:rememberMe},env.SESSION_SECRET);
+    const expiresIn=rememberMe?AUTH_REMEMBER_TTL_SECONDS:AUTH_TOKEN_TTL_SECONDS;
+    const token=await signSession({sub:env.ADMIN_USERNAME,iat:now,exp:now+expiresIn,remembered:rememberMe},env.SESSION_SECRET);
     return json({token,expires_in:expiresIn,remembered:rememberMe,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
