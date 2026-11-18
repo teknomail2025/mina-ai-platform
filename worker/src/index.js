@@ -33,6 +33,22 @@ async function ensurePreferencesSchema(db) {
   await db.prepare("CREATE TABLE IF NOT EXISTS mina_admin_preferences (id INTEGER PRIMARY KEY CHECK (id = 1), preferences_json TEXT NOT NULL DEFAULT '{}', updated_at INTEGER NOT NULL)").run();
   preferencesSchemaReady = true;
 }
+let workspaceSchemaReady = false;
+async function ensureWorkspaceSchema(db) {
+  if (workspaceSchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_admin_workspace (id INTEGER PRIMARY KEY CHECK (id = 1), data_json TEXT NOT NULL DEFAULT '{}', version INTEGER NOT NULL DEFAULT 1, updated_at INTEGER NOT NULL)").run();
+  workspaceSchemaReady = true;
+}
+function validWorkspaceData(data) {
+  if (!data || typeof data !== "object" || Array.isArray(data)) return false;
+  if (!Array.isArray(data.conversations) || !Array.isArray(data.projects) || !Array.isArray(data.pinnedIds) || !Array.isArray(data.libraryItems)) return false;
+  if (data.conversations.length > 500 || data.projects.length > 200 || data.pinnedIds.length > 500 || data.libraryItems.length > 200) return false;
+  if (!data.conversations.every(item => item && typeof item.id === "string" && item.id.length <= 128 && typeof item.title === "string" && Array.isArray(item.messages) && item.messages.length <= 500 && item.messages.every(message => message && ["user","assistant"].includes(message.role) && typeof message.content === "string" && message.content.length <= 20000))) return false;
+  if (!data.projects.every(item => item && typeof item.id === "string" && item.id.length <= 128 && typeof item.name === "string" && item.name.length <= 200)) return false;
+  if (!data.pinnedIds.every(id => typeof id === "string" && id.length <= 128)) return false;
+  if (!data.libraryItems.every(item => item && typeof item.id === "string" && item.id.length <= 128 && typeof item.name === "string" && item.name.length <= 255 && typeof item.content === "string" && item.content.length <= 500000)) return false;
+  return true;
+}
 let disciplineSchemaReady = false;
 async function ensureDisciplineSchema(db) {
   if (disciplineSchemaReady) return;
@@ -253,6 +269,36 @@ export default {
     }catch(error){return json({error:"MinaData hafızası kaydedilemedi. Veritabanı geçişini kontrol edin."},503,cors);}
   }
 
+  if(url.pathname==="/api/workspace"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"Mina çalışma alanı veritabanı yapılandırılmamış."},503,cors);
+    try{
+      await ensureWorkspaceSchema(env.MINA_DB);
+      const row=await env.MINA_DB.prepare("SELECT data_json, version, updated_at FROM mina_admin_workspace WHERE id = 1").first();
+      let data={conversations:[],projects:[],pinnedIds:[],libraryItems:[]};
+      if(row?.data_json){try{const parsed=JSON.parse(row.data_json);if(validWorkspaceData(parsed))data=parsed;}catch{}}
+      return json({data,initialized:!!row,version:Number(row?.version)||0,updatedAt:row?.updated_at||null},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Mina çalışma alanı okunamadı."},503,cors);}
+  }
+  if(url.pathname==="/api/workspace"&&request.method==="PUT"){
+    if(!env.MINA_DB)return json({error:"Mina çalışma alanı veritabanı yapılandırılmamış."},503,cors);
+    const parsedWorkspace=await readJsonLimited(request,5_500_000);
+    if(parsedWorkspace.tooLarge)return json({error:"Çalışma alanı verisi 5,5 MB sınırını aşıyor."},413,cors);
+    const version=parsedWorkspace.value?.version;
+    const data=parsedWorkspace.value?.data;
+    if(parsedWorkspace.invalid||!Number.isInteger(version)||version<0||!validWorkspaceData(data))return json({error:"Çalışma alanı verisi geçersiz veya desteklenen sınırların dışında."},400,cors);
+    const encoded=JSON.stringify(data);
+    if(new TextEncoder().encode(encoded).byteLength>5_000_000)return json({error:"Çalışma alanı verisi 5 MB sınırını aşıyor."},413,cors);
+    try{
+      await ensureWorkspaceSchema(env.MINA_DB);
+      const updatedAt=Date.now();
+      const result=await env.MINA_DB.prepare("INSERT INTO mina_admin_workspace (id, data_json, version, updated_at) VALUES (1, ?, 1, ?) ON CONFLICT(id) DO UPDATE SET data_json = excluded.data_json, version = mina_admin_workspace.version + 1, updated_at = excluded.updated_at WHERE mina_admin_workspace.version = ?").bind(encoded,updatedAt,version).run();
+      if(Number(result.meta?.changes??result.changes??0)!==1){
+        const current=await env.MINA_DB.prepare("SELECT version, updated_at FROM mina_admin_workspace WHERE id = 1").first();
+        return json({error:"Çalışma alanı başka bir cihazda değiştirildi. Önce güncel veriyi eşitle.",conflict:true,version:Number(current?.version)||0,updatedAt:current?.updated_at||null},409,{...cors,"Cache-Control":"no-store"});
+      }
+      return json({saved:true,data,version:version+1,updatedAt},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Mina çalışma alanı kaydedilemedi."},503,cors);}
+  }
   if(url.pathname==="/api/discipline/appeal"&&request.method==="POST"){
     if(!env.MINA_DB)return json({error:"Disiplin ve itiraz veritabanı yapılandırılmamış."},503,cors);
     const parsed=await readJsonLimited(request,8192);
