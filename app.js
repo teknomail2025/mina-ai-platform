@@ -95,7 +95,7 @@
     setPreferencesSyncMessage("Ayarlar kaydediliyor…");
     preferencesSyncTimer=setTimeout(async()=>{
       try{await saveCloudPreferences();}
-      catch(error){setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}
+      catch(error){window.__minaPreferencesSyncError="SAVE "+String(error?.stack||error);setPreferencesSyncMessage("Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.");}
     },500);
   }
   async function syncCloudPreferences(){
@@ -120,6 +120,7 @@
       setPreferencesSyncMessage("Ayarlar bulutla eşitlendi.");
       return true;
     }catch(error){
+      window.__minaPreferencesSyncError="SYNC "+String(error?.stack||error);
       preferencesSyncReady=true;
       setPreferencesSyncMessage("Ayarlar bu cihazda korundu; bulut eşitlemesi şu anda kullanılamıyor.");
       return false;

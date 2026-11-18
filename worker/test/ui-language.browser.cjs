@@ -194,6 +194,7 @@ const watchdog = setTimeout(() => {
           bodyAuthenticated: document.body.classList.contains("mina-authenticated"),
           tokenPresent: !!token,
           syncStatus: document.getElementById("preferencesSyncStatus")?.textContent,
+          syncError: window.__minaPreferencesSyncError||null,
           uiLanguage: document.documentElement.lang,
           preferencesApiStatus: response.status,
           preferencesApiBody: await response.text()
