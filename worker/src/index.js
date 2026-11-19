@@ -676,6 +676,14 @@ export default {
     if(!duplicate)await env.MINA_DB.prepare("INSERT INTO mina_admin_memory (id, memory_text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET memory_text = excluded.memory_text, updated_at = excluded.updated_at").bind(nextMemory,Date.now()).run();
     return json({choices:[{message:{role:"assistant",content:duplicate?"Baba, bu bilgi zaten hafızamda kayıtlı.":"Baba, bunu uzun süreli hafızama kaydettim. Önemli ve kalıcı bilgileri saklayacağım; sıradan sohbet ayrıntılarını kendiliğimden kaydetmeyeceğim."}}],provider:"Mina Core",memory_saved:true,memory_updated:nextMemory},200,cors);
   }
+  let durableMemory="";
+  try{
+    await ensureMemorySchema(env.MINA_DB);
+    const memoryRow=await env.MINA_DB.prepare("SELECT memory_text FROM mina_admin_memory WHERE id = 1").first();
+    durableMemory=typeof memoryRow?.memory_text==="string"?memoryRow.memory_text:"";
+  }catch(error){
+    return json({error:"MinaData hafızası sohbet öncesinde okunamadı. Veritabanı bağlantısını kontrol et."},503,cors);
+  }
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
   if(!body.image&&!body.document&&!body.fileAttachment){
@@ -703,7 +711,8 @@ export default {
   });
   const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":routing.task==="chat"&&model===FALLBACK_MODEL?"MINIMAL":"LOW";
   const languageInstruction=language==="en"?" The response language is fixed to English.":language==="tr"?" Yanıt dili sabit olarak Türkçe.":" Detect whether the latest user message is Turkish or English and answer in that same language.";
-   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
+   const memoryInstruction=durableMemory?"\n\nKALICI KULLANICI HAFIZASI (D1):\n"+durableMemory+"\nBu bilgileri yalnızca kullanıcının isteğiyle ilgili olduğunda kullan. Kullanıcı hafızasında neler olduğunu sorarsa kayıtlı bilgileri doğru ve eksiksiz özetle; kayıtta olmayan ayrıntıları uydurma.":"";
+   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction+memoryInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   const usageType=body.image?"image_analysis":"chat";
   const usageUserId=String(env.ADMIN_USERNAME||"admin");
