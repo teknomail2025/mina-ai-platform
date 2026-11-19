@@ -1082,12 +1082,12 @@ test("Mina only saves long-term memory when the user explicitly asks", async () 
   assert.doesNotMatch(finalMemory.data.memory, /gizli-değer/);
 });
 
-test("chat includes the saved cloud memory in Gemini context and reports generation diagnostics", async () => {
+test("chat loads durable D1 memory into Gemini system context and reports generation diagnostics", async () => {
   let capturedPayload;
   const { worker, mockDb } = createWorker(async (url, options) => {
     capturedPayload = JSON.parse(options.body || "{}");
     return new Response(JSON.stringify({
-      candidates: [{ content: { parts: [{ text: "Hafızanı dikkate alarak yanıtlıyorum." }], }, finishReason: "STOP" }],
+      candidates: [{ content: { parts: [{ text: "Hafızanı dikkate alarak yanıtlıyorum." }] }, finishReason: "STOP" }],
       usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 12, thoughtsTokenCount: 3 }
     }), { status: 200, headers: { "Content-Type": "application/json" } });
   });
@@ -1096,18 +1096,19 @@ test("chat includes the saved cloud memory in Gemini context and reports generat
   assert.equal(saved.status, 200);
   const result = await call(worker, "/api/chat", {
     token: login.data.token,
-    body: { messages: [{ role: "user", content: "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\nMina değişiklikleri yayımlamadan önce test etmelidir.\n\nKullanıcının isteği: Mina projesinde nelere dikkat edelim?" }] }
+    body: { messages: [{ role: "user", content: "Mina projesinde nelere dikkat edelim?" }] }
   });
   assert.equal(result.status, 200);
-  const prompt = capturedPayload.contents[0].parts[0].text;
-  assert.match(prompt, /Mina değişiklikleri yayımlamadan önce test etmelidir/);
-  assert.match(prompt, /Mina projesinde nelere dikkat edelim/);
+  const systemPrompt = capturedPayload.systemInstruction.parts[0].text;
+  const userPrompt = capturedPayload.contents[0].parts[0].text;
+  assert.match(systemPrompt, /KALICI KULLANICI HAFIZASI \(D1\)/);
+  assert.match(systemPrompt, /Mina değişiklikleri yayımlamadan önce test etmelidir/);
+  assert.equal(userPrompt, "Mina projesinde nelere dikkat edelim?");
   assert.equal(result.data.generation.finish_reason, "STOP");
   assert.equal(result.data.generation.prompt_tokens, 42);
   assert.equal(result.data.generation.output_tokens, 12);
   assert.ok(result.data.generation.duration_ms >= 0);
 });
-
 test("Mina system prompt limits long-term memory to explicit, safe requests", () => {
   assert.match(workerSource, /Sıradan sohbetleri, geçici ayrıntıları veya hassas sırları kendiliğinden kalıcı hafızaya kaydetme/);
   assert.match(workerSource, /şifre, API anahtarı, token veya ödeme bilgisini asla kaydetme/);
