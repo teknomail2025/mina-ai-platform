@@ -1095,7 +1095,7 @@ test("chat includes the saved cloud memory in Gemini context and reports generat
   assert.equal(saved.status, 200);
   const result = await call(worker, "/api/chat", {
     token: login.data.token,
-    body: { messages: [{ role: "user", content: "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\\nMina değişiklikleri yayımlamadan önce test etmelidir.\\n\\nKullanıcının isteği: Mina projesinde nelere dikkat edelim?" }] }
+    body: { messages: [{ role: "user", content: "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\nMina değişiklikleri yayımlamadan önce test etmelidir.\n\nKullanıcının isteği: Mina projesinde nelere dikkat edelim?" }] }
   });
   assert.equal(result.status, 200);
   const prompt = capturedPayload.contents[0].parts[0].text;
