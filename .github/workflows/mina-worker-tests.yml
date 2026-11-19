@@ -5,6 +5,7 @@ on:
     branches:
       - main
       - fix/image-pipeline-and-usage-quotas
+      - feat/r2-temporary-file-storage
   push:
     branches:
       - main
