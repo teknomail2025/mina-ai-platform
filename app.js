@@ -571,8 +571,8 @@
     if (attachedFile?.kind === "pdf") prompt += (prompt ? "\n\n" : "") + "Ekli PDF belgesi: " + attachedFile.name + ". Belgeyi incele ve sorumu yanıtla.";
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
-    await memorySyncPromise;
-    const requestPrompt = userMemory ? "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\n" + userMemory + "\n\nKullanıcının isteği: " + prompt : prompt;
+    // Durable memory is loaded by the Worker from D1 for every request; avoid stale browser copies and sync latency.
+    const requestPrompt = prompt;
     if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = ""; els.imageInput.value = "";
     setBusy(true);
