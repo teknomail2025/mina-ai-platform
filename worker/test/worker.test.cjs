@@ -404,7 +404,8 @@ test("temporary model capacity errors fall back to free-tier models", async () =
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
   assert.equal(requested.length, 2);
-  assert.match(requested[1], /gemini-3\.5-flash-lite:generateContent$/);
+  assert.match(requested[0], /gemini-3\.5-flash-lite:generateContent$/);
+  assert.match(requested[1], /gemini-3\.1-flash-lite:generateContent$/);
   assert.equal(result.data.fallback_used, true);
 });
 
@@ -412,7 +413,7 @@ test("network failures also try the next free-tier model", async () => {
   const requested = [];
   const { worker } = createWorker(async (url) => {
     requested.push(url);
-    if (url.includes("gemini-3.8-flash:generateContent")) throw new Error("upstream network unavailable");
+    if (url.includes("gemini-3.5-flash-lite:generateContent")) throw new Error("upstream network unavailable");
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
   });
   const login = await call(worker, "/api/auth/login", {
@@ -424,7 +425,7 @@ test("network failures also try the next free-tier model", async () => {
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
-  assert.equal(result.data.model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.model, "gemini-3.1-flash-lite");
   assert.equal(requested.length, 2, "primary network failure is followed by the backup model");
 });
 
@@ -440,7 +441,7 @@ test("ordinary chat uses the Flash model", async () => {
     body: { messages: [{ role: "user", content: "Nasılsın?" }] }
   });
   assert.equal(result.status, 200);
-  assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "ordinary chat must use the Flash model");
+  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"), "ordinary chat must use the faster Flash-Lite model");
 });
 
 test("image understanding validates input and reaches Gemini", async () => {
@@ -876,9 +877,9 @@ test("frontend applies chat capability to the composer and sends capability sett
 });
 
 
-test("Gemini 503 on ordinary chat switches to a different Flash model", async () => {
+test("Gemini 503 on ordinary chat switches to a different Flash-Lite model", async () => {
   const { worker, requestedModels } = createWorker(async target => {
-    if (target.includes("gemini-3.8-flash:generateContent")) {
+    if (target.includes("gemini-3.5-flash-lite:generateContent")) {
       return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
     }
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
@@ -894,12 +895,12 @@ test("Gemini 503 on ordinary chat switches to a different Flash model", async ()
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
-  assert.equal(result.data.requested_model, "gemini-3.8-flash");
-  assert.equal(result.data.model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.requested_model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.model, "gemini-3.1-flash-lite");
   assert.equal(result.data.fallback_used, true);
   assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
-  assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
-  assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
+  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"));
+  assert.ok(requestedModels[1].includes("gemini-3.1-flash-lite"));
 });
 
 test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
@@ -1081,6 +1082,33 @@ test("Mina only saves long-term memory when the user explicitly asks", async () 
   assert.doesNotMatch(finalMemory.data.memory, /gizli-değer/);
 });
 
+test("chat loads durable D1 memory into Gemini system context and reports generation diagnostics", async () => {
+  let capturedPayload;
+  const { worker, mockDb } = createWorker(async (url, options) => {
+    capturedPayload = JSON.parse(options.body || "{}");
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "Hafızanı dikkate alarak yanıtlıyorum." }] }, finishReason: "STOP" }],
+      usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 12, thoughtsTokenCount: 3 }
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const saved = await call(worker, "/api/memory", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { memory: "Mina değişiklikleri yayımlamadan önce test etmelidir." } });
+  assert.equal(saved.status, 200);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Mina projesinde nelere dikkat edelim?" }] }
+  });
+  assert.equal(result.status, 200);
+  const systemPrompt = capturedPayload.systemInstruction.parts[0].text;
+  const userPrompt = capturedPayload.contents[0].parts[0].text;
+  assert.match(systemPrompt, /KALICI KULLANICI HAFIZASI \(D1\)/);
+  assert.match(systemPrompt, /Mina değişiklikleri yayımlamadan önce test etmelidir/);
+  assert.equal(userPrompt, "Mina projesinde nelere dikkat edelim?");
+  assert.equal(result.data.generation.finish_reason, "STOP");
+  assert.equal(result.data.generation.prompt_tokens, 42);
+  assert.equal(result.data.generation.output_tokens, 12);
+  assert.ok(result.data.generation.duration_ms >= 0);
+});
 test("Mina system prompt limits long-term memory to explicit, safe requests", () => {
   assert.match(workerSource, /Sıradan sohbetleri, geçici ayrıntıları veya hassas sırları kendiliğinden kalıcı hafızaya kaydetme/);
   assert.match(workerSource, /şifre, API anahtarı, token veya ödeme bilgisini asla kaydetme/);

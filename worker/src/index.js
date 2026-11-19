@@ -199,7 +199,6 @@ async function callGeminiWithFallback(env, initialModel, payload) {
   let lastError = null;
   for (let index = 0; index < candidates.length; index++) {
     selectedModel = candidates[index];
-    if (index > 0) await new Promise(resolve => setTimeout(resolve, 400));
     try {
       response = await callGemini(env, selectedModel, payload);
       if (response.ok) return { response, model: selectedModel };
@@ -677,6 +676,14 @@ export default {
     if(!duplicate)await env.MINA_DB.prepare("INSERT INTO mina_admin_memory (id, memory_text, updated_at) VALUES (1, ?, ?) ON CONFLICT(id) DO UPDATE SET memory_text = excluded.memory_text, updated_at = excluded.updated_at").bind(nextMemory,Date.now()).run();
     return json({choices:[{message:{role:"assistant",content:duplicate?"Baba, bu bilgi zaten hafızamda kayıtlı.":"Baba, bunu uzun süreli hafızama kaydettim. Önemli ve kalıcı bilgileri saklayacağım; sıradan sohbet ayrıntılarını kendiliğimden kaydetmeyeceğim."}}],provider:"Mina Core",memory_saved:true,memory_updated:nextMemory},200,cors);
   }
+  let durableMemory="";
+  try{
+    await ensureMemorySchema(env.MINA_DB);
+    const memoryRow=await env.MINA_DB.prepare("SELECT memory_text FROM mina_admin_memory WHERE id = 1").first();
+    durableMemory=typeof memoryRow?.memory_text==="string"?memoryRow.memory_text:"";
+  }catch(error){
+    return json({error:"MinaData hafızası sohbet öncesinde okunamadı. Veritabanı bağlantısını kontrol et."},503,cors);
+  }
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
   if(!body.image&&!body.document&&!body.fileAttachment){
@@ -693,6 +700,7 @@ export default {
   if(!apiKey) return json({error:provider+" sağlayıcısı sunucuda yapılandırılmamış. Cloudflare Worker Secrets bölümüne API anahtarını ekleyin."},503,cors);
   if(body.image&&provider!=="gemini") return json({error:"Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
   const routing=chooseTask(body.messages);let model=body.image?DEFAULT_MODEL:body.model==="fast"?DEFAULT_MODEL:body.model==="advanced"?COMPLEX_MODEL:routing.model;
+  if(!body.image&&body.model!=="advanced"&&routing.task==="chat")model=FALLBACK_MODEL;
   if(capabilities.code===false&&routing.task==="coding")model=DEFAULT_MODEL;
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
@@ -701,9 +709,10 @@ export default {
     if(i===body.messages.length-1&&m.role==="user"&&body.fileAttachment)parts.push({text:"\n\nEk dosya: "+body.fileAttachment.name+"\n"+body.fileAttachment.content});
     return {role:m.role==="assistant"?"model":"user",parts};
   });
-  const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":"LOW";
+  const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":routing.task==="chat"&&model===FALLBACK_MODEL?"MINIMAL":"LOW";
   const languageInstruction=language==="en"?" The response language is fixed to English.":language==="tr"?" Yanıt dili sabit olarak Türkçe.":" Detect whether the latest user message is Turkish or English and answer in that same language.";
-   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
+   const memoryInstruction=durableMemory?"\n\nKALICI KULLANICI HAFIZASI (D1):\n"+durableMemory+"\nBu bilgileri yalnızca kullanıcının isteğiyle ilgili olduğunda kullan. Kullanıcı hafızasında neler olduğunu sorarsa kayıtlı bilgileri doğru ve eksiksiz özetle; kayıtta olmayan ayrıntıları uydurma.":"";
+   const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction+memoryInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
   const usageType=body.image?"image_analysis":"chat";
   const usageUserId=String(env.ADMIN_USERNAME||"admin");
@@ -712,6 +721,7 @@ export default {
   catch(error){return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
   if(!usageReservation.allowed){return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
+    const generationStartedAt = Date.now();
     let upstream;
     const requestedModel = model;
     if(provider==="gemini") {
@@ -728,7 +738,10 @@ export default {
     const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
     if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);}
     const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
-    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
+    const candidate=parsed?.candidates?.[0];
+    const usage=parsed?.usageMetadata||{};
+    const generation={duration_ms:Date.now()-generationStartedAt,finish_reason:candidate?.finishReason||null,prompt_tokens:usage.promptTokenCount??null,output_tokens:usage.candidatesTokenCount??null,thinking_tokens:usage.thoughtsTokenCount??null};
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
   }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
  }
 };
