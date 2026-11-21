@@ -975,7 +975,7 @@
         $("selfHealingCaptureStatus").textContent=system.incidentCapture?"Etkin":"Kapalı";
         $("selfHealingAiStatus").textContent=system.aiDiagnosis?"Etkin":"API anahtarı eksik";
         selfHealingRunnerReady=system.patchGeneration===true&&system.isolatedTestRunner===true;
-        $("selfHealingPatchStatus").textContent=selfHealingRunnerReady?"Hazır · kod değişikliği yine kapalı":"Kapalı · GITHUB_ACTIONS_TOKEN gerekli";
+        $("selfHealingPatchStatus").textContent=selfHealingRunnerReady?"Hazır · kod değişikliği yine kapalı":"Kapalı · GitHub Actions yapılandırması gerekli";
         const incidentSelect=$("selfHealingIncidentSelect");
         const selectedIncident=incidentSelect.value;
         incidentSelect.replaceChildren(new Option("Bir hata kaydı seç…",""));
