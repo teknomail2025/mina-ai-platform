@@ -956,6 +956,7 @@
       }catch(error){status.textContent=error.message||"Disiplin kaydı alınamadı.";}
     };
     $("refreshDiscipline").addEventListener("click",refreshDiscipline);
+    let selfHealingRunnerReady=false;
     const refreshSelfHealing=async()=>{
       const status=$("selfHealingStatus");
       status.textContent="Hata kayıtları ve sistem durumu yükleniyor…";
@@ -973,7 +974,8 @@
         if(!proposalResponse.ok)throw new Error(proposalData.error||"Teşhis önerileri alınamadı.");
         $("selfHealingCaptureStatus").textContent=system.incidentCapture?"Etkin":"Kapalı";
         $("selfHealingAiStatus").textContent=system.aiDiagnosis?"Etkin":"API anahtarı eksik";
-        $("selfHealingPatchStatus").textContent=system.patchGeneration&&system.isolatedTestRunner?"Hazır · kod değişikliği yine kapalı":"Kapalı · GITHUB_ACTIONS_TOKEN gerekli";
+        selfHealingRunnerReady=system.patchGeneration===true&&system.isolatedTestRunner===true;
+        $("selfHealingPatchStatus").textContent=selfHealingRunnerReady?"Hazır · kod değişikliği yine kapalı":"Kapalı · GITHUB_ACTIONS_TOKEN gerekli";
         const incidentSelect=$("selfHealingIncidentSelect");
         const selectedIncident=incidentSelect.value;
         incidentSelect.replaceChildren(new Option("Bir hata kaydı seç…",""));
