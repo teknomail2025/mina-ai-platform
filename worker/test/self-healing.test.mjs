@@ -33,3 +33,19 @@ test("diagnosis parser rejects malformed or incomplete model output", () => {
   assert.equal(parseDiagnosisOutput("not json"), null);
   assert.equal(parseDiagnosisOutput(JSON.stringify({ summary: "Only a summary" })), null);
 });
+
+
+test("frontend captures browser and voice failures only for an authenticated admin session", async () => {
+  const fs = await import("node:fs");
+  const app = fs.readFileSync(new URL("../../app.js", import.meta.url), "utf8");
+  const voice = fs.readFileSync(new URL("../../voice.js", import.meta.url), "utf8");
+  assert.match(app, /window\.MINA_AUTHENTICATED !== true/);
+  assert.match(app, /addEventListener\("error"/);
+  assert.match(app, /addEventListener\("unhandledrejection"/);
+  assert.match(app, /source: "browser"/);
+  assert.match(app, /lastBrowserIncidentAt/);
+  assert.match(voice, /window\.MINA_AUTHENTICATED !== true/);
+  assert.match(voice, /reportVoiceIncident\("Live voice WebSocket error"\)/);
+  assert.match(voice, /source: "browser"/);
+  assert.doesNotMatch(app, /body:\s*JSON\.stringify\(.*messages/s);
+});
