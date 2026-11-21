@@ -86,6 +86,17 @@ async function ensureSelfHealingSchema(db) {
   await db.prepare("CREATE TABLE IF NOT EXISTS mina_self_healing_patches (id TEXT PRIMARY KEY, proposal_id TEXT NOT NULL UNIQUE, patch_text TEXT NOT NULL, explanation TEXT NOT NULL, files_json TEXT NOT NULL, status TEXT NOT NULL, created_at INTEGER NOT NULL, FOREIGN KEY (proposal_id) REFERENCES mina_self_healing_proposals(id))").run();
 }
 
+async function pruneSelfHealingHistory(db, now = Date.now()) {
+  const cutoff = now - 30 * 24 * 60 * 60 * 1000;
+  try {
+    await db.prepare("DELETE FROM mina_self_healing_patches WHERE proposal_id IN (SELECT id FROM mina_self_healing_proposals WHERE created_at < ? OR incident_id IN (SELECT id FROM mina_self_healing_incidents WHERE created_at < ?) OR id NOT IN (SELECT id FROM mina_self_healing_proposals ORDER BY created_at DESC LIMIT 500))").bind(cutoff, cutoff).run();
+    await db.prepare("DELETE FROM mina_self_healing_proposals WHERE created_at < ? OR incident_id IN (SELECT id FROM mina_self_healing_incidents WHERE created_at < ?) OR id NOT IN (SELECT id FROM mina_self_healing_proposals ORDER BY created_at DESC LIMIT 500)").bind(cutoff, cutoff).run();
+    await db.prepare("DELETE FROM mina_self_healing_incidents WHERE created_at < ? OR id NOT IN (SELECT id FROM mina_self_healing_incidents ORDER BY created_at DESC LIMIT 500)").bind(cutoff).run();
+  } catch {
+    // Retention cleanup must never block incident capture.
+  }
+}
+
 function safeIncident(row) {
   return {
     id: row.id,
@@ -139,6 +150,7 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       const now = Date.now();
       await env.MINA_DB.prepare("INSERT INTO mina_self_healing_incidents (id, source, route, message, stack, status, created_at, updated_at) VALUES (?, ?, ?, ?, ?, 'new', ?, ?)")
         .bind(id, body.source, routeName, message, stack, now, now).run();
+      await pruneSelfHealingHistory(env.MINA_DB, now);
       return json({ recorded: true, incident: { id, source: body.source, route: routeName, status: "new", createdAt: now } }, 201, { ...cors, "Cache-Control": "no-store" });
     }
 
@@ -311,6 +323,7 @@ export async function recordSelfHealingIncident(env, route, error) {
     const safeRoute = typeof route === "string" && route.startsWith("/") && /^[a-z0-9/_-]{1,100}$/i.test(route.slice(1)) ? route : "/";
     await env.MINA_DB.prepare("INSERT INTO mina_self_healing_incidents (id, source, route, message, stack, status, created_at, updated_at) VALUES (?, 'worker', ?, ?, ?, 'new', ?, ?)")
       .bind(id, safeRoute, message, stack, now, now).run();
+    await pruneSelfHealingHistory(env.MINA_DB, now);
     return id;
   } catch {
     return null;
