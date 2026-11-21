@@ -135,8 +135,9 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         enabled: true,
         incidentCapture: true,
         aiDiagnosis: !!env.GEMINI_API_KEY,
-        patchGeneration: !!(env.GEMINI_API_KEY && env.GITHUB_ACTIONS_TOKEN),
-        isolatedTestRunner: !!env.GITHUB_ACTIONS_TOKEN,
+        patchGeneration: !!(env.GEMINI_API_KEY && env.GITHUB_ACTIONS_TOKEN && env.SELF_HEALING_RUNNER_ENABLED === "true"),
+        isolatedTestRunner: !!(env.GITHUB_ACTIONS_TOKEN && env.SELF_HEALING_RUNNER_ENABLED === "true"),
+        runnerWorkflowEnabled: env.SELF_HEALING_RUNNER_ENABLED === "true",
         patchExecution: false,
         automaticCodeChanges: false,
         approvalRequired: true,
@@ -218,6 +219,7 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
     if (patchMatch && request.method === "POST") {
       if (!env.GEMINI_API_KEY) return json({ error: "Düzeltme üretimi için GEMINI_API_KEY gerekli." }, 503, cors);
       if (!env.GITHUB_ACTIONS_TOKEN) return json({ error: "İzole test başlatmak için Cloudflare Worker Secret olarak GITHUB_ACTIONS_TOKEN eklenmeli." }, 503, cors);
+      if (env.SELF_HEALING_RUNNER_ENABLED !== "true") return json({ error: "GitHub Actions onarım iş akışı varsayılan dala alınıp SELF_HEALING_RUNNER_ENABLED=true ayarlanana kadar düzeltme üretimi kapalı." }, 503, cors);
       const proposalId = patchMatch[1];
       const proposal = await env.MINA_DB.prepare("SELECT id, incident_id, summary, root_cause, risk_level, files_json, test_plan, status FROM mina_self_healing_proposals WHERE id = ?").bind(proposalId).first();
       if (!proposal) return json({ error: "Teşhis önerisi bulunamadı." }, 404, cors);
