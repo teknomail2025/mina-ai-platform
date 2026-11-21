@@ -76,6 +76,8 @@ test("patch parser accepts only bounded unified diffs for approved allowlisted f
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/worker/wrangler.toml b/worker/wrangler.toml\n--- a/worker/wrangler.toml\n+++ b/worker/wrangler.toml\n@@ -1 +1 @@\n-a\n+b" }), ["worker/wrangler.toml"]), null);
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/other.js\n--- a/app.js\n+++ b/other.js\n@@ -1 +1 @@\n-a\n+b" }), ["app.js"]), null);
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\nnew file mode 100644\n--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b" }), ["app.js"]), null);
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\\n--- a/app.js\\n+++ b/app.js\\n--- a/auth.js\\n+++ b/auth.js\\n@@ -1 +1 @@\\n-a\\n+b" }), ["app.js"]), null);
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n+Bearer abc.def\\n" }), ["app.js"]), null);
 });
 
 
