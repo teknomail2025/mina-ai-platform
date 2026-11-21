@@ -47,22 +47,41 @@ jobs:
               "i18n.js",
           }
           paths = []
+          current = None
+          old_header = False
+          new_header = False
+          in_hunk = False
           for line in patch.splitlines():
               if line.startswith("diff --git "):
+                  if current and not (old_header and new_header):
+                      sys.exit("Previous file headers are incomplete.")
                   match = re.fullmatch(r"diff --git a/([^ ]+) b/([^ ]+)", line)
                   if not match or match.group(1) != match.group(2):
                       sys.exit("Rename, create/delete, or malformed diff is forbidden.")
-                  path = match.group(1)
-                  if path not in allowed or path in paths:
+                  current = match.group(1)
+                  if current not in allowed or current in paths:
                       sys.exit("Patch contains a path outside the allowlist or a duplicate path.")
-                  paths.append(path)
+                  paths.append(current)
+                  old_header = new_header = in_hunk = False
+                  continue
               if line.startswith(("new file mode ", "deleted file mode ", "old mode ", "new mode ", "rename from ", "rename to ", "copy from ", "copy to ", "GIT binary patch")):
                   sys.exit("File mode, rename, copy, and binary patches are forbidden.")
+              if current and not in_hunk and line.startswith("--- "):
+                  if old_header or line != f"--- a/{current}":
+                      sys.exit("Unexpected old-file header.")
+                  old_header = True
+              elif current and not in_hunk and line.startswith("+++ "):
+                  if not old_header or new_header or line != f"+++ b/{current}":
+                      sys.exit("Unexpected new-file header.")
+                  new_header = True
+              elif current and line.startswith("@@ "):
+                  if not (old_header and new_header):
+                      sys.exit("Unified diff headers are incomplete.")
+                  in_hunk = True
+          if current and not (old_header and new_header):
+              sys.exit("Final file headers are incomplete.")
           if not paths or len(paths) > 5:
               sys.exit("Patch must change between one and five allowlisted files.")
-          for path in paths:
-              if f"--- a/{path}" not in patch or f"+++ b/{path}" not in patch:
-                  sys.exit("Patch file headers are incomplete.")
           if "@@" not in patch:
               sys.exit("Unified diff hunks are missing.")
           pathlib.Path(os.environ["RUNNER_TEMP"], "mina-repair.patch").write_text(patch, encoding="utf-8")
