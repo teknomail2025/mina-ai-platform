@@ -1,7 +1,5 @@
 const ALLOWED_SOURCE_PATHS = Object.freeze([
   "worker/src/index.js",
-  "worker/test/worker.test.cjs",
-  "worker/test/voice.test.cjs",
   "app.js",
   "auth.js",
   "voice.js",
