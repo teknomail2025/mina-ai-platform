@@ -119,12 +119,13 @@ test("self-healing incident history is bounded to 30 days and 500 records", asyn
 test("source sent for repair analysis redacts embedded credentials and private keys", () => {
   const source = [
     'const API_KEY = "ghp_abcdefghijklmnopqrstuvwxyz123456";',
+    'const ACCESS_TOKEN = "example-private-access-token";',
     'const PRIVATE = \`-----BEGIN PRIVATE KEY-----',
     'secret-material',
     '-----END PRIVATE KEY-----\`;'
   ].join("\n");
   const sanitized = sanitizeSourceForPatch(source);
-  assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material/);
+  assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material|example-private-access-token/);
   assert.equal((sanitized.match(/\[REDACTED\]/g) || []).length, 2);
 });
 
