@@ -140,3 +140,11 @@ test("repair workflow pins tests to the exact source commit and checks branch an
   assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/feature/mina-self-healing'));
   assert.ok(workflow.includes('git switch --detach "$BASE_SHA"'));
 });
+
+
+test("repair UI keeps patch generation disabled until the runner and approved proposal are ready", async () => {
+  const fs = await import("node:fs");
+  const app = fs.readFileSync(new URL("../../app.js", import.meta.url), "utf8");
+  assert.match(app, /id="generateSelfHealingPatch" disabled/);
+  assert.match(app, /!selfHealingRunnerReady\|\|!item\|\|item\.status!=="approved_for_manual_test"/);
+});
