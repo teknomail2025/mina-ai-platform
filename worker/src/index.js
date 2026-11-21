@@ -1,4 +1,5 @@
 import minaTraining from "./training.json";
+import { handleSelfHealingRequest } from "./self-healing.mjs";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const COMPLEX_MODEL = DEFAULT_MODEL; // Free-tier-safe: use HIGH thinking for complex tasks without requiring a paid Pro model.
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
@@ -330,6 +331,8 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+  const selfHealingResponse = await handleSelfHealingRequest(request,url,env,cors,json,readJsonLimited);
+  if(selfHealingResponse) return selfHealingResponse;
 
   if(url.pathname==="/api/files"&&request.method==="POST"){
     if(!env.MINA_FILES)return json({error:"Geçici dosya deposu yapılandırılmamış."},503,cors);
