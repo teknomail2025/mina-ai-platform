@@ -126,7 +126,7 @@ test("source sent for repair analysis redacts embedded credentials and private k
   ].join("\n");
   const sanitized = sanitizeSourceForPatch(source);
   assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material|example-private-access-token/);
-  assert.equal((sanitized.match(/\[REDACTED\]/g) || []).length, 2);
+  assert.equal((sanitized.match(/\[REDACTED\]/g) || []).length, 3);
 });
 
 test("patch parser rejects redaction placeholders instead of turning them into source code", () => {
