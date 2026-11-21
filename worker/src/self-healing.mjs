@@ -13,7 +13,7 @@ const SECRET_PATTERNS = [
   /\bAIza[0-9A-Za-z_-]{20,}\b/g,
   /\bgh[pousr]_[A-Za-z0-9_]{20,}\b/g,
   /\bsk-[A-Za-z0-9_-]{16,}\b/g,
-  /\b(?:ADMIN_PASSWORD|SESSION_SECRET|GEMINI_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN|GITHUB_TOKEN)\s*[:=]\s*[^\s,;]+/gi
+  /\b(?:SECRET|TOKEN|API_KEY|ADMIN_PASSWORD|SESSION_SECRET|GEMINI_API_KEY|OPENAI_API_KEY|ANTHROPIC_API_KEY|HF_TOKEN|GITHUB_TOKEN)\s*[:=]\s*[^\s,;]+/gi
 ];
 
 export function sanitizeDiagnosticText(value, maxLength = 3000) {
