@@ -149,3 +149,11 @@ test("repair UI keeps patch generation disabled until the runner and approved pr
   assert.match(app, /id="generateSelfHealingPatch" disabled/);
   assert.match(app, /!selfHealingRunnerReady\|\|!item\|\|item\.status!=="approved_for_manual_test"/);
 });
+
+
+test("patch generation remains disabled until the trusted GitHub runner is explicitly enabled", async () => {
+  const fs = await import("node:fs");
+  const worker = fs.readFileSync(new URL("../src/self-healing.mjs", import.meta.url), "utf8");
+  assert.match(worker, /SELF_HEALING_RUNNER_ENABLED === "true"/);
+  assert.match(worker, /SELF_HEALING_RUNNER_ENABLED !== "true"/);
+});
