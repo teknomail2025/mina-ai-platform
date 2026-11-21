@@ -136,7 +136,7 @@ jobs:
           fi
           git apply --check "$RUNNER_TEMP/mina-repair/mina-repair.patch"
           git apply "$RUNNER_TEMP/mina-repair/mina-repair.patch"
-          git add -- worker/src/index.js worker/test/worker.test.cjs worker/test/voice.test.cjs app.js auth.js voice.js i18n.js
+          git add -- worker/src/index.js app.js auth.js voice.js i18n.js
           if git diff --cached --quiet; then
             echo "Validated patch produced no changes." >&2
             exit 1
