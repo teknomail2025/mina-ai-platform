@@ -105,3 +105,12 @@ test("Worker exposes patch generation only through the authenticated proposal wo
   assert.match(worker, /automaticCodeChanges: false/);
   assert.match(worker, /patchExecution: false/);
 });
+
+
+test("self-healing incident history is bounded to 30 days and 500 records", async () => {
+  const fs = await import("node:fs");
+  const worker = fs.readFileSync(new URL("../src/self-healing.mjs", import.meta.url), "utf8");
+  assert.match(worker, /30 \* 24 \* 60 \* 60 \* 1000/);
+  assert.match(worker, /ORDER BY created_at DESC LIMIT 500/);
+  assert.match(worker, /Retention cleanup must never block incident capture/);
+});
