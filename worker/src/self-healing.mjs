@@ -193,3 +193,20 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
   }
   return null;
 }
+
+export async function recordSelfHealingIncident(env, route, error) {
+  if (!env?.MINA_DB) return null;
+  try {
+    await ensureSelfHealingSchema(env.MINA_DB);
+    const id = crypto.randomUUID();
+    const now = Date.now();
+    const message = sanitizeDiagnosticText(error?.message || error || "Unhandled Worker error", 1000).trim() || "Unhandled Worker error";
+    const stack = sanitizeDiagnosticText(error?.stack || "", 2500);
+    const safeRoute = typeof route === "string" && /^\\/[a-z0-9/_-]{1,100}$/i.test(route) ? route : "/";
+    await env.MINA_DB.prepare("INSERT INTO mina_self_healing_incidents (id, source, route, message, stack, status, created_at, updated_at) VALUES (?, 'worker', ?, ?, ?, 'new', ?, ?)")
+      .bind(id, safeRoute, message, stack, now, now).run();
+    return id;
+  } catch {
+    return null;
+  }
+}
