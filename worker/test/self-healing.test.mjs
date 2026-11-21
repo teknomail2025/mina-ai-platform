@@ -119,17 +119,17 @@ test("self-healing incident history is bounded to 30 days and 500 records", asyn
 test("source sent for repair analysis redacts embedded credentials and private keys", () => {
   const source = [
     'const API_KEY = "ghp_abcdefghijklmnopqrstuvwxyz123456";',
-    'const PRIVATE = `-----BEGIN PRIVATE KEY-----',
+    'const PRIVATE = \`-----BEGIN PRIVATE KEY-----',
     'secret-material',
-    '-----END PRIVATE KEY-----`;'
-  ].join("\\n");
+    '-----END PRIVATE KEY-----\`;'
+  ].join("\n");
   const sanitized = sanitizeSourceForPatch(source);
   assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material/);
-  assert.equal((sanitized.match(/\\[REDACTED\\]/g) || []).length, 2);
+  assert.equal((sanitized.match(/\[REDACTED\]/g) || []).length, 2);
 });
 
 test("patch parser rejects redaction placeholders instead of turning them into source code", () => {
-  const patch = "diff --git a/app.js b/app.js\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n-const key = \"[REDACTED]\";\\n+const key = \"new-value\";\\n";
+  const patch = "diff --git a/app.js b/app.js\n--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-const key = \"[REDACTED]\";\n+const key = \"new-value\";\n";
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "unsafe context", patch }), ["app.js"]), null);
 });
 
