@@ -890,6 +890,23 @@
         <button type="button" class="settings-action secondary" id="refreshMinaUsage">Kotaları yenile</button>
         <button type="button" class="settings-action secondary" id="refreshMinaHealth">Durumu yenile</button>
       </section>
+      <section class="settings-section" data-settings-key="self-healing">
+        <h3>Kendi kendini onarma</h3>
+        <p>Mina'nın hata kayıtlarını incele, AI teşhisi iste ve önerileri değerlendir. Bu aşamada hiçbir öneri kodu değiştirmez veya yayımlamaz.</p>
+        <div class="settings-info-row"><strong>Hata yakalama</strong><span id="selfHealingCaptureStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>AI teşhisi</strong><span id="selfHealingAiStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Otomatik kod değişikliği</strong><span id="selfHealingPatchStatus">Kapalı</span></div>
+        <label class="settings-control-label" for="selfHealingIncidentSelect">Hata kayıtları</label>
+        <select id="selfHealingIncidentSelect" class="settings-select"><option value="">Hata kayıtları yükleniyor…</option></select>
+        <div class="settings-info-row"><strong>Seçili hata</strong><span id="selfHealingIncidentDetails">Henüz kayıt yok.</span></div>
+        <button type="button" class="settings-action" id="diagnoseSelfHealingIncident">Seçili hatayı AI ile teşhis et</button>
+        <label class="settings-control-label" for="selfHealingProposalSelect">Teşhis önerileri</label>
+        <select id="selfHealingProposalSelect" class="settings-select"><option value="">Öneriler yükleniyor…</option></select>
+        <div id="selfHealingProposalDetails" class="settings-status">Henüz teşhis önerisi yok.</div>
+        <div class="settings-actions"><button type="button" class="settings-action" id="approveSelfHealingProposal">Manuel test için onayla</button><button type="button" class="settings-action secondary" id="rejectSelfHealingProposal">Öneriyi reddet</button></div>
+        <small class="settings-status" id="selfHealingStatus" aria-live="polite"></small>
+        <button type="button" class="settings-action secondary" id="refreshSelfHealing">Hata kayıtlarını yenile</button>
+      </section>
       <section class="session-secret-panel" data-settings-extra="account" aria-labelledby="sessionSecretTitle">
         <div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div>
         <p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p>
@@ -938,6 +955,86 @@
       }catch(error){status.textContent=error.message||"Disiplin kaydı alınamadı.";}
     };
     $("refreshDiscipline").addEventListener("click",refreshDiscipline);
+    const refreshSelfHealing=async()=>{
+      const status=$("selfHealingStatus");
+      status.textContent="Hata kayıtları ve sistem durumu yükleniyor…";
+      try{
+        const [statusResponse,incidentResponse,proposalResponse]=await Promise.all([
+          fetch(API_BASE+"/api/admin/self-healing/status",{cache:"no-store"}),
+          fetch(API_BASE+"/api/admin/self-healing/incidents",{cache:"no-store"}),
+          fetch(API_BASE+"/api/admin/self-healing/proposals",{cache:"no-store"})
+        ]);
+        const [system,incidentData,proposalData]=await Promise.all([
+          statusResponse.json().catch(()=>({})),incidentResponse.json().catch(()=>({})),proposalResponse.json().catch(()=>({}))
+        ]);
+        if(!statusResponse.ok)throw new Error(system.error||"Kendi kendini onarma durumu alınamadı.");
+        if(!incidentResponse.ok)throw new Error(incidentData.error||"Hata kayıtları alınamadı.");
+        if(!proposalResponse.ok)throw new Error(proposalData.error||"Teşhis önerileri alınamadı.");
+        $("selfHealingCaptureStatus").textContent=system.incidentCapture?"Etkin":"Kapalı";
+        $("selfHealingAiStatus").textContent=system.aiDiagnosis?"Etkin":"API anahtarı eksik";
+        $("selfHealingPatchStatus").textContent=system.automaticCodeChanges?"Açık":"Kapalı · güvenli";
+        const incidentSelect=$("selfHealingIncidentSelect");
+        const selectedIncident=incidentSelect.value;
+        incidentSelect.replaceChildren(new Option("Bir hata kaydı seç…",""));
+        for(const item of incidentData.incidents||[]){
+          const label=new Date(item.createdAt||Date.now()).toLocaleString()+" · "+item.source+" · "+item.route+" · "+item.message.slice(0,90);
+          incidentSelect.add(new Option(label,item.id));
+        }
+        if((incidentData.incidents||[]).some(item=>item.id===selectedIncident))incidentSelect.value=selectedIncident;
+        const showIncident=()=>{
+          const item=(incidentData.incidents||[]).find(row=>row.id===incidentSelect.value);
+          $("selfHealingIncidentDetails").textContent=item?item.message+(item.stack?" · "+item.stack.slice(0,350):""):"Henüz hata seçilmedi.";
+        };
+        incidentSelect.onchange=showIncident;showIncident();
+        const proposalSelect=$("selfHealingProposalSelect");
+        const selectedProposal=proposalSelect.value;
+        proposalSelect.replaceChildren(new Option("Bir teşhis önerisi seç…",""));
+        for(const item of proposalData.proposals||[]){
+          proposalSelect.add(new Option(new Date(item.createdAt||Date.now()).toLocaleString()+" · "+item.status+" · "+item.summary.slice(0,100),item.id));
+        }
+        if((proposalData.proposals||[]).some(item=>item.id===selectedProposal))proposalSelect.value=selectedProposal;
+        const showProposal=()=>{
+          const item=(proposalData.proposals||[]).find(row=>row.id===proposalSelect.value);
+          $("selfHealingProposalDetails").textContent=item?("Kök neden: "+item.rootCause+" | Risk: "+item.riskLevel+" | Test planı: "+item.testPlan+" | Dosyalar: "+(item.suggestedFiles||[]).join(", ")):"Henüz teşhis önerisi seçilmedi.";
+          $("approveSelfHealingProposal").disabled=!item||item.status!=="pending_review";
+          $("rejectSelfHealingProposal").disabled=!item||item.status!=="pending_review";
+        };
+        proposalSelect.onchange=showProposal;showProposal();
+        status.textContent=(incidentData.incidents||[]).length+" hata kaydı · "+(proposalData.proposals||[]).length+" teşhis önerisi. Kod değişikliği ve yayın kapalı.";
+      }catch(error){status.textContent=error.message||"Kendi kendini onarma bilgileri alınamadı.";}
+    };
+    $("refreshSelfHealing").addEventListener("click",refreshSelfHealing);
+    $("diagnoseSelfHealingIncident").addEventListener("click",async()=>{
+      const incidentId=$("selfHealingIncidentSelect").value;
+      const status=$("selfHealingStatus");
+      if(!incidentId){status.textContent="Önce bir hata kaydı seç.";return;}
+      status.textContent="AI hatayı inceliyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/diagnose",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incidentId})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"AI teşhisi tamamlanamadı.");
+        status.textContent="Teşhis önerisi kaydedildi. Kod değiştirilmedi.";
+        await refreshSelfHealing();
+        $("selfHealingProposalSelect").value=data.proposal?.id||"";
+        $("selfHealingProposalSelect").dispatchEvent(new Event("change"));
+      }catch(error){status.textContent=error.message||"AI teşhisi tamamlanamadı.";}
+    });
+    const reviewSelfHealingProposal=async(decision)=>{
+      const proposalId=$("selfHealingProposalSelect").value;
+      const status=$("selfHealingStatus");
+      if(!proposalId){status.textContent="Önce bir teşhis önerisi seç.";return;}
+      status.textContent="Öneri değerlendiriliyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/proposals/"+encodeURIComponent(proposalId)+"/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"Öneri değerlendirilemedi.");
+        status.textContent=data.message||"Değerlendirme kaydedildi.";
+        await refreshSelfHealing();
+      }catch(error){status.textContent=error.message||"Öneri değerlendirilemedi.";}
+    };
+    $("approveSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("approve"));
+    $("rejectSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("reject"));
+    void refreshSelfHealing();
     $("submitDisciplineAppeal").addEventListener("click",async()=>{
       const appeal=$("disciplineAppealText").value.trim();
       if(!appeal){$("disciplineStatus").textContent="Önce itiraz metnini yaz.";return;}
