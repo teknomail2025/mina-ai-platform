@@ -7,6 +7,7 @@ const workerDir = path.resolve(__dirname, "..");
 const training = JSON.parse(fs.readFileSync(path.join(workerDir, "src/training.json"), "utf8"));
 const workerSource = fs.readFileSync(path.join(workerDir, "src/index.js"), "utf8")
   .replace(/^import minaTraining from "\.\/training\.json";\s*/, "")
+  .replace(/^import \{ handleSelfHealingRequest \} from "\.\/self-healing\.mjs";\s*/m, "const handleSelfHealingRequest = async () => null;\n")
   .replace("export default {", "return {");
 
 const env = {
