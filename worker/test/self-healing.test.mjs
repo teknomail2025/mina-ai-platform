@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeDiagnosticText, isAllowedDiagnosticPath, parseDiagnosisOutput, parsePatchOutput } from "../src/self-healing.mjs";
+import { sanitizeDiagnosticText, sanitizeSourceForPatch, isAllowedDiagnosticPath, parseDiagnosisOutput, parsePatchOutput } from "../src/self-healing.mjs";
 
 test("diagnostic text redacts common credentials and bounds length", () => {
   const value = sanitizeDiagnosticText("Bearer abc.def SECRET=hidden GEMINI_API_KEY=AIza123456789012345678901234567890", 80);
@@ -113,4 +113,25 @@ test("self-healing incident history is bounded to 30 days and 500 records", asyn
   assert.match(worker, /30 \* 24 \* 60 \* 60 \* 1000/);
   assert.match(worker, /ORDER BY created_at DESC LIMIT 500/);
   assert.match(worker, /Retention cleanup must never block incident capture/);
+});
+
+
+test("source sent for repair analysis redacts embedded credentials and private keys", () => {
+  const source = 'const API_KEY = "ghp_abcdefghijklmnopqrstuvwxyz123456";\\nconst PRIVATE = `-----BEGIN PRIVATE KEY-----\\nsecret-material\\n-----END PRIVATE KEY-----`;';
+  const sanitized = sanitizeSourceForPatch(source);
+  assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material/);
+  assert.equal((sanitized.match(/\\[REDACTED\\]/g) || []).length, 2);
+});
+
+test("patch parser rejects redaction placeholders instead of turning them into source code", () => {
+  const patch = "diff --git a/app.js b/app.js\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n-const key = \"[REDACTED]\";\\n+const key = \"new-value\";\\n";
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "unsafe context", patch }), ["app.js"]), null);
+});
+
+test("repair workflow pins tests to the exact source commit and checks branch ancestry", async () => {
+  const fs = await import("node:fs");
+  const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
+  assert.match(workflow, /base_sha:/);
+  assert.match(workflow, /git merge-base --is-ancestor "\$BASE_SHA" origin\\/feature\\/mina-self-healing/);
+  assert.match(workflow, /git switch --detach "\$BASE_SHA"/);
 });
