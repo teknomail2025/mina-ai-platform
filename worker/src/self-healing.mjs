@@ -263,6 +263,7 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         return json({ error: "Patch güvenli biçimde üretildi ancak izole GitHub test süreci başlatılamadı. GitHub Actions yetkisini kontrol et.", patchGenerated: true, runnerDispatched: false }, 502, cors);
       }
       await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'runner_dispatched' WHERE id = ?").bind(patchId).run();
+      await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = 'patch_queued' WHERE id = ?").bind(proposalId).run();
       return json({ patchGenerated: true, runnerDispatched: true, patchId, files: generated.files, explanation: generated.explanation, applied: false, deployed: false, message: "Düzeltme izole test sürecine gönderildi. Kod canlı sisteme uygulanmadı." }, 202, { ...cors, "Cache-Control": "no-store" });
     }
 
