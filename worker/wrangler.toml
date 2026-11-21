@@ -14,4 +14,4 @@ database_name = "mina-ai-db"
 database_id = "bdf7737f-b4b2-4158-982b-b7c7483ca702"
 migrations_dir = "migrations"
 
-[previews]
+previews = {}
