@@ -18,7 +18,7 @@ All endpoints require the existing signed Mina administrator session in the `Aut
 ## Safety boundaries
 
 - Unhandled Worker request failures and scheduled cleanup failures are automatically recorded when D1 is available.\n- Authenticated browser sessions report uncaught JavaScript errors and unhandled promise rejections; voice startup and WebSocket failures are also reported. Reports are throttled in the browser and contain error metadata only, never chat messages or audio.
-- Diagnostic text is size-limited and common bearer/API-key/token formats are redacted before storage and before Gemini receives the incident.
+- Diagnostic text is size-limited and common bearer/API-key/token formats are redacted before storage and before Gemini receives the incident. Incident and proposal history is pruned to 30 days and at most 500 recent incidents to control D1 usage.
 - User chat history is not attached to an incident or sent to the diagnostic model.
 - Model output is parsed as JSON, required fields are validated, and suggested source paths are filtered through a fixed allowlist.
 - All self-healing endpoints run after the existing administrator session check.
