@@ -38,7 +38,8 @@ The generated patch cannot change regression tests, workflow files, package mani
 
 ## Activation requirements
 
-- GitHub permits `workflow_dispatch` only after the workflow file exists on the repository's default branch. The workflow file is currently in the `feature/mina-self-healing` branch and its PR is not merged; it is not dispatchable until the branch chain reaches the default branch.
+- GitHub permits `workflow_dispatch` only after the workflow file exists on the repository's default branch. A separate workflow-only PR (#12) adds this file directly to `main`; it must be reviewed and merged before GitHub can dispatch it. The Worker implementation remains in PR #11 and its parent branch chain.
+- The Worker code itself must also reach the deployed default branch through the existing PR dependency chain (#8 → #9 → #11); no PRs are merged automatically.
 - Configure the Cloudflare Worker Secret `GITHUB_ACTIONS_TOKEN` with a fine-grained GitHub token limited to Actions: write on this repository. The Worker uses it only to dispatch the workflow; it is never passed to the runner.
 - After the workflow exists on the default branch, set the Cloudflare Worker variable `SELF_HEALING_RUNNER_ENABLED=true`. This explicit feature flag prevents dispatch attempts before the trusted workflow is available.
 - Until all three conditions are met, the settings UI keeps patch generation disabled.
