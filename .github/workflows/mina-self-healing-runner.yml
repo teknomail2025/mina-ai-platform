@@ -149,8 +149,15 @@ jobs:
           git switch -c "$BRANCH"
           git commit -m "Mina self-healing: validated repair $PROPOSAL_ID"
           git push origin "$BRANCH"
+          cat > "$RUNNER_TEMP/pr-body.md" <<'BODY'
+          ## Automated isolated validation
+
+          Mina generated this patch from an administrator-approved diagnosis. The patch passed the isolated regression suite, JavaScript syntax checks, and Wrangler dry-run.
+
+          **No merge or deployment was performed.** Review the diff manually before merging.
+          BODY
           gh pr create \
             --base feature/mina-self-healing \
             --head "$BRANCH" \
             --title "Mina self-healing: validated repair $PROPOSAL_ID" \
-            --body "## Automated isolated validation\n\nMina generated this patch from an administrator-approved diagnosis. The patch passed the isolated regression suite, JavaScript syntax checks, and Wrangler dry-run.\n\n**No merge or deployment was performed.** Review the diff manually before merging."
+            --body-file "$RUNNER_TEMP/pr-body.md"
