@@ -202,7 +202,7 @@ export async function recordSelfHealingIncident(env, route, error) {
     const now = Date.now();
     const message = sanitizeDiagnosticText(error?.message || error || "Unhandled Worker error", 1000).trim() || "Unhandled Worker error";
     const stack = sanitizeDiagnosticText(error?.stack || "", 2500);
-    const safeRoute = typeof route === "string" && /^\\/[a-z0-9/_-]{1,100}$/i.test(route) ? route : "/";
+    const safeRoute = typeof route === "string" && route.startsWith("/") && /^[a-z0-9/_-]{1,100}$/i.test(route.slice(1)) ? route : "/";
     await env.MINA_DB.prepare("INSERT INTO mina_self_healing_incidents (id, source, route, message, stack, status, created_at, updated_at) VALUES (?, 'worker', ?, ?, ?, 'new', ?, ?)")
       .bind(id, safeRoute, message, stack, now, now).run();
     return id;
