@@ -32,3 +32,12 @@ The isolated patch runner is deliberately a separate stage. It must fetch only a
 ## Validation
 
 The Worker CI job runs the self-healing safety tests alongside the existing regression tests, checks Worker/frontend syntax, and runs Wrangler `--dry-run`. No production D1/R2 data is written by these tests.
+
+
+## Stage 2 – Browser capture and isolated patch runner
+
+Authenticated browser runtime errors, unhandled promise rejections, and voice startup/WebSocket failures are captured without chat text or audio. The administrator settings panel lists incidents and proposals, runs AI diagnosis, and records review decisions.
+
+An approved non-critical proposal can request a minimal unified diff. The Worker validates every changed path against the source allowlist and sends the patch to a dedicated GitHub Actions workflow. The workflow uses a read-only, secret-free job to validate the patch, run regression tests, check JavaScript syntax, and perform a Wrangler dry-run. Only after all checks pass does a separate write-enabled job create a review pull request. The workflow never merges or deploys.
+
+The dispatch endpoint requires the Cloudflare Worker Secret `GITHUB_ACTIONS_TOKEN`, a fine-grained GitHub token limited to Actions: write on this repository. It is not available until that secret is configured. The token is used only by the Worker to dispatch the workflow; it is never passed into the runner.
