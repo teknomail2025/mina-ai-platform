@@ -61,7 +61,7 @@ test("settings expose a guarded self-healing incident and diagnosis review panel
     assert.ok(app.includes(id), "settings UI must wire "+id);
   }
   assert.match(html, /data-settings-section="self-healing"/);
-  assert.match(app, /automaticCodeChanges\?"Açık":"Kapalı/);
+  assert.match(app, /patchGeneration===true&&system\.isolatedTestRunner===true/);
   assert.match(app, /Kod değişikliği ve yayın kapalı/);
 });
 
@@ -69,13 +69,13 @@ test("settings expose a guarded self-healing incident and diagnosis review panel
 test("patch parser accepts only bounded unified diffs for approved allowlisted files", () => {
   const good = JSON.stringify({
     explanation: "Fix the guarded error path.",
-    patch: "diff --git a/app.js b/app.js\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n-old\\n+new\\n"
+    patch: "diff --git a/app.js b/app.js\n--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-old\n+new\n"
   });
   const parsed = parsePatchOutput(good, ["app.js"]);
   assert.deepEqual(parsed.files, ["app.js"]);
-  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/worker/wrangler.toml b/worker/wrangler.toml\\n--- a/worker/wrangler.toml\\n+++ b/worker/wrangler.toml\\n@@ -1 +1 @@\\n-a\\n+b" }), ["worker/wrangler.toml"]), null);
-  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/other.js\\n--- a/app.js\\n+++ b/other.js\\n@@ -1 +1 @@\\n-a\\n+b" }), ["app.js"]), null);
-  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\\nnew file mode 100644\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n-a\\n+b" }), ["app.js"]), null);
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/worker/wrangler.toml b/worker/wrangler.toml\n--- a/worker/wrangler.toml\n+++ b/worker/wrangler.toml\n@@ -1 +1 @@\n-a\n+b" }), ["worker/wrangler.toml"]), null);
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/other.js\n--- a/app.js\n+++ b/other.js\n@@ -1 +1 @@\n-a\n+b" }), ["app.js"]), null);
+  assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\nnew file mode 100644\n--- a/app.js\n+++ b/app.js\n@@ -1 +1 @@\n-a\n+b" }), ["app.js"]), null);
 });
 
 
