@@ -1001,6 +1001,7 @@
           $("selfHealingProposalDetails").textContent=item?("Kök neden: "+item.rootCause+" | Risk: "+item.riskLevel+" | Test planı: "+item.testPlan+" | Dosyalar: "+(item.suggestedFiles||[]).join(", ")):"Henüz teşhis önerisi seçilmedi.";
           $("approveSelfHealingProposal").disabled=!item||item.status!=="pending_review";
           $("rejectSelfHealingProposal").disabled=!item||item.status!=="pending_review";
+          $("generateSelfHealingPatch").disabled=!selfHealingRunnerReady||!item||item.status!=="approved_for_manual_test";
         };
         proposalSelect.onchange=showProposal;showProposal();
         status.textContent=(incidentData.incidents||[]).length+" hata kaydı · "+(proposalData.proposals||[]).length+" teşhis önerisi. Kod değişikliği ve yayın kapalı.";
