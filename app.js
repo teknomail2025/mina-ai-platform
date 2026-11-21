@@ -900,6 +900,7 @@
         <select id="selfHealingIncidentSelect" class="settings-select"><option value="">Hata kayıtları yükleniyor…</option></select>
         <div class="settings-info-row"><strong>Seçili hata</strong><span id="selfHealingIncidentDetails">Henüz kayıt yok.</span></div>
         <button type="button" class="settings-action" id="diagnoseSelfHealingIncident">Seçili hatayı AI ile teşhis et</button>
+        <button type="button" class="settings-action" id="generateSelfHealingPatch">Onaylanan öneri için düzeltme üret ve izole test başlat</button>
         <label class="settings-control-label" for="selfHealingProposalSelect">Teşhis önerileri</label>
         <select id="selfHealingProposalSelect" class="settings-select"><option value="">Öneriler yükleniyor…</option></select>
         <div id="selfHealingProposalDetails" class="settings-status">Henüz teşhis önerisi yok.</div>
@@ -972,7 +973,7 @@
         if(!proposalResponse.ok)throw new Error(proposalData.error||"Teşhis önerileri alınamadı.");
         $("selfHealingCaptureStatus").textContent=system.incidentCapture?"Etkin":"Kapalı";
         $("selfHealingAiStatus").textContent=system.aiDiagnosis?"Etkin":"API anahtarı eksik";
-        $("selfHealingPatchStatus").textContent=system.automaticCodeChanges?"Açık":"Kapalı · güvenli";
+        $("selfHealingPatchStatus").textContent=system.patchGeneration&&system.isolatedTestRunner?"Hazır · kod değişikliği yine kapalı":"Kapalı · GITHUB_ACTIONS_TOKEN gerekli";
         const incidentSelect=$("selfHealingIncidentSelect");
         const selectedIncident=incidentSelect.value;
         incidentSelect.replaceChildren(new Option("Bir hata kaydı seç…",""));
@@ -1032,7 +1033,21 @@
         await refreshSelfHealing();
       }catch(error){status.textContent=error.message||"Öneri değerlendirilemedi.";}
     };
-    $("approveSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("approve"));
+    $("generateSelfHealingPatch").addEventListener("click",async()=>{
+      const proposalId=$("selfHealingProposalSelect").value;
+      const status=$("selfHealingStatus");
+      if(!proposalId){status.textContent="Önce bir teşhis önerisi seç.";return;}
+      if(!window.confirm("Mina bu öneri için düzeltme üretecek ve kodu izole GitHub test ortamına gönderecek. Canlı kod değiştirilmeyecek. Devam edilsin mi?"))return;
+      status.textContent="AI düzeltme hazırlıyor ve izole test sürecini başlatıyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/proposals/"+encodeURIComponent(proposalId)+"/generate-patch",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"İzole test süreci başlatılamadı.");
+        status.textContent=data.message||"İzole test süreci başlatıldı. Canlı kod değiştirilmedi.";
+        await refreshSelfHealing();
+      }catch(error){status.textContent=error.message||"İzole test süreci başlatılamadı.";}
+    });
+        $("approveSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("approve"));
     $("rejectSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("reject"));
     void refreshSelfHealing();
     $("submitDisciplineAppeal").addEventListener("click",async()=>{
