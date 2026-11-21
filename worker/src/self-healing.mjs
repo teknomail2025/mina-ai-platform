@@ -40,12 +40,12 @@ export function parsePatchOutput(raw, allowedFiles = []) {
   if (!matches.length || matches.length > 5) return null;
   const files = [];
   let currentFile = null;
-  for (const line of patch.split(/\\r?\\n/)) {
+  for (const line of patch.split(/\r?\n/)) {
     if (line.startsWith("diff --git ")) {
-      const header = line.match(/^diff --git a\\/([^ ]+) b\\/([^ ]+)$/);
+      const header = line.match(/^diff --git a\/([^ ]+) b\/([^ ]+)$/);
       currentFile = header && header[1] === header[2] ? header[1] : null;
     } else if (line.startsWith("--- ") || line.startsWith("+++ ")) {
-      const header = line.match(/^(---) a\\/(.+)$|^(\\+\\+\\+) b\\/(.+)$/);
+      const header = line.match(/^(---) a\/(.+)$|^(\+\+\+) b\/(.+)$/);
       if (!header || !currentFile || (header[2] || header[4]) !== currentFile) return null;
     }
   }
