@@ -2,6 +2,31 @@
 (() => {
   "use strict";
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
+  let lastBrowserIncidentAt = 0;
+  function reportBrowserIncident(message, stack = "") {
+    if (window.MINA_AUTHENTICATED !== true) return;
+    const now = Date.now();
+    if (now - lastBrowserIncidentAt < 30000) return;
+    lastBrowserIncidentAt = now;
+    fetch(API_BASE + "/api/admin/self-healing/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "browser",
+        route: location.pathname,
+        message: String(message || "Browser runtime error").slice(0, 1000),
+        stack: String(stack || "").slice(0, 2500)
+      })
+    }).catch(() => {});
+  }
+  window.addEventListener("error", event => {
+    reportBrowserIncident(event.message || "Browser runtime error",
+      [event.filename, event.lineno, event.colno, event.error?.stack].filter(Boolean).join("\\n"));
+  });
+  window.addEventListener("unhandledrejection", event => {
+    const reason = event.reason;
+    reportBrowserIncident(reason?.message || String(reason || "Unhandled promise rejection"), reason?.stack || "");
+  });
   const STORAGE_KEY = "mina-ai-conversations-v1";
   const MEMORY_KEY = "mina-ai-user-memory-v1";
   const LANGUAGE_KEY = "mina-ai-language-v1";
