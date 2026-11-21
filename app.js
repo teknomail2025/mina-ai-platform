@@ -900,7 +900,7 @@
         <select id="selfHealingIncidentSelect" class="settings-select"><option value="">Hata kayıtları yükleniyor…</option></select>
         <div class="settings-info-row"><strong>Seçili hata</strong><span id="selfHealingIncidentDetails">Henüz kayıt yok.</span></div>
         <button type="button" class="settings-action" id="diagnoseSelfHealingIncident">Seçili hatayı AI ile teşhis et</button>
-        <button type="button" class="settings-action" id="generateSelfHealingPatch">Onaylanan öneri için düzeltme üret ve izole test başlat</button>
+        <button type="button" class="settings-action" id="generateSelfHealingPatch" disabled>Onaylanan öneri için düzeltme üret ve izole test başlat</button>
         <label class="settings-control-label" for="selfHealingProposalSelect">Teşhis önerileri</label>
         <select id="selfHealingProposalSelect" class="settings-select"><option value="">Öneriler yükleniyor…</option></select>
         <div id="selfHealingProposalDetails" class="settings-status">Henüz teşhis önerisi yok.</div>
