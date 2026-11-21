@@ -1,5 +1,5 @@
 import minaTraining from "./training.json";
-import { handleSelfHealingRequest } from "./self-healing.mjs";
+import { handleSelfHealingRequest, recordSelfHealingIncident } from "./self-healing.mjs";
 const DEFAULT_MODEL = "gemini-3.8-flash";
 const COMPLEX_MODEL = DEFAULT_MODEL; // Free-tier-safe: use HIGH thinking for complex tasks without requiring a paid Pro model.
 const FALLBACK_MODEL = "gemini-3.5-flash-lite";
@@ -307,11 +307,12 @@ async function cleanupExpiredStoredFiles(bucket,now=Date.now(),prefix="") {
 }
 
 export default {
- async scheduled(controller,env){ await cleanupExpiredStoredFiles(env.MINA_FILES,Date.now(),encodeURIComponent(String(env.ADMIN_USERNAME||"admin"))+"/"); },
+ async scheduled(controller,env){ try { await cleanupExpiredStoredFiles(env.MINA_FILES,Date.now(),encodeURIComponent(String(env.ADMIN_USERNAME||"admin"))+"/"); } catch(error) { await recordSelfHealingIncident(env,"/scheduled",error); throw error; } },
  async fetch(request,env){
   const cors=corsHeaders(request,env);
   if(request.method==="OPTIONS") return new Response(null,{status:204,headers:cors});
   const url=new URL(request.url);
+  try {
 
   if(url.pathname==="/api/auth/login"&&request.method==="POST"){
     if(!env.ADMIN_USERNAME||!env.ADMIN_PASSWORD||env.ADMIN_PASSWORD.length<12||!env.SESSION_SECRET||env.SESSION_SECRET.length<32) return json({error:"Yönetici girişi henüz güvenli biçimde yapılandırılmadı. Cloudflare Secrets ayarları bekleniyor."},503,cors);
@@ -746,5 +747,9 @@ export default {
     const generation={duration_ms:Date.now()-generationStartedAt,finish_reason:candidate?.finishReason||null,prompt_tokens:usage.promptTokenCount??null,output_tokens:usage.candidatesTokenCount??null,thinking_tokens:usage.thoughtsTokenCount??null};
     return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
   }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
+  } catch(error) {
+   await recordSelfHealingIncident(env,url.pathname,error);
+   return json({error:"Mina Worker beklenmeyen bir hatayla karşılaştı. Hata kaydedildi."},500,cors);
+  }
  }
 };
