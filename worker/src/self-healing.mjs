@@ -244,7 +244,7 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       await env.MINA_DB.prepare("INSERT INTO mina_self_healing_patches (id, proposal_id, patch_text, explanation, files_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'generated', ?)").bind(patchId, proposalId, generated.patch, generated.explanation, JSON.stringify(generated.files), now).run();
       const dispatchResponse = await fetch("https://api.github.com/repos/teknomail2025/mina-ai-platform/actions/workflows/mina-self-healing-runner.yml/dispatches", {
         method: "POST",
-        headers: { "Accept": "application/vnd.github+json", "Authorization": "Bearer " + env.GITHUB_ACTIONS_TOKEN, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Mina-Self-Healing" },
+        headers: { "Accept": "application/vnd.github+json", "Content-Type": "application/json", "Authorization": "Bearer " + env.GITHUB_ACTIONS_TOKEN, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Mina-Self-Healing" },
         body: JSON.stringify({ ref: "feature/mina-self-healing", inputs: { proposal_id: proposalId, patch: generated.patch } }),
         signal: AbortSignal.timeout(15000)
       }).catch(() => null);
