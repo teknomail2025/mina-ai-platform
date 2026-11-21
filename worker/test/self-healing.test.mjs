@@ -47,7 +47,7 @@ test("frontend captures browser and voice failures only for an authenticated adm
   assert.match(voice, /window\.MINA_AUTHENTICATED !== true/);
   assert.match(voice, /reportVoiceIncident\("Live voice WebSocket error"\)/);
   assert.match(voice, /source: "browser"/);
-  const reportFunction = app.match(/function reportBrowserIncident\\([\\s\\S]*?\\n  }/);
+  const reportFunction = app.match(/function reportBrowserIncident\([\s\S]*?\n  }/);
   assert.ok(reportFunction, "browser incident reporter must exist");
   assert.doesNotMatch(reportFunction[0], /messages|conversation|audio/i);
 });
