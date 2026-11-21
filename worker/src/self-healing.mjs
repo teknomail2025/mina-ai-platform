@@ -98,7 +98,7 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
     || path === "/api/admin/self-healing/incidents"
     || path === "/api/admin/self-healing/diagnose"
     || path === "/api/admin/self-healing/proposals"
-    || /^\/api\/admin\/self-healing\/proposals\/[0-9a-f-]{36}\/review$/i.test(path);
+    || /^\/api\/admin\/self-healing\/proposals\/[0-9a-f-]{36}\/(?:review|generate-patch)$/i.test(path);
   if (!route) return null;
   if (!env.MINA_DB) return json({ error: "Kendi kendini onarma kayıtları için D1 veritabanı gerekli." }, 503, cors);
 
@@ -109,11 +109,12 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         enabled: true,
         incidentCapture: true,
         aiDiagnosis: !!env.GEMINI_API_KEY,
+        patchGeneration: !!(env.GEMINI_API_KEY && env.GITHUB_ACTIONS_TOKEN),
+        isolatedTestRunner: !!env.GITHUB_ACTIONS_TOKEN,
         patchExecution: false,
         automaticCodeChanges: false,
-        isolatedTestRunner: false,
         approvalRequired: true,
-        note: "Mina hataları kaydedip teşhis önerisi hazırlar. Kod değiştirme veya çalıştırma bu sürümde kapalıdır."
+        note: "Mina hataları kaydeder, teşhis eder ve onaylanan öneriler için izole test PR'ı hazırlayabilir. Canlı kod değişikliği ve yayın kapalıdır."
       }, 200, { ...cors, "Cache-Control": "no-store" });
     }
 
