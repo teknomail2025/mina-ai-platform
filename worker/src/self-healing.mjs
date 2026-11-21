@@ -33,12 +33,22 @@ export function parsePatchOutput(raw, allowedFiles = []) {
   if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) return null;
   const explanation = typeof parsed.explanation === "string" ? sanitizeDiagnosticText(parsed.explanation, 1200).trim() : "";
   const patch = typeof parsed.patch === "string" ? parsed.patch : "";
-  if (!patch || patch.length > 40000 || !explanation) return null;
+  if (!patch || patch.length > 40000 || !explanation || sanitizeDiagnosticText(patch, patch.length) !== patch) return null;
   if (/GIT binary patch|^(?:new file mode|deleted file mode|old mode|new mode|rename from|rename to|copy from|copy to) /m.test(patch)) return null;
   const permitted = new Set(allowedFiles.filter(isAllowedDiagnosticPath));
   const matches = [...patch.matchAll(/^diff --git a\/([^\r\n]+) b\/([^\r\n]+)$/gm)];
   if (!matches.length || matches.length > 5) return null;
   const files = [];
+  let currentFile = null;
+  for (const line of patch.split(/\\r?\\n/)) {
+    if (line.startsWith("diff --git ")) {
+      const header = line.match(/^diff --git a\\/([^ ]+) b\\/([^ ]+)$/);
+      currentFile = header && header[1] === header[2] ? header[1] : null;
+    } else if (line.startsWith("--- ") || line.startsWith("+++ ")) {
+      const header = line.match(/^(---) a\\/(.+)$|^(\\+\\+\\+) b\\/(.+)$/);
+      if (!header || !currentFile || (header[2] || header[4]) !== currentFile) return null;
+    }
+  }
   for (const match of matches) {
     const oldPath = match[1].trim();
     const newPath = match[2].trim();
@@ -196,6 +206,8 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       if (!proposal) return json({ error: "Teşhis önerisi bulunamadı." }, 404, cors);
       if (proposal.status !== "approved_for_manual_test") return json({ error: "Önce teşhis önerisini manuel test için onaylamalısın." }, 409, cors);
       if (proposal.risk_level === "critical") return json({ error: "Kritik riskli öneriler için otomatik patch üretimi engellendi." }, 403, cors);
+      const existingPatch = await env.MINA_DB.prepare("SELECT id, status FROM mina_self_healing_patches WHERE proposal_id = ?").bind(proposalId).first();
+      if (existingPatch && existingPatch.status !== "dispatch_failed") return json({ error: "Bu öneri için patch süreci zaten başlatılmış." }, 409, cors);
       const suggestedFiles = [...new Set(JSON.parse(proposal.files_json || "[]").filter(isAllowedDiagnosticPath))].slice(0, 5);
       if (!suggestedFiles.length) return json({ error: "Teşhis önerisinde güvenli kaynak dosyası bulunamadı." }, 400, cors);
       const incident = await env.MINA_DB.prepare("SELECT source, route, message, stack FROM mina_self_healing_incidents WHERE id = ?").bind(proposal.incident_id).first();
@@ -239,9 +251,9 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       const raw = providerData.candidates?.[0]?.content?.parts?.map(part => part.text || "").join("") || "";
       const generated = parsePatchOutput(raw, suggestedFiles);
       if (!generated) return json({ error: "AI güvenli ve doğrulanabilir bir unified diff üretemedi. Kod değiştirilmedi." }, 422, cors);
-      const patchId = crypto.randomUUID();
+      const patchId = existingPatch?.id || crypto.randomUUID();
       const now = Date.now();
-      await env.MINA_DB.prepare("INSERT INTO mina_self_healing_patches (id, proposal_id, patch_text, explanation, files_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'generated', ?)").bind(patchId, proposalId, generated.patch, generated.explanation, JSON.stringify(generated.files), now).run();
+      await env.MINA_DB.prepare("INSERT INTO mina_self_healing_patches (id, proposal_id, patch_text, explanation, files_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'generated', ?) ON CONFLICT(proposal_id) DO UPDATE SET patch_text = excluded.patch_text, explanation = excluded.explanation, files_json = excluded.files_json, status = 'generated', created_at = excluded.created_at").bind(patchId, proposalId, generated.patch, generated.explanation, JSON.stringify(generated.files), now).run();
       const dispatchResponse = await fetch("https://api.github.com/repos/teknomail2025/mina-ai-platform/actions/workflows/mina-self-healing-runner.yml/dispatches", {
         method: "POST",
         headers: { "Accept": "application/vnd.github+json", "Content-Type": "application/json", "Authorization": "Bearer " + env.GITHUB_ACTIONS_TOKEN, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Mina-Self-Healing" },
