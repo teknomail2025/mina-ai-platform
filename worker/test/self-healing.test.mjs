@@ -96,7 +96,7 @@ test("isolated repair workflow tests without secrets and creates only a review p
 test("Worker exposes patch generation only through the authenticated proposal workflow", async () => {
   const fs = await import("node:fs");
   const worker = fs.readFileSync(new URL("../src/self-healing.mjs", import.meta.url), "utf8");
-  assert.match(worker, /(?:review\|generate-patch)/);
+  assert.match(worker, /(?:review|generate-patch)/);
   assert.match(worker, /proposal\.status !== "approved_for_manual_test"/);
   assert.match(worker, /env\.GITHUB_ACTIONS_TOKEN/);
   assert.match(worker, /automaticCodeChanges: false/);
