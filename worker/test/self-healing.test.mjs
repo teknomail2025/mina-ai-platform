@@ -117,7 +117,12 @@ test("self-healing incident history is bounded to 30 days and 500 records", asyn
 
 
 test("source sent for repair analysis redacts embedded credentials and private keys", () => {
-  const source = 'const API_KEY = "ghp_abcdefghijklmnopqrstuvwxyz123456";\\nconst PRIVATE = `-----BEGIN PRIVATE KEY-----\\nsecret-material\\n-----END PRIVATE KEY-----`;';
+  const source = [
+    'const API_KEY = "ghp_abcdefghijklmnopqrstuvwxyz123456";',
+    'const PRIVATE = `-----BEGIN PRIVATE KEY-----',
+    'secret-material',
+    '-----END PRIVATE KEY-----`;'
+  ].join("\\n");
   const sanitized = sanitizeSourceForPatch(source);
   assert.doesNotMatch(sanitized, /ghp_abcdefghijklmnopqrstuvwxyz123456|secret-material/);
   assert.equal((sanitized.match(/\\[REDACTED\\]/g) || []).length, 2);
@@ -131,7 +136,7 @@ test("patch parser rejects redaction placeholders instead of turning them into s
 test("repair workflow pins tests to the exact source commit and checks branch ancestry", async () => {
   const fs = await import("node:fs");
   const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
-  assert.match(workflow, /base_sha:/);
-  assert.match(workflow, /git merge-base --is-ancestor "\$BASE_SHA" origin\\/feature\\/mina-self-healing/);
-  assert.match(workflow, /git switch --detach "\$BASE_SHA"/);
+  assert.ok(workflow.includes("base_sha:"));
+  assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/feature/mina-self-healing'));
+  assert.ok(workflow.includes('git switch --detach "$BASE_SHA"'));
 });
