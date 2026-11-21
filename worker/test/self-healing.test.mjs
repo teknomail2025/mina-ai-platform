@@ -77,3 +77,17 @@ test("patch parser accepts only bounded unified diffs for approved allowlisted f
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/other.js\\n--- a/app.js\\n+++ b/other.js\\n@@ -1 +1 @@\\n-a\\n+b" }), ["app.js"]), null);
   assert.equal(parsePatchOutput(JSON.stringify({ explanation: "bad", patch: "diff --git a/app.js b/app.js\\nnew file mode 100644\\n--- a/app.js\\n+++ b/app.js\\n@@ -1 +1 @@\\n-a\\n+b" }), ["app.js"]), null);
 });
+
+
+test("isolated repair workflow tests without secrets and creates only a review pull request", async () => {
+  const fs = await import("node:fs");
+  const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
+  assert.match(workflow, /workflow_dispatch:/);
+  assert.match(workflow, /validate-and-test:[\s\S]*?permissions:\s*contents: read/);
+  assert.match(workflow, /create-review-pull-request:[\s\S]*?permissions:\s*contents: write\s*pull-requests: write/);
+  assert.match(workflow, /node --test worker\/test\/\*\.test\.cjs worker\/test\/\*\.test\.mjs/);
+  assert.match(workflow, /wrangler@4 deploy --dry-run/);
+  assert.match(workflow, /--base feature\/mina-self-healing/);
+  assert.doesNotMatch(workflow, /wrangler@4 deploy --config/);
+  assert.doesNotMatch(workflow, /secrets\.[A-Z_]+/);
+});
