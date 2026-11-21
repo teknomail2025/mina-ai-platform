@@ -39,8 +39,6 @@ jobs:
               sys.exit("Patch is empty or exceeds 40 KB.")
           allowed = {
               "worker/src/index.js",
-              "worker/test/worker.test.cjs",
-              "worker/test/voice.test.cjs",
               "app.js",
               "auth.js",
               "voice.js",
