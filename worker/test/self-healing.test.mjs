@@ -13,6 +13,7 @@ test("source path allowlist rejects traversal and unknown files", () => {
   assert.equal(isAllowedDiagnosticPath("worker/src/index.js"), true);
   assert.equal(isAllowedDiagnosticPath("../../wrangler.toml"), false);
   assert.equal(isAllowedDiagnosticPath("worker/wrangler.toml"), false);
+  assert.equal(isAllowedDiagnosticPath("worker/test/worker.test.cjs"), false, "AI patches must not weaken the regression suite");
 });
 
 test("diagnosis parser validates required fields and filters suggested files", () => {
