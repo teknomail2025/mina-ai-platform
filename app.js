@@ -21,7 +21,7 @@
   }
   window.addEventListener("error", event => {
     reportBrowserIncident(event.message || "Browser runtime error",
-      [event.filename, event.lineno, event.colno, event.error?.stack].filter(Boolean).join("\\n"));
+      [event.filename, event.lineno, event.colno, event.error?.stack].filter(Boolean).join("\n"));
   });
   window.addEventListener("unhandledrejection", event => {
     const reason = event.reason;
