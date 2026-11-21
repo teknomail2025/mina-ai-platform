@@ -51,3 +51,16 @@ test("frontend captures browser and voice failures only for an authenticated adm
   assert.ok(reportFunction, "browser incident reporter must exist");
   assert.doesNotMatch(reportFunction[0], /messages|conversation|audio/i);
 });
+
+
+test("settings expose a guarded self-healing incident and diagnosis review panel", async () => {
+  const fs = await import("node:fs");
+  const app = fs.readFileSync(new URL("../../app.js", import.meta.url), "utf8");
+  const html = fs.readFileSync(new URL("../../index.html", import.meta.url), "utf8");
+  for (const id of ["selfHealingCaptureStatus","selfHealingIncidentSelect","diagnoseSelfHealingIncident","selfHealingProposalSelect","approveSelfHealingProposal","rejectSelfHealingProposal"]) {
+    assert.ok(app.includes(id), "settings UI must wire "+id);
+  }
+  assert.match(html, /data-settings-section="self-healing"/);
+  assert.match(app, /automaticCodeChanges\?"Açık":"Kapalı/);
+  assert.match(app, /Kod değişikliği ve yayın kapalı/);
+});
