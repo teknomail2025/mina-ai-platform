@@ -189,20 +189,25 @@ async function callGeminiWithFallback(env, initialModel, payload) {
   let response = null;
   let selectedModel = initialModel;
   let lastError = null;
+  const diagnostics = [];
   for (let index = 0; index < candidates.length; index++) {
     selectedModel = candidates[index];
     try {
       response = await callGemini(env, selectedModel, payload);
-      if (response.ok) return { response, model: selectedModel };
+      if (response.ok) return { response, model: selectedModel, diagnostics };
+      const rawError = await response.clone().text().catch(() => "");
+      let detail = rawError.slice(0, 500);
+      try { detail = JSON.parse(rawError)?.error?.message || detail; } catch {}
+      diagnostics.push({ model: selectedModel, status: response.status, detail });
       // Only transient capacity, rate-limit, and upstream failures should trigger model fallback.
       if (![429, 500, 502, 503, 504, 524].includes(response.status)) break;
     } catch (error) {
-      // A network failure or exhausted timeout retry should not prevent trying a backup model.
       lastError = error;
+      diagnostics.push({ model: selectedModel, error: error?.name || "Error", detail: error?.message || "network failure" });
     }
   }
   if (!response && lastError) throw lastError;
-  return { response, model: selectedModel };
+  return { response, model: selectedModel, diagnostics };
 }
 async function callOpenAI(env,model,payload){
   const messages=[{role:"system",content:SYSTEM_PROMPT},...payload.contents.map(m=>({role:m.role==="model"?"assistant":"user",content:m.parts.map(p=>p.text||"").join("\n")}))];
@@ -719,6 +724,7 @@ export default {
       const result = await callGeminiWithFallback(env, model, payload);
       upstream = result.response;
       model = result.model;
+      var fallbackDiagnostics = result.diagnostics;
     }
     else if(provider==="openai") upstream=await callOpenAI(env,body.model==="advanced"?"advanced":"fast",payload);
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
@@ -732,7 +738,7 @@ export default {
     const candidate=parsed?.candidates?.[0];
     const usage=parsed?.usageMetadata||{};
     const generation={duration_ms:Date.now()-generationStartedAt,finish_reason:candidate?.finishReason||null,prompt_tokens:usage.promptTokenCount??null,output_tokens:usage.candidatesTokenCount??null,thinking_tokens:usage.thoughtsTokenCount??null};
-    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,fallback_diagnostics:provider==="gemini"&&model!==requestedModel?fallbackDiagnostics:undefined,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
   }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
  }
 };
