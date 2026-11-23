@@ -182,15 +182,7 @@ function imageDataIsValid(image){
 async function callGemini(env,model,payload){
   const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent";
   const options={method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)};
-  for(let attempt=0;attempt<2;attempt++){
-    try{return await fetch(url,{...options,signal:AbortSignal.timeout(45000)});}
-    catch(error){
-      const timedOut=error?.name==="TimeoutError"||error?.name==="AbortError";
-      if(!timedOut||attempt===1) throw error;
-      await new Promise(resolve=>setTimeout(resolve,1500));
-    }
-  }
-  throw new Error("Gemini isteği zaman aşımına uğradı.");
+  return fetch(url,{...options,signal:AbortSignal.timeout(25000)});
 }
 async function callGeminiWithFallback(env, initialModel, payload) {
   const candidates = [...new Set([initialModel, FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL])];
@@ -700,7 +692,6 @@ export default {
   if(!apiKey) return json({error:provider+" sağlayıcısı sunucuda yapılandırılmamış. Cloudflare Worker Secrets bölümüne API anahtarını ekleyin."},503,cors);
   if(body.image&&provider!=="gemini") return json({error:"Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
   const routing=chooseTask(body.messages);let model=body.image?DEFAULT_MODEL:body.model==="fast"?DEFAULT_MODEL:body.model==="advanced"?COMPLEX_MODEL:routing.model;
-  if(!body.image&&body.model!=="advanced"&&routing.task==="chat")model=FALLBACK_MODEL;
   if(capabilities.code===false&&routing.task==="coding")model=DEFAULT_MODEL;
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
