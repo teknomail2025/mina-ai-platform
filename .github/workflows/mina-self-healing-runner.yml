@@ -109,7 +109,7 @@ jobs:
       - name: Run regression and self-healing tests
         run: node --test worker/test/*.test.cjs worker/test/*.test.mjs
       - name: Validate Worker bundle without deployment
-        run: npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
+        run: npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
       - name: Upload validated patch
         uses: actions/upload-artifact@v4
         with:
