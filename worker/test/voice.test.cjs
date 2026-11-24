@@ -61,7 +61,13 @@ test("voice moderation preserves every completed utterance and checks them in or
   for (const handler of element("voiceModeBtn").handlers.click) await handler();
   for (let i = 0; i < 20 && !socket; i++) await new Promise(resolve => setImmediate(resolve));
   assert.ok(socket, "voice startup must create the WebSocket");
+  assert.equal(socket.url, "wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token=ephemeral-test-token");
   socket.onopen();
+  const setupFrame = JSON.parse(socket.lastSent);
+  assert.equal(setupFrame.setup.model, "models/gemini-3.8-live");
+  assert.deepEqual(setupFrame.setup.generationConfig.responseModalities, ["AUDIO"]);
+  assert.ok(setupFrame.setup.inputAudioTranscription);
+  assert.ok(setupFrame.setup.outputAudioTranscription);
   socket.onmessage({ data: JSON.stringify({ setupComplete: {} }) });
   socket.onmessage({ data: JSON.stringify({ serverContent: { inputTranscription: { text: "İlk " } } }) });
   socket.onmessage({ data: JSON.stringify({ serverContent: { inputTranscription: { text: "konuşma" } } }) });
