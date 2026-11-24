@@ -86,27 +86,59 @@ jobs:
           fi
           echo "$HEALTH" | jq -e '.ok == true and .memoryConfigured == true and .adminAuthConfigured == true' >/dev/null
 
+          echo "Preview health endpoint passed."
+
+          http_request() {
+            curl --silent --show-error -w '\n%{http_code}' "$@"
+          }
+
           LOGIN_BODY="$(jq -nc --arg username "$PREVIEW_ADMIN_USERNAME" --arg password "$PREVIEW_ADMIN_PASSWORD" '{username:$username,password:$password,rememberMe:true}')"
-          LOGIN="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -d "$LOGIN_BODY" "$PREVIEW_URL/api/auth/login")"
+          LOGIN_RESPONSE="$(http_request -H 'Content-Type: application/json' -d "$LOGIN_BODY" "$PREVIEW_URL/api/auth/login")"
+          LOGIN_STATUS="$(printf '%s\n' "$LOGIN_RESPONSE" | tail -n 1)"
+          LOGIN="$(printf '%s\n' "$LOGIN_RESPONSE" | sed '$d')"
+          if [[ "$LOGIN_STATUS" != "200" ]]; then
+            echo "Preview login returned HTTP $LOGIN_STATUS"
+            printf '%s' "$LOGIN" | head -c 1000
+            exit 1
+          fi
           TOKEN="$(echo "$LOGIN" | jq -r '.token // empty')"
           test -n "$TOKEN" || { echo "Preview admin login did not return a session token."; exit 1; }
 
           FILE_DATA="$(printf 'Mina Preview smoke test\n' | base64 -w0)"
           UPLOAD_BODY="$(jq -nc --arg name 'mina-preview-smoke.txt' --arg data "$FILE_DATA" '{name:$name,data:$data}')"
-          UPLOAD="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$UPLOAD_BODY" "$PREVIEW_URL/api/files")"
+          UPLOAD_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$UPLOAD_BODY" "$PREVIEW_URL/api/files")"
+          UPLOAD_STATUS="$(printf '%s\n' "$UPLOAD_RESPONSE" | tail -n 1)"
+          UPLOAD="$(printf '%s\n' "$UPLOAD_RESPONSE" | sed '$d')"
+          if [[ "$UPLOAD_STATUS" != "201" ]]; then
+            echo "Preview R2 upload returned HTTP $UPLOAD_STATUS"
+            printf '%s' "$UPLOAD" | head -c 1000
+            exit 1
+          fi
           FILE_ID="$(echo "$UPLOAD" | jq -r '.id // empty')"
           test -n "$FILE_ID" || { echo "R2 upload did not return a file id."; exit 1; }
 
-          LIST="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          LIST_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          LIST_STATUS="$(printf '%s\n' "$LIST_RESPONSE" | tail -n 1)"
+          LIST="$(printf '%s\n' "$LIST_RESPONSE" | sed '$d')"
+          test "$LIST_STATUS" = "200" || { echo "Preview file list returned HTTP $LIST_STATUS"; printf '%s' "$LIST" | head -c 1000; exit 1; }
           echo "$LIST" | jq -e --arg id "$FILE_ID" 'any(.files[]?; .id == $id)' >/dev/null
 
-          DOWNLOADED="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          DOWNLOAD_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          DOWNLOAD_STATUS="$(printf '%s\n' "$DOWNLOAD_RESPONSE" | tail -n 1)"
+          DOWNLOADED="$(printf '%s\n' "$DOWNLOAD_RESPONSE" | sed '$d')"
+          test "$DOWNLOAD_STATUS" = "200" || { echo "Preview download returned HTTP $DOWNLOAD_STATUS"; printf '%s' "$DOWNLOADED" | head -c 1000; exit 1; }
           test "$DOWNLOADED" = "$(printf 'Mina Preview smoke test\n')"
 
-          DELETED="$(curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          DELETE_RESPONSE="$(http_request -X DELETE -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          DELETE_STATUS="$(printf '%s\n' "$DELETE_RESPONSE" | tail -n 1)"
+          DELETED="$(printf '%s\n' "$DELETE_RESPONSE" | sed '$d')"
+          test "$DELETE_STATUS" = "200" || { echo "Preview delete returned HTTP $DELETE_STATUS"; printf '%s' "$DELETED" | head -c 1000; exit 1; }
           echo "$DELETED" | jq -e '.deleted == true' >/dev/null
 
-          LIST_AFTER_DELETE="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          LIST_AFTER_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          LIST_AFTER_STATUS="$(printf '%s\n' "$LIST_AFTER_RESPONSE" | tail -n 1)"
+          LIST_AFTER_DELETE="$(printf '%s\n' "$LIST_AFTER_RESPONSE" | sed '$d')"
+          test "$LIST_AFTER_STATUS" = "200" || { echo "Preview post-delete list returned HTTP $LIST_AFTER_STATUS"; printf '%s' "$LIST_AFTER_DELETE" | head -c 1000; exit 1; }
           echo "$LIST_AFTER_DELETE" | jq -e --arg id "$FILE_ID" 'all(.files[]?; .id != $id)' >/dev/null
 
           echo "Preview health, admin authentication, D1 quota/schema, R2 upload, list, download and delete all passed."
