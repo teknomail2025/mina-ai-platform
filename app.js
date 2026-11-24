@@ -158,6 +158,7 @@
     uiLanguage = event.detail?.language === "en" ? "en" : "tr";
     activeTimerUpdate?.();
     $("refreshMinaUsage")?.click();
+    if (window.MINA_AUTHENTICATED === true) refreshSelfHealing();
     queueCloudPreferences();
   });
 
