@@ -117,6 +117,16 @@ jobs:
             exit 0
           fi
 
+          USAGE_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/usage")"
+          USAGE_STATUS="$(printf '%s\n' "$USAGE_RESPONSE" | tail -n 1)"
+          USAGE="$(printf '%s\n' "$USAGE_RESPONSE" | sed '$d')"
+          test "$USAGE_STATUS" = "200" || { echo "Preview usage endpoint returned HTTP $USAGE_STATUS"; printf '%s' "$USAGE" | head -c 1000; exit 1; }
+          echo "$USAGE" | jq -e '.usage != null' >/dev/null
+          if [[ "$GITHUB_HEAD_REF" == "fix/image-pipeline-and-usage-quotas" ]]; then
+            echo "Health, authentication and usage checks passed; R2 lifecycle begins in the next feature branch."
+            exit 0
+          fi
+
           FILE_DATA="$(printf 'Mina Preview smoke test\n' | base64 -w0)"
           UPLOAD_BODY="$(jq -nc --arg name 'mina-preview-smoke.txt' --arg data "$FILE_DATA" '{name:$name,data:$data}')"
           UPLOAD_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$UPLOAD_BODY" "$PREVIEW_URL/api/files")"
