@@ -1191,32 +1191,6 @@ test("chat attachment quota is based on the stored original R2 object size", asy
   assert.ok([...usageStore.entries()].some(([key,value])=>key.includes("|file_bytes|")&&value.used===11));
 });
 
-test("Gemini 503 on ordinary chat switches to a different Flash-Lite model", async () => {
-  const { worker, requestedModels } = createWorker(async target => {
-    if (target.includes("gemini-3.5-flash-lite:generateContent")) {
-      return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
-    }
-    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
-  });
-  const login = await call(worker, "/api/auth/login", {
-    method: "POST",
-    body: { username: "Argion", password: env.ADMIN_PASSWORD }
-  });
-  const result = await call(worker, "/api/chat", {
-    method: "POST",
-    token: login.data.token,
-    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
-  });
-  assert.equal(result.status, 200);
-  assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
-  assert.equal(result.data.requested_model, "gemini-3.5-flash-lite");
-  assert.equal(result.data.model, "gemini-3.1-flash-lite");
-  assert.equal(result.data.fallback_used, true);
-  assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
-  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"));
-  assert.ok(requestedModels[1].includes("gemini-3.1-flash-lite"));
-});
-
 test("chat loads durable D1 memory into Gemini system context and reports generation diagnostics", async () => {
   let capturedPayload;
   const { worker, mockDb } = createWorker(async (url, options) => {

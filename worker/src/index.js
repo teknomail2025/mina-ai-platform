@@ -704,7 +704,6 @@ export default {
   if(!apiKey) return json({error:provider+" sağlayıcısı sunucuda yapılandırılmamış. Cloudflare Worker Secrets bölümüne API anahtarını ekleyin."},503,cors);
   if(body.image&&provider!=="gemini") return json({error:"Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
   const routing=chooseTask(body.messages);let model=body.image?DEFAULT_MODEL:body.model==="fast"?DEFAULT_MODEL:body.model==="advanced"?COMPLEX_MODEL:routing.model;
-  if(!body.image&&body.model!=="advanced"&&routing.task==="chat")model=FALLBACK_MODEL;
   if(capabilities.code===false&&routing.task==="coding")model=DEFAULT_MODEL;
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
