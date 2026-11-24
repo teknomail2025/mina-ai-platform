@@ -1053,6 +1053,21 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(liveTokenRequests[0].payload.liveConnectConstraints, undefined);
 });
 
+test("unauthenticated live-minute and voice-discipline requests cannot consume quota or punish the admin", async () => {
+  const { worker, disciplineStore, usageStore } = createWorker();
+  const liveMinute = await call(worker, "/api/live-minute", { method: "POST", body: {} });
+  assert.equal(liveMinute.status, 401);
+  assert.equal(usageStore.size, 0, "guest requests must not consume live-minute quota");
+
+  const voiceCheck = await call(worker, "/api/discipline/voice-check", {
+    method: "POST",
+    body: { text: "Sen aptalsın." }
+  });
+  assert.equal(voiceCheck.status, 401);
+  assert.equal(disciplineStore.row, null, "guest requests must not create discipline state");
+  assert.equal(disciplineStore.events.length, 0, "guest requests must not create discipline events");
+});
+
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
   const { worker, disciplineStore } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
