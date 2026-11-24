@@ -132,6 +132,7 @@
   window.addEventListener("mina:ui-language-changed", event => {
     uiLanguage = event.detail?.language === "en" ? "en" : "tr";
     activeTimerUpdate?.();
+    $("refreshMinaUsage")?.click();
     queueCloudPreferences();
   });
 
@@ -381,10 +382,6 @@
         action("⧉",uiText("Yanıtı kopyala"),()=>{ if(navigator.clipboard?.writeText) navigator.clipboard.writeText(m.content).catch(()=>alert(uiText("Kopyalama izni alınamadı."))); });
         action("↻",uiText("Yanıtı yeniden oluştur"),()=>regenerateResponse(c.id));
       }
-      if(m.role==="assistant"&&m.fileId){
-        action("↓",m.fileName+" dosyasını indir",()=>downloadStoredFile(m.fileId,m.fileName).catch(error=>alert(error.message)));
-        action("⌫","Saklanan dosyayı sil",()=>{if(window.confirm(m.fileName+" dosyasını R2 deposundan silmek istiyor musun?"))deleteStoredFile(m).catch(error=>alert(error.message));});
-      }
       action("×",uiText("Mesajı sil"),()=>deleteMessage(c.id,c.messages.indexOf(m)));
       row.append(actions);
       if (m.role === "assistant" && ("speechSynthesis" in window) && window.SpeechSynthesisUtterance) {
@@ -541,22 +538,7 @@
   }
 
   function render() { renderList(); renderMessages(); }
-  function addMessage(role, content, metadata = {}) { const c = current(); c.messages.push({role,content,...metadata}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
-  async function downloadStoredFile(id,name) {
-    const response=await fetch(API_BASE+"/api/files/"+encodeURIComponent(id),{cache:"no-store"});
-    if(!response.ok){const data=await response.json().catch(()=>({}));throw new Error(data.error||"Dosya indirilemedi.");}
-    const blob=await response.blob(),url=URL.createObjectURL(blob),link=document.createElement("a");
-    link.href=url;link.download=name||"mina-dosyasi";link.click();setTimeout(()=>URL.revokeObjectURL(url),1000);
-  }
-  async function deleteStoredFile(message) {
-    const response=await fetch(API_BASE+"/api/files/"+encodeURIComponent(message.fileId),{method:"DELETE"});
-    const data=await response.json().catch(()=>({}));
-    if(!response.ok)throw new Error(data.error||"Dosya silinemedi.");
-    delete message.fileId;delete message.fileName;delete message.fileExpiresAt;persist();render();
-  }
-  function fileToBase64(file) {
-    return new Promise((resolve,reject)=>{const reader=new FileReader();reader.onload=()=>resolve(String(reader.result||"").split(",")[1]||"");reader.onerror=()=>reject(new Error("Dosya okunamadı."));reader.readAsDataURL(file);});
-  }
+  function addMessage(role, content) { const c = current(); c.messages.push({role,content}); if (role === "user" && c.messages.filter(m=>m.role==="user").length === 1) c.title = content.slice(0,42) || "Yeni sohbet"; persist(); render(); }
   function setBusy(v) { busy = v; const chatDisabled=MINA_CAPABILITIES.chat===false; els.send.disabled = v || chatDisabled; els.input.disabled = v || chatDisabled; els.send.textContent = v ? "…" : "↑"; }
   async function checkHealth() {
     try { const r = await fetch(API_BASE + "/api/health", {headers:{Accept:"application/json"}}); if (!r.ok) throw new Error(); }
@@ -571,25 +553,16 @@
     if (attachedFile?.kind === "pdf") prompt += (prompt ? "\n\n" : "") + "Ekli PDF belgesi: " + attachedFile.name + ". Belgeyi incele ve sorumu yanıtla.";
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
     if (!prompt.trim()) return;
-    // Durable memory is loaded by the Worker from D1 for every request; avoid stale browser copies and sync latency.
-    const requestPrompt = prompt;
+    await memorySyncPromise;
+    const requestPrompt = userMemory ? "Kullanıcı hafızası (yalnızca ilgili olduğunda kullan):\n" + userMemory + "\n\nKullanıcının isteği: " + prompt : prompt;
     if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = ""; els.imageInput.value = "";
     setBusy(true);
-    let storedFile=null;
     const typing = document.createElement("div"); typing.className = "typing"; typing.textContent = "Mina düşünüyor…"; els.messages.append(typing); els.chatScroll.scrollTop = els.chatScroll.scrollHeight;
     try {
-      if(file&&file.kind!=="image"){
-        const rawBase64=file.rawBase64||(file.kind==="pdf"?file.data.split(",")[1]:"");
-        if(!rawBase64)throw new Error("Dosyanın orijinal içeriği okunamadı.");
-        const storedResponse=await fetch(API_BASE+"/api/files",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({name:file.name,data:rawBase64})});
-        const storedData=await storedResponse.json().catch(()=>({}));
-        if(!storedResponse.ok)throw new Error(storedData.error||"Dosya 24 saatlik güvenli depoya kaydedilemedi.");
-        storedFile=storedData;
-      }
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf"}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,...(file.name.toLowerCase().endsWith(".docx")?{content:file.content}:{})}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf",data:file.data.split(",")[1]}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,content:file.content}:undefined, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       if(typeof data.memory_updated==="string"){
@@ -612,12 +585,10 @@
         if (codeStart >= 0 && codeEnd > codeStart) { els.codeEditor.value = answer.slice(codeStart + 1, codeEnd).trim(); els.codeWorkspacePanel.hidden = false; }
       }
       const sourceText = (data.sources || []).length ? "\n\n" + uiText("Kaynaklar:") + "\n" + data.sources.map(s => s.title + " — " + s.url).join("\n") : "";
-      const retentionText=storedFile?"\n\n📎 "+storedFile.name+" güvenli depoda 24 saat saklanacak.":"";
-      addMessage("assistant", answer.trim() + sourceText + retentionText, storedFile?{fileId:storedFile.id,fileName:storedFile.name,fileExpiresAt:storedFile.expiresAt}:{});
+      addMessage("assistant", answer.trim() + sourceText);
       if (voiceMode) { if ("speechSynthesis" in window) speakText(answer.trim()); else startRecognition(); }
     } catch (err) {
-      const savedNotice=storedFile?"\n\n📎 "+storedFile.name+" güvenli depoda 24 saat saklanacak.":"";
-      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + savedNotice + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."), storedFile?{fileId:storedFile.id,fileName:storedFile.name,fileExpiresAt:storedFile.expiresAt}:{});
+      addMessage("assistant", uiText("Şu anda yanıt alamadım. ") + uiError(err.message) + "\n\n" + uiText("Cloudflare Worker ve Gemini API anahtarını kontrol et."));
     } finally { typing.remove(); setBusy(false); els.input.focus(); }
   }
   let recognition = null;
@@ -984,7 +955,8 @@
         if(!response.ok)throw new Error(data.error||"Kullanım bilgisi alınamadı.");
         const usage=data.usage||{};
         const fileUsed=((usage.files?.usedBytes||0)/1048576).toFixed(1);
-        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/5 · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/5 · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/5 · "+uiText("Canlı ses")+" "+(usage.live_minutes?.used||0)+"/10 dk · "+uiText("Dosya")+" "+fileUsed+"/100 MB";
+        const minuteUnit=uiLanguage==="en"?"min":"dk";
+        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/5 · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/5 · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/5 · "+uiText("Canlı ses")+" "+(usage.live_minutes?.used||0)+"/10 "+minuteUnit+" · "+uiText("Dosya")+" "+fileUsed+"/100 MB";
       }catch(error){status.textContent=error.message||uiText("Kullanım bilgisi alınamadı.");}
     };
     $("refreshMinaUsage").addEventListener("click",refreshUsage);
@@ -1121,7 +1093,7 @@
       if(lower.endsWith(".pdf")){
         if(f.type!=="application/pdf")throw new Error("PDF dosyasının türü doğrulanamadı.");
         const reader=new FileReader();
-        reader.onload=()=>{attachedFile={kind:"pdf",name:f.name,data:reader.result,rawBase64:String(reader.result).split(",")[1]||"",size:f.size};els.fileName.textContent="📕 "+f.name;els.fileChip.hidden=false;};
+        reader.onload=()=>{attachedFile={kind:"pdf",name:f.name,data:reader.result,size:f.size};els.fileName.textContent="📕 "+f.name;els.fileChip.hidden=false;};
         reader.onerror=()=>alert(uiText("PDF dosyası okunamadı."));
         reader.readAsDataURL(f);return;
       }
@@ -1129,11 +1101,11 @@
         if(!window.mammoth)throw new Error("DOCX okuyucusu yüklenemedi. Dosyayı PDF veya TXT olarak kaydedip tekrar dene.");
         const result=await window.mammoth.extractRawText({arrayBuffer:await f.arrayBuffer()});
         if(!result.value.trim())throw new Error("DOCX dosyasında okunabilir metin bulunamadı.");
-        attachedFile={kind:"text",name:f.name,content:result.value,rawBase64:await fileToBase64(f),size:f.size};
+        attachedFile={kind:"text",name:f.name,content:result.value,size:f.size};
       }else{
         const allowed=[".txt",".rpy",".md",".csv",".json",".html",".css",".js",".py",".log",".ts",".tsx",".jsx",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml",".ini",".sql"];
         if(!allowed.some(ext=>lower.endsWith(ext)))throw new Error("Bu dosya türü desteklenmiyor.");
-        attachedFile={kind:"text",name:f.name,content:await f.text(),rawBase64:await fileToBase64(f),size:f.size};
+        attachedFile={kind:"text",name:f.name,content:await f.text(),size:f.size};
       }
       if([".js",".ts",".tsx",".jsx",".py",".rpy",".html",".css",".json",".sql",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml"].some(ext=>lower.endsWith(ext)))els.codeEditor.value=attachedFile.content;
       els.fileName.textContent="📄 "+f.name;els.fileChip.hidden=false;
