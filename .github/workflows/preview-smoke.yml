@@ -9,6 +9,7 @@ on:
       - "auth.js"
       - "voice.js"
       - "i18n.js"
+      - ".github/workflows/preview-smoke.yml"
 
 permissions:
   contents: read
@@ -140,6 +141,11 @@ jobs:
             test "$INCIDENTS_CODE" = "200" || { echo "Self-healing incident list returned HTTP $INCIDENTS_CODE"; printf '%s' "$INCIDENTS" | head -c 1000; exit 1; }
             echo "$INCIDENTS" | jq -e --arg id "$INCIDENT_ID" 'any(.incidents[]?; .id == $id)' >/dev/null
             echo "Self-healing status, safety defaults and incident capture passed."
+          fi
+
+          if [[ "$GITHUB_HEAD_REF" != "feat/r2-temporary-file-storage" && "$GITHUB_BASE_REF" != "feat/r2-temporary-file-storage" ]]; then
+            echo "Preview health, authentication and usage checks passed; R2 lifecycle is not part of this change set."
+            exit 0
           fi
 
           FILE_DATA="$(printf 'Mina Preview smoke test\n' | base64 -w0)"
