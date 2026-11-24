@@ -869,6 +869,11 @@ test("disabled coding capability routes technical prompts to Flash", async () =>
   assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
 });
 
+test("DOCX attachments include extracted text alongside the original stored file", () => {
+  assert.match(frontendSource, /file\\.name\\.toLowerCase\\(\\)\\.endsWith\\("\\.docx"\\)/);
+  assert.match(frontendSource, /content:file\\.content/);
+});
+
 test("frontend applies chat capability to the composer and sends capability settings", () => {
   assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
   assert.match(frontendSource, /MINA_CAPABILITIES\.chat===false/);
