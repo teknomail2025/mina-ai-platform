@@ -132,6 +132,7 @@
   window.addEventListener("mina:ui-language-changed", event => {
     uiLanguage = event.detail?.language === "en" ? "en" : "tr";
     activeTimerUpdate?.();
+    $("refreshMinaUsage")?.click();
     queueCloudPreferences();
   });
 
