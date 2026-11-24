@@ -2,6 +2,6 @@ name = "mina-ai-preview-migrations"
 
 [[d1_databases]]
 binding = "MINA_DB"
-database_name = "mina-ai-preview"
+database_name = "mina-ai-db-preview"
 database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"
 migrations_dir = "migrations"
