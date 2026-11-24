@@ -46,7 +46,7 @@ jobs:
         run: |
           cd worker
           npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.production.toml
-          npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8786 \
+          npx --yes wrangler@4 dev --config wrangler.production.toml --local --ip 127.0.0.1 --port 8786 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
             --var SESSION_SECRET:ci-session-secret-at-least-32-characters-long \
@@ -113,7 +113,7 @@ jobs:
         run: |
           cd worker
           npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.production.toml
-          setsid npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
+          setsid npx --yes wrangler@4 dev --config wrangler.production.toml --local --ip 127.0.0.1 --port 8787 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
             --var SESSION_SECRET:ci-session-secret-at-least-32-characters-long \
