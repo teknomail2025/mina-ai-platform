@@ -74,9 +74,7 @@ jobs:
           PREVIEW_URL="$(put_preview_secret ADMIN_PASSWORD "$PREVIEW_ADMIN_PASSWORD")"
           PREVIEW_URL="$(put_preview_secret SESSION_SECRET "$PREVIEW_SESSION_SECRET")"
 
-          PREVIEW_JSON="$(npx wrangler preview --config wrangler.toml --name "$PREVIEW_NAME" --json)"
-          PREVIEW_URL="$(echo "$PREVIEW_JSON" | jq -r '.preview_urls[-1] // .preview_urls[0] // empty')"
-          test -n "$PREVIEW_URL" || { echo "Wrangler did not return the latest Preview deployment URL."; exit 1; }
+          echo "Using latest Preview URL: $PREVIEW_URL"
 
           HEALTH_RESPONSE="$(curl --silent --show-error --retry-all-errors --retry 15 --retry-delay 2 --retry-max-time 60 -w '\n%{http_code}' "$PREVIEW_URL/api/health")"
           HEALTH_STATUS="$(printf '%s\n' "$HEALTH_RESPONSE" | tail -n 1)"
