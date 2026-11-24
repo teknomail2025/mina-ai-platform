@@ -37,3 +37,5 @@ Production deploys use `worker/wrangler.production.toml` only. GitHub Actions te
 
 
 The GitHub `preview-smoke` workflow validates the Preview health/authentication path on the image-pipeline branch and additionally tests D1/R2 upload, listing, download, and deletion once the R2 storage feature is included.
+
+Preview smoke scope: the image-pipeline branch checks health, admin login and usage quotas; R2 lifecycle checks begin with the R2 storage branch; the self-healing branch additionally checks safe defaults and incident capture.
