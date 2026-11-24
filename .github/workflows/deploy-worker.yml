@@ -32,7 +32,7 @@ jobs:
         run: |
           node --check worker/src/index.js
           node --test worker/test/*.test.cjs worker/test/*.test.mjs
-          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
 
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
@@ -40,5 +40,5 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command: deploy
+          command: deploy --config wrangler.production.toml
           wranglerVersion: "4"
