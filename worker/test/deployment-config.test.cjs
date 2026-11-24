@@ -9,6 +9,7 @@ const productionConfig = fs.readFileSync(path.join(root, "worker/wrangler.produc
 const previewMigrationConfig = fs.readFileSync(path.join(root, "worker/wrangler.preview-migrations.toml"), "utf8");
 const deployWorkflow = fs.readFileSync(path.join(root, ".github/workflows/deploy-worker.yml"), "utf8");
 const frontend = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 const packageJson = JSON.parse(fs.readFileSync(path.join(root, "worker/package.json"), "utf8"));
 
 test("Cloudflare Workers Builds config matches its linked mina-ai-platform service and isolates preview resources", () => {
@@ -35,10 +36,12 @@ test("GitHub production deployment and frontend both target the active mina-ai-a
   assert.match(frontend, /https:\/\/mina-ai-api\.teknomail2025\.workers\.dev/);
   assert.match(deployWorkflow, /workingDirectory: worker/);
   assert.match(deployWorkflow, /wrangler\.production\.toml/);
+  assert.ok(deployWorkflow.includes("npx --yes wrangler@4 deploy --dry-run --config wrangler.toml"));
   assert.match(deployWorkflow, /command: deploy --config wrangler\.production\.toml/);
   assert.ok(deployWorkflow.includes("wrangler@4 deploy --dry-run --config worker/wrangler.toml"));
   assert.match(deployWorkflow, /branches: \[main\]/);
   assert.match(packageJson.scripts.deploy, /wrangler\.production\.toml/);
+  assert.equal(rootPackage.devDependencies.wrangler, "4.167.0");
   assert.match(packageJson.scripts.test, /test\/\*\.test\.cjs test\/\*\.test\.mjs/);
 });
 const rootPreview = fs.readFileSync(path.join(root, "wrangler.toml"), "utf8");
