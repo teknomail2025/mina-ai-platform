@@ -48,5 +48,5 @@ test("production deployment and frontend target mina-ai-api with production stor
   assert.ok(deployWorkflow.includes("npx --yes wrangler@4 deploy --dry-run --config wrangler.toml"));
   assert.match(deployWorkflow, /branches: \[main\]/);
   assert.match(packageJson.scripts.deploy, /wrangler\.production\.toml/);
-  assert.match(packageJson.scripts.test, /^node --test$/);
+  assert.match(packageJson.scripts.test, /^node scripts\/run-tests\.mjs$/);
 });
