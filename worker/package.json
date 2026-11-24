@@ -4,7 +4,7 @@
   "version": "1.0.0",
   "description": "Mina AI Cloudflare Worker runtime and reproducible tooling",
   "scripts": {
-    "test": "node --test",
+    "test": "node --test test/*.test.cjs $(find test -name '*.test.mjs' -print)",
     "check": "node --check src/index.js",
     "deploy": "wrangler deploy --config wrangler.production.toml"
   },
