@@ -9,6 +9,7 @@ const production = fs.readFileSync(path.join(root, "worker/wrangler.production.t
 const migration = fs.readFileSync(path.join(root, "worker/wrangler.preview-migrations.toml"), "utf8");
 const deploy = fs.readFileSync(path.join(root, ".github/workflows/deploy-worker.yml"), "utf8");
 const frontend = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 test("Cloudflare Preview uses the connected Worker name and isolated storage", () => {
   assert.match(rootPreview, /^name = "mina-ai-platform"$/m);
   assert.ok(rootPreview.includes('main = "worker/src/index.js"'));
