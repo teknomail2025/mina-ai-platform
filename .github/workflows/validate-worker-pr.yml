@@ -1,0 +1,47 @@
+name: Validate Mina Worker pull requests
+
+on:
+  pull_request:
+    paths:
+      - "worker/**"
+      - ".github/workflows/validate-worker-pr.yml"
+      - ".github/workflows/deploy-worker.yml"
+      - ".github/workflows/pages.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mina-worker-pr-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  validate:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Install Worker tooling
+        working-directory: worker
+        run: npm install --ignore-scripts --no-audit --no-fund
+
+      - name: Check Worker syntax
+        working-directory: worker
+        run: npm run check
+
+      - name: Run all Worker tests (CJS and ESM)
+        working-directory: worker
+        run: npm test
+
+      - name: Validate production and Preview Wrangler configs without deploying
+        working-directory: worker
+        run: |
+          npx wrangler deploy --dry-run --config wrangler.production.toml
+          npx wrangler deploy --dry-run --config wrangler.toml
