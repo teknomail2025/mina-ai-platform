@@ -22,22 +22,21 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 22
-
       - name: Validate Worker and run tests
         run: |
           node --check worker/src/index.js
           node --test worker/test/*.test.cjs
-
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command: deploy
+          command: deploy --config wrangler.production.toml
           wranglerVersion: "4"
