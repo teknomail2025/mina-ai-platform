@@ -41,3 +41,8 @@ test("GitHub production deployment and frontend both target the active mina-ai-a
   assert.match(packageJson.scripts.deploy, /wrangler\.production\.toml/);
   assert.match(packageJson.scripts.test, /test\/\*\.test\.cjs test\/\*\.test\.mjs/);
 });
+const rootPreview = fs.readFileSync(path.join(root, "wrangler.toml"), "utf8");
+  assert.match(rootPreview, /^name = "mina-ai-platform"$/m);
+  assert.ok(rootPreview.includes('main = "worker/src/index.js"'));
+  assert.match(rootPreview, /^database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"$/m);
+  assert.doesNotMatch(rootPreview, /bdf7737f-b4b2-4158-982b-b7c7483ca702/);
