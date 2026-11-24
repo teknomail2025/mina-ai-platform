@@ -1,4 +1,4 @@
-name = "mina-ai-preview-migrations"
+name = "mina-ai-platform"
 
 [[d1_databases]]
 binding = "MINA_DB"
