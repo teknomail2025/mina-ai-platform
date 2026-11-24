@@ -34,3 +34,6 @@ Both Preview configs use the connected Worker name `mina-ai-platform` and isolat
 ## Production deployment
 
 Production deploys use `worker/wrangler.production.toml` only. GitHub Actions tests and dry-runs both configurations before deploying `mina-ai-api`. Never store secret values in Wrangler files or Git.
+
+
+The GitHub `preview-smoke` workflow validates the Preview health/authentication path on the image-pipeline branch and additionally tests D1/R2 upload, listing, download, and deletion once the R2 storage feature is included.
