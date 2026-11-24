@@ -60,7 +60,7 @@ Depoda **Settings → Pages → Build and deployment → Source** alanında GitH
 
 ### Cloudflare Worker
 
-Worker yapılandırması `worker/wrangler.toml` dosyasındadır. Cloudflare dağıtımı GitHub Pages iş akışından ayrıdır; Worker değişiklikleri ayrıca `worker` dizininden dağıtılmalıdır.
+Cloudflare Workers Builds önizleme yapılandırması `worker/wrangler.toml` dosyasında `mina-ai-platform` adıyla tutulur ve yalnızca Preview D1/R2 kaynaklarına bağlanır. Gerçek üretim API'si `mina-ai-api` için ayrı `worker/wrangler.production.toml` kullanılır. Üretim dağıtımı yalnızca `.github/workflows/deploy-worker.yml` üzerinden, testler ve Wrangler dry-run başarılı olduktan sonra yapılır.
 
 Sağlık kontrolü: `/api/health`
 
@@ -68,7 +68,7 @@ Worker, kimlik doğrulama yapılandırılmadığında yönetici girişini redded
 
 ## Veritabanı ve kalıcılık
 
-- Cloudflare Worker, `worker/wrangler.toml` içindeki `MINA_DB` D1 binding'i ile `mina-ai-db` veritabanına bağlanır.
+- Üretim Worker `mina-ai-api`, `worker/wrangler.production.toml` içindeki `MINA_DB` binding'i ile `mina-ai-db` veritabanına bağlanır. Cloudflare Preview Worker `mina-ai-platform`, `worker/wrangler.toml` içinden yalnızca `mina-ai-db-preview` ve `mina-temporary-files-preview` kaynaklarını kullanır.
 - MinaData yönetici hafızası, tema/dil tercihleri ve iletişim disiplini kayıtları D1 üzerinde tutulur. İlgili tablolar Worker tarafından ilk kullanımda `CREATE TABLE IF NOT EXISTS` ile güvenli biçimde hazırlanır.
 - Sohbet geçmişi, projeler, zamanlayıcılar ve kitaplık bu sürümde tarayıcı depolamasında kalır; bunlar henüz cihazlar arasında eşitlenmez.
 - `0001_auth_and_user_data.sql` çok kullanıcılı hesap mimarisi için eski şema taslağıdır; mevcut tek yönetici oturum akışının parçası değildir. `0002` ve `0003` migration dosyaları hafıza ve disiplin tablolarının şemasını ayrıca belgeler.
