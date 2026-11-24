@@ -30,7 +30,7 @@ jobs:
       - name: Checkout trusted base
         uses: actions/checkout@v4
         with:
-          ref: feature/mina-self-healing
+          ref: main
           fetch-depth: 0
           persist-credentials: false
       - name: Validate and materialize patch
@@ -94,7 +94,7 @@ jobs:
           pathlib.Path(os.environ["RUNNER_TEMP"], "mina-repair.patch").write_text(patch, encoding="utf-8")
           print("Validated paths:", ", ".join(paths))
           PY
-          git merge-base --is-ancestor "$BASE_SHA" origin/feature/mina-self-healing || { echo "Pinned source commit is not part of the trusted repair branch." >&2; exit 1; }
+          git merge-base --is-ancestor "$BASE_SHA" origin/main || { echo "Pinned source commit is not part of the trusted repair branch." >&2; exit 1; }
           git switch --detach "$BASE_SHA"
           git apply --check "$RUNNER_TEMP/mina-repair.patch"
       - name: Apply patch in disposable test job
@@ -130,7 +130,7 @@ jobs:
       - name: Checkout trusted base
         uses: actions/checkout@v4
         with:
-          ref: feature/mina-self-healing
+          ref: main
       - name: Download validated patch
         uses: actions/download-artifact@v4
         with:
@@ -166,7 +166,7 @@ jobs:
           **No merge or deployment was performed.** Review the diff manually before merging.
           BODY
           gh pr create \
-            --base feature/mina-self-healing \
+            --base main \
             --head "$BRANCH" \
             --title "Mina self-healing: validated repair $PROPOSAL_ID" \
             --body-file "$RUNNER_TEMP/pr-body.md"
