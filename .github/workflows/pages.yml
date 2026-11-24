@@ -41,7 +41,7 @@ jobs:
           node -e "JSON.parse(require('fs').readFileSync('worker/src/training.json', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('manifest.webmanifest', 'utf8'))"
           node -e "JSON.parse(require('fs').readFileSync('manifest.en.webmanifest', 'utf8'))"
-          node --test worker/test
+          node --test worker/test/*.test.cjs
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
           cd worker
