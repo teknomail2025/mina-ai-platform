@@ -107,7 +107,7 @@ jobs:
           node --check voice.js
           node --check i18n.js
       - name: Run regression and self-healing tests
-        run: node --test worker/test/*.test.cjs worker/test/*.test.mjs
+        run: node --test worker/test/*.test.cjs $(find worker/test -name '*.test.mjs' -print)
       - name: Validate Worker bundle without deployment
         run: npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
       - name: Upload validated patch
