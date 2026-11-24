@@ -870,10 +870,9 @@ test("disabled coding capability routes technical prompts to Flash", async () =>
 });
 
 test("DOCX attachments include extracted text alongside the original stored file", () => {
-  assert.match(frontendSource, /file\\.name\\.toLowerCase\\(\\)\\.endsWith\\("\\.docx"\\)/);
-  assert.match(frontendSource, /content:file\\.content/);
+  assert.ok(frontendSource.includes('file.name.toLowerCase().endsWith(".docx")'));
+  assert.ok(frontendSource.includes("content:file.content"));
 });
-
 test("frontend applies chat capability to the composer and sends capability settings", () => {
   assert.match(frontendSource, /els\.input\.disabled=chatDisabled\|\|busy/);
   assert.match(frontendSource, /MINA_CAPABILITIES\.chat===false/);
