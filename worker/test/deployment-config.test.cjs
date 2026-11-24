@@ -49,5 +49,4 @@ test("production deployment and frontend target mina-ai-api with production stor
   assert.match(deployWorkflow, /branches: \[main\]/);
   assert.match(packageJson.scripts.deploy, /wrangler\.production\.toml/);
   assert.match(packageJson.scripts.test, /^node --test$/);
-  assert.ok(packageJson.scripts.test.includes("find test -name '*.test.mjs' -print"));
 });
