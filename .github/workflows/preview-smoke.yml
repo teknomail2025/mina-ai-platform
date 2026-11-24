@@ -56,11 +56,32 @@ jobs:
           echo "::add-mask::$PREVIEW_ADMIN_PASSWORD"
           echo "::add-mask::$PREVIEW_SESSION_SECRET"
 
-          printf '%s' "$PREVIEW_ADMIN_USERNAME" | npx wrangler preview secret put ADMIN_USERNAME --name "$PREVIEW_NAME" --config wrangler.toml
-          printf '%s' "$PREVIEW_ADMIN_PASSWORD" | npx wrangler preview secret put ADMIN_PASSWORD --name "$PREVIEW_NAME" --config wrangler.toml
-          printf '%s' "$PREVIEW_SESSION_SECRET" | npx wrangler preview secret put SESSION_SECRET --name "$PREVIEW_NAME" --config wrangler.toml
+          put_preview_secret() {
+            local key="$1"
+            local value="$2"
+            local output
+            output="$(printf '%s' "$value" | npx wrangler preview secret put "$key" --name "$PREVIEW_NAME" --config wrangler.toml 2>&1)"
+            local url
+            url="$(printf '%s\n' "$output" | grep -Eo 'https://[^[:space:]]+\.workers\.dev' | tail -n 1)"
+            if [[ -z "$url" ]]; then
+              printf '%s\n' "$output" >&2
+              return 1
+            fi
+            printf '%s' "$url"
+          }
 
-          HEALTH="$(curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 "$PREVIEW_URL/api/health")"
+          PREVIEW_URL="$(put_preview_secret ADMIN_USERNAME "$PREVIEW_ADMIN_USERNAME")"
+          PREVIEW_URL="$(put_preview_secret ADMIN_PASSWORD "$PREVIEW_ADMIN_PASSWORD")"
+          PREVIEW_URL="$(put_preview_secret SESSION_SECRET "$PREVIEW_SESSION_SECRET")"
+
+          HEALTH_RESPONSE="$(curl --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 -w '\n%{http_code}' "$PREVIEW_URL/api/health")"
+          HEALTH_STATUS="$(printf '%s\n' "$HEALTH_RESPONSE" | tail -n 1)"
+          HEALTH="$(printf '%s\n' "$HEALTH_RESPONSE" | sed '$d')"
+          if [[ "$HEALTH_STATUS" != "200" ]]; then
+            echo "Preview health returned HTTP $HEALTH_STATUS"
+            printf '%s' "$HEALTH" | head -c 1000
+            exit 1
+          fi
           echo "$HEALTH" | jq -e '.ok == true and .memoryConfigured == true and .adminAuthConfigured == true' >/dev/null
 
           LOGIN_BODY="$(jq -nc --arg username "$PREVIEW_ADMIN_USERNAME" --arg password "$PREVIEW_ADMIN_PASSWORD" '{username:$username,password:$password,rememberMe:true}')"
