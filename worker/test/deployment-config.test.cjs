@@ -35,6 +35,7 @@ test("GitHub production deployment and frontend both target the active mina-ai-a
   assert.match(deployWorkflow, /workingDirectory: worker/);
   assert.match(deployWorkflow, /wrangler\.production\.toml/);
   assert.match(deployWorkflow, /command: deploy --config wrangler\.production\.toml/);
+  assert.match(deployWorkflow, /wrangler@4 deploy --dry-run --config worker\\/wrangler\\.toml/);
   assert.match(deployWorkflow, /branches: \[main\]/);
   assert.match(packageJson.scripts.deploy, /wrangler\.production\.toml/);
   assert.match(packageJson.scripts.test, /test\/\*\.test\.cjs test\/\*\.test\.mjs/);
