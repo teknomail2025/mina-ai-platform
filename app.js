@@ -158,7 +158,6 @@
     uiLanguage = event.detail?.language === "en" ? "en" : "tr";
     activeTimerUpdate?.();
     $("refreshMinaUsage")?.click();
-    if (window.MINA_AUTHENTICATED === true) refreshSelfHealing();
     queueCloudPreferences();
   });
 
@@ -928,7 +927,10 @@
     };
     setSettingsSection(activeKey);
     $("minaUiLanguageSelect").value=uiLanguage;
-    $("minaUiLanguageSelect").addEventListener("change",e=>setInterfaceLanguage(e.target.value));
+    $("minaUiLanguageSelect").addEventListener("change",e=>{
+      setInterfaceLanguage(e.target.value);
+      if(window.MINA_AUTHENTICATED===true)refreshSelfHealing();
+    });
     $("minaLanguageSelect").value=minaLanguage;
     $("minaLanguageSelect").addEventListener("change",e=>{
       minaLanguage=["auto","tr","en"].includes(e.target.value)?e.target.value:"auto";
