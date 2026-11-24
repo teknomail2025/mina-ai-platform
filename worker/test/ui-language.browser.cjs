@@ -71,6 +71,10 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaLanguageSelect").selectOption("en");
     await page.locator("#minaUiLanguageSelect").selectOption("en");
     await page.waitForFunction(() => document.documentElement.lang === "en", null, { timeout: 15000 });
+    await page.waitForFunction(() => {
+      const status = document.getElementById("minaUsageStatus")?.textContent || "";
+      return status.includes("Chat") && status.includes("Image generation") && status.includes("Image analysis") && status.includes("Live audio") && status.includes("Files");
+    }, null, { timeout: 15000 });
     assert.ok((await page.locator("#minaManifestLink").getAttribute("href")).endsWith("manifest.en.webmanifest"));
     assert.equal(await page.locator('meta[name="description"]').getAttribute("content"), "Mina AI - bilingual AI assistant");
 
