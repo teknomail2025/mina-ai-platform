@@ -2,7 +2,7 @@ name: Mina Cloudflare Preview end-to-end smoke test
 
 on:
   pull_request:
-    branches: [main, feat/r2-temporary-file-storage]
+    branches: [main, fix/image-pipeline-and-usage-quotas, feat/r2-temporary-file-storage]
     paths:
       - "worker/**"
       - "app.js"
