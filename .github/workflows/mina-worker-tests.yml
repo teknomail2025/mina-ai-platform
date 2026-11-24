@@ -26,8 +26,8 @@ jobs:
         run: node --check worker/src/index.js
       - name: Check frontend syntax
         run: node --check app.js
-      - name: Run Worker regression tests
-        run: node --test worker/test/*.test.cjs worker/test/*.test.mjs
-      - name: Validate Wrangler configuration
-        run: npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
+      - name: Run Worker regression tests and validate Wrangler configurations
+        run: |
+          node --test worker/test/*.test.cjs worker/test/*.test.mjs
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
