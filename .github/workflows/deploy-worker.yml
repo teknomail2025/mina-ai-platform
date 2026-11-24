@@ -31,7 +31,7 @@ jobs:
       - name: Validate Worker and run tests
         run: |
           node --check worker/src/index.js
-          (cd worker && node --test)
+          node --test worker/test/*.test.cjs $(find worker/test -name '*.test.mjs' -print)
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
           npx --yes wrangler@4 deploy --dry-run --config wrangler.toml
