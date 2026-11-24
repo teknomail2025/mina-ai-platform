@@ -50,6 +50,23 @@ function createWorker(fetchOverride) {
   const workspaceStore = { row: null };
   const disciplineStore = { row: null, events: [] };
   const usageStore = new Map();
+  const r2Objects = new Map();
+  const mockR2 = {
+    async put(key,value,options={}) {
+      const bytes=value instanceof Uint8Array?value:new Uint8Array(value);
+      r2Objects.set(key,{bytes:new Uint8Array(bytes),httpMetadata:options.httpMetadata||{},customMetadata:options.customMetadata||{},size:bytes.byteLength,uploaded:new Date()});
+    },
+    async get(key) {
+      const item=r2Objects.get(key);if(!item)return null;
+      return {body:new Response(item.bytes).body,size:item.size,httpMetadata:item.httpMetadata,customMetadata:item.customMetadata,arrayBuffer:async()=>item.bytes.buffer.slice(item.bytes.byteOffset,item.bytes.byteOffset+item.bytes.byteLength)};
+    },
+    async head(key) { const item=r2Objects.get(key);return item?{size:item.size,customMetadata:item.customMetadata}:null; },
+    async delete(keys) { for(const key of (Array.isArray(keys)?keys:[keys]))r2Objects.delete(key); },
+    async list(options={}) {
+      const all=[...r2Objects.entries()].filter(([key])=>!options.prefix||key.startsWith(options.prefix)).map(([key,item])=>({key,size:item.size,uploaded:item.uploaded,customMetadata:item.customMetadata}));
+      return {objects:all,truncated:false,cursor:undefined};
+    }
+  };
   const usageKey = (userId, type, day) => [userId, type, day].join("|");
   const mockDb = {
     prepare(sql) {
@@ -114,10 +131,10 @@ function createWorker(fetchOverride) {
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
-    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
-    return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
+    const needsDisciplineDb = pathname === "/api/files" || pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), MINA_FILES: mockR2, ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey };
+  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -146,6 +163,7 @@ test("CORS preflight allows MinaData PUT with authorization", async () => {
   const response = await worker.fetch(request, env);
   assert.equal(response.status, 204);
   assert.match(response.headers.get("Access-Control-Allow-Methods") || "", /PUT/);
+  assert.match(response.headers.get("Access-Control-Allow-Methods") || "", /DELETE/);
   assert.match(response.headers.get("Access-Control-Allow-Headers") || "", /Authorization/i);
 });
 
@@ -518,75 +536,100 @@ test("Live voice is limited to ten server-counted minutes per Istanbul day", asy
   assert.equal(blocked.data.quota.remaining,0);
 });
 
-test("daily 100 MB file quota is enforced by the Worker", async () => {
-  const { worker, usageStore, usageKey, requestedModels }=createWorker();
+test("daily 100 MB file quota is enforced at R2 upload time", async () => {
+  const { worker, usageStore, usageKey }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
   const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
   usageStore.set(usageKey("Argion","file_bytes",day),{used:100*1024*1024});
-  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
-    messages:[{role:"user",content:"Read this file"}],
-    fileAttachment:{name:"notes.txt",content:"one more byte"}
-  }});
+  const result=await call(worker,"/api/files",{method:"POST",token:login.data.token,body:{name:"notes.txt",data:Buffer.from("one more byte").toString("base64")}});
   assert.equal(result.status,429);
   assert.equal(result.data.fileQuota.remainingBytes,0);
-  assert.equal(requestedModels.length,0);
+  assert.equal(usageStore.get(usageKey("Argion","file_bytes",day)).used,100*1024*1024);
 });
 
-test("failed document processing refunds both request and file-byte reservations", async () => {
+test("failed document processing refunds chat usage but keeps uploaded-byte quota", async () => {
   const { worker }=createWorker(async()=>new Response(JSON.stringify({error:{message:"temporary failure"}}),{status:503}));
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const content="label start:\\n    return";
+  const uploaded=await call(worker,"/api/files",{method:"POST",token:login.data.token,body:{name:"main.rpy",data:Buffer.from(content).toString("base64")}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Review this script"}],
-    fileAttachment:{name:"main.rpy",content:"label start:\n    return"}
+    fileAttachment:{name:"main.rpy"},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,502);
   const usage=await call(worker,"/api/usage",{token:login.data.token});
   assert.equal(usage.data.usage.chat.used,0);
-  assert.equal(usage.data.usage.files.usedBytes,0);
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
 
-test("chat accepts a validated temporary text attachment and accounts its bytes", async () => {
+test("chat accepts a validated temporary text attachment and accounts its original bytes", async () => {
   let capturedPayload;
   const { worker } = createWorker(async (url, options) => {
     capturedPayload=JSON.parse(options.body||"{}");
     return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"Dosya incelendi."}]}}]}),{status:200});
   });
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const content="label start:\\n    return";
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"script.rpy",data:Buffer.from(content).toString("base64")}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
-    fileAttachment:{name:"script.rpy",content:"label start:\n    return"}
+    fileAttachment:{name:"script.rpy"},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
-  assert.match(capturedPayload.contents[0].parts[1].text,/script\.rpy/);
+  assert.ok(capturedPayload.contents[0].parts[1].text.includes("script.rpy"));
+  assert.ok(capturedPayload.contents[0].parts[1].text.includes(content));
+  assert.ok(!capturedPayload.contents[0].parts[1].text.includes("CLIENT-SUPPLIED"));
   const usage=await call(worker,"/api/usage",{token:login.data.token});
-  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode("label start:\n    return").byteLength);
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode(content).byteLength);
 });
 
-test("chat rejects text attachments larger than 10 MB", async () => {
+test("chat rejects client-supplied text content and requires the R2 source file", async () => {
   const { worker, requestedModels }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const original="trusted stored source";
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"source.txt",data:Buffer.from(original).toString("base64")}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
-    messages:[{role:"user",content:"Read this file"}],
-    fileAttachment:{name:"large.txt",content:"x".repeat(10*1024*1024+1)}
+    messages:[{role:"user",content:"Read the file"}],
+    fileAttachment:{name:"source.txt",content:"forged client content"},
+    storedFileId:uploaded.data.id
   }});
-  assert.equal(result.status,413);
+  assert.equal(result.status,400);
   assert.equal(requestedModels.length,0);
 });
 
-test("chat sends valid PDF attachments to Gemini as application/pdf", async () => {
+test("file upload rejects files larger than 10 MB", async () => {
+  const { worker, r2Objects }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{
+    name:"large.txt",data:Buffer.alloc(10*1024*1024+1,120).toString("base64")
+  }});
+  assert.equal(result.status,400);
+  assert.equal(r2Objects.size,0);
+});
+
+test("chat sends a validated, stored PDF attachment to Gemini as application/pdf", async () => {
   let capturedPayload;
   const { worker }=createWorker(async(url,options)=>{
     capturedPayload=JSON.parse(options.body||"{}");
     return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"PDF incelendi."}]}}]}),{status:200});
   });
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
-  const pdf=Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const pdf=Buffer.from("%PDF-1.4\\n%%EOF").toString("base64");
+  const uploaded=await call(worker,"/api/files",{token:login.data.token,method:"POST",body:{name:"report.pdf",data:pdf}});
+  assert.equal(uploaded.status,201);
   const result=await call(worker,"/api/chat",{token:login.data.token,body:{
     messages:[{role:"user",content:"PDF dosyasını özetle."}],
-    document:{mimeType:"application/pdf",data:pdf}
+    document:{mimeType:"application/pdf"},
+    storedFileId:uploaded.data.id
   }});
   assert.equal(result.status,200);
   assert.equal(capturedPayload.contents[0].parts[1].inlineData.mimeType,"application/pdf");
+  assert.equal(capturedPayload.contents[0].parts[1].inlineData.data,pdf);
 });
 
 test("image generation requires an authenticated session", async () => {
@@ -905,7 +948,7 @@ test("Mina persona rules prohibit submissive language and fabricated system stat
 
 test("chat UI does not expose internal model routing metadata", () => {
   assert.doesNotMatch(frontendSource, /Mina otomatik seçim:/);
-  assert.match(frontendSource, /addMessage\("assistant", answer\.trim\(\) \+ sourceText\)/);
+  assert.ok(frontendSource.includes('addMessage("assistant", answer.trim() + sourceText + retentionText'));
 });
 
 test("Mina family roles explicitly define Baba, Anne and Mina", () => {
@@ -1049,4 +1092,100 @@ test("Mina discipline does not punish neutral discussion of an insult word", asy
   const result = await call(worker, "/api/chat", { token: login.data.token, body: { messages: [{ role: "user", content: "Aptal kelimesinin anlamı nedir?" }] } });
   assert.equal(result.status, 200);
   assert.equal(disciplineStore.row, null);
+});
+
+
+test("Wrangler declares isolated Worker Preview settings", () => {
+  const config = fs.readFileSync(path.join(workerDir, "wrangler.toml"), "utf8");
+  assert.match(config, /^preview_urls = true$/m);
+  assert.match(config, /^\[previews\.vars\]$/m);
+  assert.match(config, /^\[\[previews\.d1_databases\]\]$/m);
+  assert.match(config, /^database_name = "mina-ai-db-preview"$/m);
+  assert.match(config, /^database_id = "[0-9a-f-]{36}"$/m);
+  assert.match(config, /^\[\[previews\.r2_buckets\]\]$/m);
+  assert.match(config, /^bucket_name = "mina-temporary-files-preview"$/m);
+  assert.doesNotMatch(config, /^previews = \{\}$/m);
+});
+
+test("temporary R2 files require login, retain original bytes, and can be downloaded and deleted", async () => {
+  const { worker, r2Objects } = createWorker();
+  const guest = await call(worker, "/api/files", { method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
+  assert.equal(guest.status, 401);
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const uploaded = await call(worker, "/api/files", { token: login.data.token, method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
+  assert.equal(uploaded.status, 201);
+  assert.equal(uploaded.data.name, "hello.txt");
+  assert.equal(uploaded.data.size, 5);
+  assert.equal(uploaded.data.expiresAt-uploaded.data.uploadedAt, 24*60*60*1000);
+  assert.equal(r2Objects.size, 1);
+  const listed = await call(worker, "/api/files", { token: login.data.token });
+  assert.equal(listed.status, 200);
+  assert.equal(listed.data.files.length, 1);
+  const downloaded = await worker.fetch(new Request("https://mina-test.workers.dev"+uploaded.data.downloadPath,{headers:{Origin:"https://teknomail2025.github.io",Authorization:"Bearer "+login.data.token}}),{...env});
+  assert.equal(downloaded.status, 200);
+  assert.equal(await downloaded.text(), "hello");
+  assert.match(downloaded.headers.get("Content-Disposition"), /hello.txt/);
+  const removed = await call(worker, uploaded.data.downloadPath, { method: "DELETE", token: login.data.token });
+  assert.equal(removed.status, 200);
+  assert.equal(r2Objects.size, 0);
+});
+
+test("expired R2 files cannot be downloaded and are removed on access", async () => {
+  const { worker, mockR2, r2Objects }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const id="123e4567-e89b-42d3-a456-426614174000";
+  await mockR2.put("Argion/"+id,Uint8Array.of(65),{customMetadata:{owner:"Argion",fileName:"expired.txt",expiresAt:String(Date.now()-1)}});
+  const result=await call(worker,"/api/files/"+id,{token:login.data.token});
+  assert.equal(result.status,404);
+  assert.equal(r2Objects.has("Argion/"+id),false);
+});
+
+test("temporary file endpoint rejects invalid types, malformed base64 and oversized content", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  for (const body of [
+    { name: "malware.exe", data: "aGVsbG8=" },
+    { name: "bad.txt", data: "not base64!" },
+    { name: "../secret.txt", data: "aGVsbG8=" }
+  ]) {
+    const result = await call(worker, "/api/files", { token: login.data.token, method: "POST", body });
+    assert.equal(result.status, 400);
+  }
+});
+
+test("scheduled cleanup deletes expired R2 objects and keeps live files", async () => {
+  const { worker, mockR2, r2Objects } = createWorker();
+  await mockR2.put("Argion/expired",Uint8Array.of(1),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()-1000)}});
+  await mockR2.put("Argion/live",Uint8Array.of(2),{customMetadata:{owner:"Argion",expiresAt:String(Date.now()+60000)}});
+  await mockR2.put("unrelated/keep",Uint8Array.of(3),{customMetadata:{expiresAt:String(Date.now()-1000)}});
+  await worker.scheduled({}, {...env,MINA_FILES:mockR2});
+  assert.equal(r2Objects.has("Argion/expired"), false);
+  assert.equal(r2Objects.has("Argion/live"), true);
+  assert.equal(r2Objects.has("unrelated/keep"), true);
+});
+
+test("file quota uses the original uploaded binary size rather than extracted text size", () => {
+  assert.ok(workerSource.includes("env.MINA_FILES.get(key)"));
+  assert.ok(workerSource.includes("attachmentBytes=Number(storedAttachment.size)"));
+  assert.ok(workerSource.includes("new Uint8Array(await storedAttachment.arrayBuffer())"));
+  assert.ok(frontendSource.includes("storedFileId:storedFile?.id"));
+  assert.ok(frontendSource.includes("rawBase64:await fileToBase64(f)"));
+  assert.ok(frontendSource.includes("m.fileId"));
+});
+
+test("chat attachment quota is based on the stored original R2 object size", async () => {
+  const { worker, mockR2, usageStore, usageKey } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const uploaded = await call(worker, "/api/files", { token: login.data.token, method: "POST", body: { name: "source.txt", data: "aGVsbG8gd29ybGQ=" } });
+  assert.equal(uploaded.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu dosyayı özetle." }],
+      fileAttachment: { name: "source.txt" },
+      storedFileId: uploaded.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.ok([...usageStore.entries()].some(([key,value])=>key.includes("|file_bytes|")&&value.used===11));
 });
