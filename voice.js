@@ -7,7 +7,7 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, intentionalClose=false;
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false;
   const ui = value => window.MinaI18n?.t(value) || value;
   const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
   async function moderateVoiceText(text) {
@@ -40,6 +40,24 @@
     if(error?.name==="NotFoundError")return "Kullanılabilir mikrofon bulunamadı. Mikrofonun bağlı olduğundan emin ol.";
     if(error?.name==="NotReadableError")return "Mikrofon başka bir uygulama tarafından kullanılıyor veya açılamıyor.";
     return error?.message||"Sesli sohbet başlatılamadı.";
+  }
+  async function consumeLiveMinute(){
+    if(!active)return false;
+    try{
+      const response=await fetch(API_BASE+"/api/live-minute",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+      const data=await response.json().catch(()=>({}));
+      if(!response.ok){
+        transcript.textContent=ui("Mina: ")+(data.error||"Günlük canlı ses kotası doldu.");
+        await cleanup(false);
+        setStatus(data.error||"Günlük canlı ses kotası doldu.","error");
+        return false;
+      }
+      return true;
+    }catch(error){
+      await cleanup(false);
+      setStatus("Canlı ses kullanım kotası doğrulanamadı. Güvenlik için oturum kapatıldı.","error");
+      return false;
+    }
   }
   function pcmToBase64(float32, inputRate) {
     const ratio=inputRate/16000, length=Math.floor(float32.length/ratio), pcm=new Int16Array(length);
@@ -85,7 +103,16 @@
       };
       socket.onmessage=event=>{
         let msg;try{msg=JSON.parse(event.data);}catch{return;}
-        if(msg.setupComplete){if(setupTimer)clearTimeout(setupTimer);setupTimer=null;active=true;muteBtn.disabled=false;setStatus("Seni dinliyorum…","listening");startMicStream();return;}
+        if(msg.setupComplete){
+          if(setupTimer)clearTimeout(setupTimer);setupTimer=null;active=true;muteBtn.disabled=false;
+          setStatus("Günlük ses kotası kontrol ediliyor…");
+          void consumeLiveMinute().then(ok=>{
+            if(!ok||!active)return;
+            setStatus("Seni dinliyorum…","listening");startMicStream();
+            liveQuotaTimer=setInterval(()=>{void consumeLiveMinute().then(allowed=>{if(allowed&&active&&!muted)setStatus("Seni dinliyorum…","listening");});},60000);
+          });
+          return;
+        }
         if(msg.serverContent?.interrupted){stopPlayback();setStatus("Seni dinliyorum…","listening");}
         const inputText=msg.serverContent?.inputTranscription?.text;
         const outputText=msg.serverContent?.outputTranscription?.text;
@@ -126,6 +153,7 @@
   async function cleanup(hide=true){
     intentionalClose=true;
     if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
+    if(liveQuotaTimer)clearInterval(liveQuotaTimer);liveQuotaTimer=null;
     active=false;muted=false;pendingInputText="";moderationQueue.length=0;stopPlayback();
     try{processor?.disconnect();source?.disconnect();}catch{}
     processor=null;source=null;
@@ -150,5 +178,5 @@
   });
   openBtn.addEventListener("click",()=>{muteBtn.disabled=false;});
   panel.addEventListener("keydown",e=>{if(e.key==="Escape")cleanup(true);});
-  window.addEventListener("beforeunload",()=>{active=false;stream?.getTracks().forEach(t=>t.stop());socket?.close();});
+  window.addEventListener("beforeunload",()=>{active=false;if(liveQuotaTimer)clearInterval(liveQuotaTimer);stream?.getTracks().forEach(t=>t.stop());socket?.close();});
 })();

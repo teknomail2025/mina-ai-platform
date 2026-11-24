@@ -36,7 +36,7 @@ function createWorker(fetchOverride) {
       const payload = JSON.parse(options.body || "{}");
       const wantsImage = payload.generationConfig?.responseModalities?.includes("IMAGE");
       const parts = wantsImage
-        ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }]
+        ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }]
         : [{ text: "Gemini test yanıtı" }];
       return new Response(JSON.stringify({ candidates: [{ content: { parts } }] }), {
         status: 200,
@@ -49,15 +49,39 @@ function createWorker(fetchOverride) {
   const preferencesStore = { row: null };
   const workspaceStore = { row: null };
   const disciplineStore = { row: null, events: [] };
+  const usageStore = new Map();
+  const usageKey = (userId, type, day) => [userId, type, day].join("|");
   const mockDb = {
     prepare(sql) {
       return {
         bind(...values) {
           return {
-            first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row,
+            first: async () => {
+              if (sql.startsWith("INSERT INTO mina_daily_usage") && sql.includes("'file_bytes'")) {
+                const key=usageKey(values[0],"file_bytes",values[1]);
+                const row=usageStore.get(key)||{used:0};
+                if(row.used+values[2]>values[4])return null;
+                row.used+=values[2];usageStore.set(key,row);return {used:row.used};
+              }
+              if (sql.startsWith("INSERT INTO mina_daily_usage")) {
+                const key=usageKey(values[0],values[1],values[2]);
+                const row=usageStore.get(key)||{used:0};
+                if(row.used>=values[4])return null;
+                row.used+=1;usageStore.set(key,row);return {used:row.used};
+              }
+              if (sql.startsWith("SELECT used FROM mina_daily_usage") && sql.includes("'file_bytes'")) return usageStore.get(usageKey(values[0],"file_bytes",values[1]))||null;
+              if (sql.startsWith("SELECT used FROM mina_daily_usage")) return usageStore.get(usageKey(values[0],values[1],values[2]))||null;
+              return sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row;
+            },
             all: async () => ({ results: disciplineStore.events.slice().reverse() }),
             run: async () => {
-              if (sql.startsWith("INSERT INTO mina_admin_workspace")) {
+              if (sql.startsWith("UPDATE mina_daily_usage") && sql.includes("used - ?")) {
+                const row=usageStore.get(usageKey(values[2],"file_bytes",values[3]));
+                if(row)row.used=Math.max(0,row.used-values[0]);
+              } else if (sql.startsWith("UPDATE mina_daily_usage")) {
+                const row=usageStore.get(usageKey(values[1],values[2],values[3]));
+                if(row)row.used=Math.max(0,row.used-1);
+              } else if (sql.startsWith("INSERT INTO mina_admin_workspace")) {
                 if (!workspaceStore.row && values[2] === 0) workspaceStore.row = { data_json: values[0], version: 1, updated_at: values[1] };
                 else if (workspaceStore.row && workspaceStore.row.version === values[2]) workspaceStore.row = { data_json: values[0], version: workspaceStore.row.version + 1, updated_at: values[1] };
                 else return { success: true, meta: { changes: 0 } };
@@ -81,7 +105,7 @@ function createWorker(fetchOverride) {
             }
           };
         },
-        first: async () => sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row,
+        first: async () => sql.startsWith("SELECT used FROM mina_daily_usage") ? usageStore.get(usageKey(...values))||null : sql.includes("mina_admin_memory") ? memoryStore.row : sql.includes("mina_admin_preferences") ? preferencesStore.row : sql.includes("mina_admin_workspace") ? workspaceStore.row : disciplineStore.row,
         run: async () => ({ success: true })
       };
     }
@@ -90,10 +114,10 @@ function createWorker(fetchOverride) {
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
-    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
+    const needsDisciplineDb = pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore };
+  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -421,15 +445,166 @@ test("image understanding validates input and reaches Gemini", async () => {
     token: login.data.token,
     body: {
       messages: [{ role: "user", content: "Bu resimde ne var?" }],
-      image: { mimeType: "image/png", data: "aGVsbG8=" }
+      image: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" }
     }
   });
   assert.equal(valid.status, 200);
   assert.equal(valid.data.task, "vision");
 });
 
-test("image generation uses the current image model and returns image data", async () => {
+test("daily usage endpoint reports server-side counters and limits", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/usage", { token: login.data.token });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.timezone, "Europe/Istanbul");
+  assert.deepEqual(result.data.usage.chat, { used: 0, limit: 5, remaining: 5 });
+  assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 5, remaining: 5 });
+  assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 5, remaining: 5 });
+  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 10, remaining: 10 });
+  assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
+});
+
+test("image generation enforces five successful requests per Istanbul day", async () => {
   const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  for (let i=0;i<5;i++) {
+    const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A test image "+i}});
+    assert.equal(result.status,200);
+  }
+  const blocked=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"One more image"}});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.data.quota.remaining,0);
+  assert.equal(requestedModels.length,5);
+});
+
+test("normal AI requests are limited to five per Istanbul day", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  for (let i=0;i<5;i++) {
+    const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create a fresh idea number "+i}]}});
+    assert.equal(result.status,200);
+  }
+  const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create one more fresh idea"}]}});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.data.quota.remaining,0);
+  assert.equal(requestedModels.length,5);
+});
+
+test("image analysis has its own five-request daily quota", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const image={mimeType:"image/png",data:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII="};
+  for (let i=0;i<5;i++) {
+    const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image"}],image}});
+    assert.equal(result.status,200);
+  }
+  const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image again"}],image}});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.data.quota.type,"image_analysis");
+  assert.equal(requestedModels.length,5);
+});
+
+test("Live voice is limited to ten server-counted minutes per Istanbul day", async () => {
+  const { worker }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  for(let minute=0;minute<10;minute++){
+    const result=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
+    assert.equal(result.status,200);
+    assert.equal(result.data.usedMinutes,minute+1);
+  }
+  const blocked=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
+  assert.equal(blocked.status,429);
+  assert.equal(blocked.data.quota.remaining,0);
+});
+
+test("daily 100 MB file quota is enforced by the Worker", async () => {
+  const { worker, usageStore, usageKey, requestedModels }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const day=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  usageStore.set(usageKey("Argion","file_bytes",day),{used:100*1024*1024});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Read this file"}],
+    fileAttachment:{name:"notes.txt",content:"one more byte"}
+  }});
+  assert.equal(result.status,429);
+  assert.equal(result.data.fileQuota.remainingBytes,0);
+  assert.equal(requestedModels.length,0);
+});
+
+test("failed document processing refunds both request and file-byte reservations", async () => {
+  const { worker }=createWorker(async()=>new Response(JSON.stringify({error:{message:"temporary failure"}}),{status:503}));
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Review this script"}],
+    fileAttachment:{name:"main.rpy",content:"label start:\n    return"}
+  }});
+  assert.equal(result.status,502);
+  const usage=await call(worker,"/api/usage",{token:login.data.token});
+  assert.equal(usage.data.usage.chat.used,0);
+  assert.equal(usage.data.usage.files.usedBytes,0);
+});
+
+test("chat accepts a validated temporary text attachment and accounts its bytes", async () => {
+  let capturedPayload;
+  const { worker } = createWorker(async (url, options) => {
+    capturedPayload=JSON.parse(options.body||"{}");
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"Dosya incelendi."}]}}]}),{status:200});
+  });
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Bu Ren'Py dosyasını incele."}],
+    fileAttachment:{name:"script.rpy",content:"label start:\n    return"}
+  }});
+  assert.equal(result.status,200);
+  assert.match(capturedPayload.contents[0].parts[1].text,/script\.rpy/);
+  const usage=await call(worker,"/api/usage",{token:login.data.token});
+  assert.equal(usage.data.usage.files.usedBytes,new TextEncoder().encode("label start:\n    return").byteLength);
+});
+
+test("chat rejects text attachments larger than 10 MB", async () => {
+  const { worker, requestedModels }=createWorker();
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"Read this file"}],
+    fileAttachment:{name:"large.txt",content:"x".repeat(10*1024*1024+1)}
+  }});
+  assert.equal(result.status,413);
+  assert.equal(requestedModels.length,0);
+});
+
+test("chat sends valid PDF attachments to Gemini as application/pdf", async () => {
+  let capturedPayload;
+  const { worker }=createWorker(async(url,options)=>{
+    capturedPayload=JSON.parse(options.body||"{}");
+    return new Response(JSON.stringify({candidates:[{content:{parts:[{text:"PDF incelendi."}]}}]}),{status:200});
+  });
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const pdf=Buffer.from("%PDF-1.4\n%%EOF").toString("base64");
+  const result=await call(worker,"/api/chat",{token:login.data.token,body:{
+    messages:[{role:"user",content:"PDF dosyasını özetle."}],
+    document:{mimeType:"application/pdf",data:pdf}
+  }});
+  assert.equal(result.status,200);
+  assert.equal(capturedPayload.contents[0].parts[1].inlineData.mimeType,"application/pdf");
+});
+
+test("image generation requires an authenticated session", async () => {
+  const { worker, requestedModels } = createWorker();
+  const result = await call(worker, "/api/image", { body: { prompt: "A test image" } });
+  assert.equal(result.status, 401);
+  assert.equal(requestedModels.length, 0);
+});
+
+test("image generation uses Nano Banana 2.1 with explicit 1K square output and validates returned PNG", async () => {
+  let capturedPayload;
+  const { worker, requestedModels } = createWorker(async (url, options) => {
+    capturedPayload = JSON.parse(options.body || "{}");
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [
+      { text: "Test görsel açıklaması" },
+      { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }
+    ] } }] }), { status: 200 });
+  });
   const login = await call(worker, "/api/auth/login", {
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
@@ -441,7 +616,26 @@ test("image generation uses the current image model and returns image data", asy
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.image.mimeType, "image/png");
+  assert.equal(result.data.image.data, "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=");
   assert.ok(requestedModels[0].includes("gemini-nano-banana-2.1"));
+  assert.deepEqual(capturedPayload.generationConfig.responseModalities, ["TEXT", "IMAGE"]);
+  assert.deepEqual(capturedPayload.generationConfig.imageConfig, { aspectRatio: "1:1", imageSize: "1K" });
+});
+
+test("image generation rejects malformed provider image bytes", async () => {
+  const { worker } = createWorker(async () => new Response(JSON.stringify({
+    candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }] } }]
+  }), { status: 200 }));
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    body: { prompt: "A test image" }
+  });
+  assert.equal(result.status, 502);
 });
 
 test("expired admin sessions are rejected", async () => {
@@ -511,6 +705,17 @@ test("timer workspace persists an end timestamp and recalculates remaining time"
   assert.match(frontendSource, /const TIMER_KEY="mina-ai-active-timer-v1"/);
   assert.match(frontendSource, /endsAt:Date\.now\(\)\+minutes\*60000/);
   assert.match(frontendSource, /timer\.endsAt-Date\.now\(\)/);
+});
+
+test("chat UI supports 10 MB PDF DOCX TXT and Ren'Py attachments", () => {
+  const html=fs.readFileSync(path.join(workerDir,"..","index.html"),"utf8");
+  assert.match(html,/\.pdf/);
+  assert.match(html,/\.docx/);
+  assert.match(html,/\.rpy/);
+  assert.match(html,/mammoth@1\.9\.0/);
+  assert.match(frontendSource,/f\.size>10\*1024\*1024/);
+  assert.match(frontendSource,/mammoth\.extractRawText/);
+  assert.match(frontendSource,/kind==="pdf"/);
 });
 
 test("library supports bounded text file import, download and deletion", () => {
@@ -595,7 +800,7 @@ test("disabled chat and vision capabilities are rejected by the Worker", async (
     token: login.data.token,
     body: {
       messages: [{ role: "user", content: "Bu resimde ne var?" }],
-      image: { mimeType: "image/png", data: "aGVsbG8=" },
+      image: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" },
       capabilities: { vision: false }
     }
   });

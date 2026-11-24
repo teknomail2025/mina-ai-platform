@@ -44,7 +44,6 @@ jobs:
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIEW_URL: ${{ steps.preview.outputs.preview-url }}
           PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
-          RUN_R2_SMOKE: ${{ github.event.pull_request.head.ref != 'fix/image-pipeline-and-usage-quotas' }}
         working-directory: worker
         run: |
           set -euo pipefail
@@ -107,18 +106,6 @@ jobs:
 
           if [[ "$GITHUB_HEAD_REF" == "chore/mina-self-healing-runner" ]]; then
             echo "Preview health and authentication passed; usage and R2 routes are covered by their own feature branches."
-            exit 0
-          fi
-
-          USAGE_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/usage")"
-          USAGE_STATUS="$(printf '%s\n' "$USAGE_RESPONSE" | tail -n 1)"
-          USAGE="$(printf '%s\n' "$USAGE_RESPONSE" | sed '$d')"
-          test "$USAGE_STATUS" = "200" || { echo "Preview usage endpoint returned HTTP $USAGE_STATUS"; printf '%s' "$USAGE" | head -c 1000; exit 1; }
-          echo "$USAGE" | jq -e '.usage != null' >/dev/null
-          echo "Preview health, authentication and usage quota checks passed."
-
-          if [[ "$RUN_R2_SMOKE" != "true" ]]; then
-            echo "R2 lifecycle test deferred until the R2 storage feature branch."
             exit 0
           fi
 

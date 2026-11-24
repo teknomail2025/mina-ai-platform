@@ -57,6 +57,62 @@ async function ensureDisciplineSchema(db) {
   await db.prepare("CREATE INDEX IF NOT EXISTS idx_mina_discipline_events_user_created ON mina_discipline_events(user_id, created_at DESC)").run();
   disciplineSchemaReady = true;
 }
+const DAILY_USAGE_LIMITS = Object.freeze({chat:5,image_generation:5,image_analysis:5,live_minutes:10});
+let usageSchemaReady = false;
+async function ensureUsageSchema(db) {
+  if (usageSchemaReady) return;
+  await db.prepare("CREATE TABLE IF NOT EXISTS mina_daily_usage (user_id TEXT NOT NULL, usage_type TEXT NOT NULL, usage_day TEXT NOT NULL, used INTEGER NOT NULL DEFAULT 0, updated_at INTEGER NOT NULL, PRIMARY KEY (user_id, usage_type, usage_day))").run();
+  usageSchemaReady = true;
+}
+function istanbulUsageDay(timestamp=Date.now()) {
+  const parts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date(timestamp));
+  const values=Object.fromEntries(parts.map(part=>[part.type,part.value]));
+  return values.year+"-"+values.month+"-"+values.day;
+}
+async function reserveDailyUsage(db,userId,usageType) {
+  const limit=DAILY_USAGE_LIMITS[usageType];
+  if(!limit)throw new Error("Bilinmeyen kullanım kotası.");
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay();
+  const now=Date.now();
+  const row=await db.prepare("INSERT INTO mina_daily_usage (user_id, usage_type, usage_day, used, updated_at) VALUES (?, ?, ?, 1, ?) ON CONFLICT(user_id, usage_type, usage_day) DO UPDATE SET used = used + 1, updated_at = excluded.updated_at WHERE used < ? RETURNING used").bind(userId,usageType,day,now,limit).first();
+  if(!row)return {allowed:false,used:limit,limit,remaining:0,day};
+  return {allowed:true,used:Number(row.used)||1,limit,remaining:Math.max(0,limit-(Number(row.used)||1)),day};
+}
+async function refundDailyUsage(db,userId,usageType,day) {
+  await db.prepare("UPDATE mina_daily_usage SET used = MAX(0, used - 1), updated_at = ? WHERE user_id = ? AND usage_type = ? AND usage_day = ?").bind(Date.now(),userId,usageType,day).run();
+}
+async function reserveDailyFileBytes(db,userId,bytes) {
+  const limit=100*1024*1024;
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay(),now=Date.now();
+  const row=await db.prepare("INSERT INTO mina_daily_usage (user_id, usage_type, usage_day, used, updated_at) VALUES (?, 'file_bytes', ?, ?, ?) ON CONFLICT(user_id, usage_type, usage_day) DO UPDATE SET used = used + excluded.used, updated_at = excluded.updated_at WHERE used + excluded.used <= ? RETURNING used").bind(userId,day,bytes,now,limit).first();
+  if(!row)return {allowed:false,used:limit,limit,remaining:0,day};
+  return {allowed:true,used:Number(row.used)||bytes,limit,remaining:Math.max(0,limit-(Number(row.used)||bytes)),day};
+}
+async function refundDailyFileBytes(db,userId,bytes,day) {
+  if(bytes>0)await db.prepare("UPDATE mina_daily_usage SET used = MAX(0, used - ?), updated_at = ? WHERE user_id = ? AND usage_type = 'file_bytes' AND usage_day = ?").bind(bytes,Date.now(),userId,day).run();
+}
+async function readDailyFileBytes(db,userId) {
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay();
+  const row=await db.prepare("SELECT used FROM mina_daily_usage WHERE user_id = ? AND usage_type = 'file_bytes' AND usage_day = ?").bind(userId,day).first();
+  const used=Number(row?.used)||0,limit=100*1024*1024;
+  return {usedBytes:used,limitBytes:limit,remainingBytes:Math.max(0,limit-used)};
+}
+function pdfDataIsValid(document) {
+  if(!document||document.mimeType!=="application/pdf"||typeof document.data!=="string")return false;
+  const encoded=document.data;
+  if(!encoded||encoded.length>Math.ceil(10*1024*1024/3)*4||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)||encoded.length%4!==0)return false;
+  try{const binary=atob(encoded);return binary.length>5&&binary.length<=10*1024*1024&&binary.startsWith("%PDF-");}catch{return false;}
+}
+async function readDailyUsage(db,userId,usageType) {
+  await ensureUsageSchema(db);
+  const day=istanbulUsageDay();
+  const row=await db.prepare("SELECT used FROM mina_daily_usage WHERE user_id = ? AND usage_type = ? AND usage_day = ?").bind(userId,usageType,day).first();
+  const limit=DAILY_USAGE_LIMITS[usageType],used=Number(row?.used)||0;
+  return {used,limit,remaining:Math.max(0,limit-used)};
+}
 async function getDisciplineState(db, userId) {
   await ensureDisciplineSchema(db);
   return db.prepare("SELECT user_id, violation_count, restricted_until, appeal_status, appeal_text, updated_at FROM mina_discipline_state WHERE user_id = ?").bind(userId).first();
@@ -110,7 +166,19 @@ async function readJsonLimited(request,maxBytes){
   }catch{return {invalid:true};}
 }
 function validMessages(messages){return Array.isArray(messages)&&messages.length>0&&messages.length<=20&&messages.every(m=>m&&["user","assistant"].includes(m.role)&&typeof m.content==="string"&&m.content.length<=20000);}
-function imageDataIsValid(image){return image&&typeof image.data==="string"&&image.data.length<=12_000_000&&["image/jpeg","image/png","image/webp"].includes(image.mimeType);}
+function imageDataIsValid(image){
+  if(!image||typeof image.data!=="string"||!["image/jpeg","image/png","image/webp"].includes(image.mimeType))return false;
+  const encoded=image.data;
+  if(!encoded||encoded.length>Math.ceil(8*1024*1024/3)*4||!/^[A-Za-z0-9+/]+={0,2}$/.test(encoded)||encoded.length%4!==0)return false;
+  let binary;
+  try{binary=atob(encoded);}catch{return false;}
+  if(!binary.length||binary.length>8*1024*1024)return false;
+  const bytes=Uint8Array.from(binary,char=>char.charCodeAt(0));
+  const png=bytes.length>=8&&[137,80,78,71,13,10,26,10].every((value,index)=>bytes[index]===value);
+  const jpeg=bytes.length>=3&&bytes[0]===255&&bytes[1]===216&&bytes[2]===255;
+  const webp=bytes.length>=12&&String.fromCharCode(...bytes.slice(0,4))==="RIFF"&&String.fromCharCode(...bytes.slice(8,12))==="WEBP";
+  return (image.mimeType==="image/png"&&png)||(image.mimeType==="image/jpeg"&&jpeg)||(image.mimeType==="image/webp"&&webp);
+}
 async function callGemini(env,model,payload){
   const url="https://generativelanguage.googleapis.com/v1beta/models/"+model+":generateContent";
   const options={method:"POST",headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},body:JSON.stringify(payload)};
@@ -221,6 +289,16 @@ export default {
   }
   if(url.pathname==="/api/health"&&request.method==="GET") return json({ok:true,service:"mina-ai-api",provider:"Google Gemini",configured:!!env.GEMINI_API_KEY,adminAuthConfigured:!!(env.ADMIN_USERNAME&&env.ADMIN_PASSWORD&&env.SESSION_SECRET),memoryConfigured:!!env.MINA_DB},200,cors);
   if(!(await verifySession(request,env))) return json({error:"Bu işlem için yönetici girişi gerekiyor."},401,cors);
+  if(url.pathname==="/api/usage"&&request.method==="GET"){
+    if(!env.MINA_DB)return json({error:"Kullanım kotası veritabanı yapılandırılmamış."},503,cors);
+    try{
+      const userId=String(env.ADMIN_USERNAME||"admin");
+      const usage={};
+      for(const type of Object.keys(DAILY_USAGE_LIMITS))usage[type]=await readDailyUsage(env.MINA_DB,userId,type);
+      usage.files=await readDailyFileBytes(env.MINA_DB,userId);
+      return json({day:istanbulUsageDay(),timezone:"Europe/Istanbul",usage},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Günlük kullanım bilgisi okunamadı."},503,cors);}
+  }
   if(url.pathname==="/api/auth/me"&&request.method==="GET") return json({authenticated:true,user:{username:env.ADMIN_USERNAME}},200,{...cors,"Cache-Control":"no-store"});
   if(url.pathname==="/api/preferences"&&request.method==="GET"){
     if(!env.MINA_DB)return json({error:"MinaData veritabanı bağlantısı yapılandırılmamış."},503,cors);
@@ -356,17 +434,24 @@ export default {
     if(!body||typeof body!=="object")return json({error:"Geçersiz görsel isteği."},400,cors);
     const prompt=typeof body.prompt==="string"?body.prompt.trim():"";
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    if(!env.MINA_DB)return json({error:"Görsel üretim kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
+    let quota;
+    try{quota=await reserveDailyUsage(env.MINA_DB,userId,"image_generation");}
+    catch(error){return json({error:"Görsel üretim kotası kontrol edilemedi."},503,cors);}
+    if(!quota.allowed)return json({error:"Günlük görsel üretim limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0,day:quota.day}},429,cors);
     try{
-      const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create an image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"]}});
+      const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}});
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
-      if(!r.ok) return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);
+      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);}
       const parts=d.candidates?.[0]?.content?.parts||[];
       const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
       const textPart=parts.find(p=>p.text);
       const blob=imagePart?.inlineData||imagePart?.inline_data;
-      if(!blob?.data) return json({error:"Görsel modeli metin döndürdü ancak görsel verisi gelmedi.",provider_detail:textPart?.text||"Görsel bulunamadı."},502,cors);
-      return json({image:{mimeType:blob.mimeType||blob.mime_type||"image/png",data:blob.data},caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
-    }catch(e){return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
+      const image={mimeType:blob?.mimeType||blob?.mime_type||"image/png",data:blob?.data};
+      if(!imageDataIsValid(image)){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);}
+      return json({image,caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
+    }catch(e){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
   if(url.pathname==="/api/discipline/voice-check"&&request.method==="POST"){
@@ -384,10 +469,21 @@ export default {
     if(result.minutes===0)return json({ok:true,violation:true,warning:true,message:"Baba, lütfen benimle hakaret etmeden konuş. Saygılı biçimde devam edelim."},200,cors);
     return json({ok:false,violation:true,restricted:true,violation_count:result.count,restriction_minutes:result.minutes,restricted_until:result.restrictedUntil,error:"Saygısız iletişim nedeniyle "+result.minutes+" dakika sesli ve yazılı sohbet kısıtlaması uygulandı."},429,cors);
   }
+  if(url.pathname==="/api/live-minute"&&request.method==="POST"){
+    if(!env.MINA_DB)return json({error:"Canlı ses kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
+    const userId=String(env.ADMIN_USERNAME||"admin");
+    try{
+      const quota=await reserveDailyUsage(env.MINA_DB,userId,"live_minutes");
+      if(!quota.allowed)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0}},429,cors);
+      return json({ok:true,usedMinutes:quota.used,remainingMinutes:quota.remaining,limitMinutes:quota.limit,day:quota.day},200,{...cors,"Cache-Control":"no-store"});
+    }catch(error){return json({error:"Canlı ses kullanım kotası kontrol edilemedi."},503,cors);}
+  }
   if(url.pathname==="/api/live-token"&&request.method==="POST"){
     if(!env.MINA_DB)return json({error:"Canlı ses için disiplin veritabanı bağlantısı gerekli."},503,cors);
     const voiceDiscipline=await getDisciplineState(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"));
     if(Number(voiceDiscipline?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ettiği için sesli sohbet geçici olarak kapalı.",restricted:true,restricted_until:voiceDiscipline.restricted_until},429,cors);
+    const liveUsage=await readDailyUsage(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"),"live_minutes");
+    if(liveUsage.remaining<=0)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:liveUsage.used,limit:liveUsage.limit,remaining:0}},429,cors);
     if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
     try{
       const r=await fetch("https://generativelanguage.googleapis.com/v1beta/auth_tokens",{
@@ -415,12 +511,21 @@ export default {
     }catch(e){return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
-  const parsedChat=await readJsonLimited(request,13_500_000);
+  const parsedChat=await readJsonLimited(request,15_500_000);
   if(parsedChat.tooLarge)return json({error:"Sohbet isteği çok büyük."},413,cors);
   if(parsedChat.invalid)return json({error:"Geçersiz JSON isteği."},400,cors);
   const body=parsedChat.value;
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
+  if(body.image&&body.document)return json({error:"Tek istekte hem resim hem PDF eklenemez."},400,cors);
+  if(body.document&&!pdfDataIsValid(body.document))return json({error:"PDF geçersiz veya 10 MB sınırını aşıyor."},400,cors);
+  let attachmentBytes=0;
+  if(body.fileAttachment!==undefined){
+    if(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||typeof body.fileAttachment.content!=="string")return json({error:"Dosya eki geçersiz."},400,cors);
+    attachmentBytes=new TextEncoder().encode(body.fileAttachment.content).byteLength;
+    if(!attachmentBytes||attachmentBytes>10*1024*1024||body.fileAttachment.name.length>255)return json({error:"Dosya içeriği boş veya 10 MB sınırını aşıyor."},413,cors);
+  }
+  if(body.document)attachmentBytes=atob(body.document.data).length;
   const capabilities=body.capabilities&&typeof body.capabilities==="object"?body.capabilities:{};
   const language=["auto","tr","en"].includes(body.language)?body.language:"auto";
   if(capabilities.chat===false)return json({error:"Sohbet yeteneği yönetici ayarlarından kapatılmış."},403,cors);
@@ -456,7 +561,7 @@ export default {
   }
   if(body.image&&capabilities.vision===false)return json({error:"Görsel anlama yönetici ayarlarından kapatılmış."},403,cors);
   // Mina Core: Önce açıkça öğretilmiş birebir dersleri kullan; eşleşme yoksa seçilen yapay zekâ sağlayıcısına devam et.
-  if(!body.image){
+  if(!body.image&&!body.document&&!body.fileAttachment){
     const latest=[...body.messages].reverse().find(m=>m.role==="user")?.content||"";
     const normalized=latest.trim().toLocaleLowerCase("tr-TR").replace(/[.!?]+$/g,"");
     const lesson=minaTraining.lessons.find(item=>item.type==="exact-intent"&&item.examples.includes(normalized));
@@ -474,12 +579,26 @@ export default {
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
     if(i===body.messages.length-1&&m.role==="user"&&body.image) parts.push({inlineData:{mimeType:body.image.mimeType,data:body.image.data}});
+    if(i===body.messages.length-1&&m.role==="user"&&body.document)parts.push({inlineData:{mimeType:"application/pdf",data:body.document.data}});
+    if(i===body.messages.length-1&&m.role==="user"&&body.fileAttachment)parts.push({text:"\n\nEk dosya: "+body.fileAttachment.name+"\n"+body.fileAttachment.content});
     return {role:m.role==="assistant"?"model":"user",parts};
   });
   const thinkingLevel=body.model==="advanced"||routing.task==="coding"||routing.task==="reasoning"?"HIGH":"LOW";
   const languageInstruction=language==="en"?" The response language is fixed to English.":language==="tr"?" Yanıt dili sabit olarak Türkçe.":" Detect whether the latest user message is Turkish or English and answer in that same language.";
    const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
   if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
+  const usageType=body.image?"image_analysis":"chat";
+  const usageUserId=String(env.ADMIN_USERNAME||"admin");
+  let fileReservation=null;
+  if(attachmentBytes>0){
+    try{fileReservation=await reserveDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes);}
+    catch(error){return json({error:"Günlük dosya kotası kontrol edilemedi."},503,cors);}
+    if(!fileReservation.allowed)return json({error:"Bugünkü 100 MB dosya ekleme kotan doldu.",fileQuota:{usedBytes:fileReservation.used,limitBytes:fileReservation.limit,remainingBytes:0}},429,cors);
+  }
+  let usageReservation;
+  try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType);}
+  catch(error){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
+  if(!usageReservation.allowed){if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
     let upstream;
     const requestedModel = model;
@@ -490,14 +609,14 @@ export default {
     }
     else if(provider==="openai") upstream=await callOpenAI(env,body.model==="advanced"?"advanced":"fast",payload);
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
-    else return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);
+    else {await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);}
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
-    if(!upstream.ok){const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,provider_detail:detail,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
+    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);const detail=parsed?.error?.message||raw.slice(0,1000);return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,provider_detail:detail,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
     const parts=parsed?.candidates?.[0]?.content?.parts||[];
     const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
-    if(!answer)return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);
+    if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Gemini boş yanıt döndürdü.",provider_detail:parsed?.promptFeedback?.blockReason||"Yanıt metni bulunamadı."},502,cors);}
     const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
     return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,sources},200,cors);
-  }catch(e){return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
+  }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);if(fileReservation)await refundDailyFileBytes(env.MINA_DB,usageUserId,attachmentBytes,fileReservation.day);return json({error:"Gemini servisine bağlanılamadı: "+(e?.message||"bilinmeyen hata")},502,cors);}
  }
 };

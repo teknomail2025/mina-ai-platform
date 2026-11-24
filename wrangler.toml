@@ -1,0 +1,24 @@
+name = "mina-ai-platform"
+main = "worker/src/index.js"
+compatibility_date = "2026-10-01"
+preview_urls = true
+
+[vars]
+ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
+GEMINI_MODEL = "gemini-3.8-flash"
+
+[previews]
+
+[previews.vars]
+ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
+GEMINI_MODEL = "gemini-3.8-flash"
+
+[[previews.d1_databases]]
+binding = "MINA_DB"
+database_name = "mina-ai-db-preview"
+database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"
+migrations_dir = "worker/migrations"
+
+[[previews.r2_buckets]]
+binding = "MINA_FILES"
+bucket_name = "mina-temporary-files-preview"
