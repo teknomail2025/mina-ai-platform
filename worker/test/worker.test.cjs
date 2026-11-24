@@ -7,7 +7,8 @@ const workerDir = path.resolve(__dirname, "..");
 const training = JSON.parse(fs.readFileSync(path.join(workerDir, "src/training.json"), "utf8"));
 const workerSource = fs.readFileSync(path.join(workerDir, "src/index.js"), "utf8")
   .replace(/^import minaTraining from "\.\/training\.json";\s*/, "")
-  .replace("export default {", "return {");
+  .replace('import { handleSelfHealingRequest, recordSelfHealingIncident } from "./self-healing.mjs";', "")
+  .replace("export default {", "const handleSelfHealingRequest = async () => null; const recordSelfHealingIncident = async () => {}; return {");
 
 const env = {
   ALLOWED_ORIGINS: "https://teknomail2025.github.io",
