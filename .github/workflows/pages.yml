@@ -45,7 +45,7 @@ jobs:
       - name: Worker runtime smoke test (startup, auth, shutdown)
         run: |
           cd worker
-          npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.toml
+          npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.production.toml
           npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8786 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
@@ -112,7 +112,7 @@ jobs:
         timeout-minutes: 5
         run: |
           cd worker
-          npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.toml
+          npx --yes wrangler@4 d1 migrations apply mina-ai-db --local --config wrangler.production.toml
           setsid npx --yes wrangler@4 dev --local --ip 127.0.0.1 --port 8787 \
             --var ADMIN_USERNAME:Argion \
             --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
@@ -159,6 +159,7 @@ jobs:
           test -s manifest.en.webmanifest
           test -s app-icon.svg
           test -s worker/wrangler.toml
+          test -s worker/wrangler.production.toml
           test -s worker/test/worker.test.cjs
           test -s worker/test/ui-language.browser.cjs
           test -s worker/migrations/0001_auth_and_user_data.sql
