@@ -75,3 +75,5 @@ Use the returned Preview URL for browser testing. Confirm `/api/health`, authent
 - Preview resources and secrets are separate from production.
 - Cron Triggers do not invoke the Preview `scheduled()` handler; test cleanup through automated tests or a dedicated isolated test path.
 - Do not merge or deploy until the Cloudflare Preview build and end-to-end checks pass.
+
+Preview smoke scope: the image-pipeline branch checks health, admin login and usage quotas; R2 lifecycle checks begin with the R2 storage branch; the self-healing branch additionally checks safe defaults and incident capture.
