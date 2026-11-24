@@ -1,0 +1,99 @@
+name: Mina Cloudflare Preview end-to-end smoke test
+
+on:
+  pull_request:
+    branches: [main, feat/r2-temporary-file-storage]
+    paths:
+      - "worker/**"
+      - "app.js"
+      - "auth.js"
+      - "voice.js"
+      - "i18n.js"
+
+permissions:
+  contents: read
+  deployments: write
+
+concurrency:
+  group: mina-preview-smoke-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  preview-smoke:
+    if: github.event.pull_request.head.repo.full_name == github.repository
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - name: Checkout pull request
+        uses: actions/checkout@v4
+
+      - name: Create isolated Cloudflare Preview
+        id: preview
+        uses: cloudflare/wrangler-action@v4
+        with:
+          apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          workingDirectory: worker
+          command: preview --config wrangler.toml --name mina-smoke-pr-${{ github.event.pull_request.number }} --json
+          wranglerVersion: "4.167.0"
+          gitHubToken: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Authenticate and verify D1/R2 file lifecycle
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_URL: ${{ steps.preview.outputs.preview-url }}
+          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+        working-directory: worker
+        run: |
+          set -euo pipefail
+          set +x
+          test -n "$PREVIEW_URL" || { echo "Cloudflare did not return a Preview URL."; exit 1; }
+
+          PREVIEW_ADMIN_USERNAME="mina-smoke-${{ github.event.pull_request.number }}"
+          PREVIEW_ADMIN_PASSWORD="$(openssl rand -hex 24)"
+          PREVIEW_SESSION_SECRET="$(openssl rand -hex 48)"
+          echo "::add-mask::$PREVIEW_ADMIN_PASSWORD"
+          echo "::add-mask::$PREVIEW_SESSION_SECRET"
+
+          printf '%s' "$PREVIEW_ADMIN_USERNAME" | npx wrangler preview secret put ADMIN_USERNAME --name "$PREVIEW_NAME" --config wrangler.toml
+          printf '%s' "$PREVIEW_ADMIN_PASSWORD" | npx wrangler preview secret put ADMIN_PASSWORD --name "$PREVIEW_NAME" --config wrangler.toml
+          printf '%s' "$PREVIEW_SESSION_SECRET" | npx wrangler preview secret put SESSION_SECRET --name "$PREVIEW_NAME" --config wrangler.toml
+
+          HEALTH="$(curl --fail --silent --show-error --retry 10 --retry-connrefused --retry-delay 2 "$PREVIEW_URL/api/health")"
+          echo "$HEALTH" | jq -e '.ok == true and .memoryConfigured == true and .adminAuthConfigured == true' >/dev/null
+
+          LOGIN_BODY="$(jq -nc --arg username "$PREVIEW_ADMIN_USERNAME" --arg password "$PREVIEW_ADMIN_PASSWORD" '{username:$username,password:$password,rememberMe:true}')"
+          LOGIN="$(curl --fail --silent --show-error -H 'Content-Type: application/json' -d "$LOGIN_BODY" "$PREVIEW_URL/api/auth/login")"
+          TOKEN="$(echo "$LOGIN" | jq -r '.token // empty')"
+          test -n "$TOKEN" || { echo "Preview admin login did not return a session token."; exit 1; }
+
+          FILE_DATA="$(printf 'Mina Preview smoke test\n' | base64 -w0)"
+          UPLOAD_BODY="$(jq -nc --arg name 'mina-preview-smoke.txt' --arg data "$FILE_DATA" '{name:$name,data:$data}')"
+          UPLOAD="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$UPLOAD_BODY" "$PREVIEW_URL/api/files")"
+          FILE_ID="$(echo "$UPLOAD" | jq -r '.id // empty')"
+          test -n "$FILE_ID" || { echo "R2 upload did not return a file id."; exit 1; }
+
+          LIST="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          echo "$LIST" | jq -e --arg id "$FILE_ID" 'any(.files[]?; .id == $id)' >/dev/null
+
+          DOWNLOADED="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          test "$DOWNLOADED" = "$(printf 'Mina Preview smoke test\n')"
+
+          DELETED="$(curl --fail --silent --show-error -X DELETE -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files/$FILE_ID")"
+          echo "$DELETED" | jq -e '.deleted == true' >/dev/null
+
+          LIST_AFTER_DELETE="$(curl --fail --silent --show-error -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/files")"
+          echo "$LIST_AFTER_DELETE" | jq -e --arg id "$FILE_ID" 'all(.files[]?; .id != $id)' >/dev/null
+
+          echo "Preview health, admin authentication, D1 quota/schema, R2 upload, list, download and delete all passed."
+
+      - name: Delete temporary smoke Preview
+        if: always()
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+        working-directory: worker
+        run: npx wrangler preview delete --name "$PREVIEW_NAME" --config wrangler.toml --skip-confirmation
+        continue-on-error: true
