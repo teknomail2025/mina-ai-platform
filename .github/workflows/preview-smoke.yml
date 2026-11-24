@@ -9,6 +9,7 @@ on:
       - "auth.js"
       - "voice.js"
       - "i18n.js"
+      - ".github/workflows/preview-smoke.yml"
 
 permissions:
   contents: read
@@ -114,8 +115,8 @@ jobs:
           USAGE="$(printf '%s\n' "$USAGE_RESPONSE" | sed '$d')"
           test "$USAGE_STATUS" = "200" || { echo "Preview usage endpoint returned HTTP $USAGE_STATUS"; printf '%s' "$USAGE" | head -c 1000; exit 1; }
           echo "$USAGE" | jq -e '.usage != null' >/dev/null
-          if [[ "$GITHUB_HEAD_REF" == "fix/image-pipeline-and-usage-quotas" || "$GITHUB_HEAD_REF" == "chore/mina-self-healing-runner" ]]; then
-            echo "Health, authentication and usage checks passed; R2 lifecycle begins in the next feature branch."
+          if [[ "$GITHUB_BASE_REF" != "feat/r2-temporary-file-storage" && "$GITHUB_HEAD_REF" != "feat/r2-temporary-file-storage" ]]; then
+            echo "Health, authentication and usage checks passed; R2 lifecycle runs only on the R2 feature chain."
             exit 0
           fi
 
