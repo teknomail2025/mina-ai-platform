@@ -24,3 +24,4 @@ jobs:
           node --check voice.js
           node --test worker/test/*.test.cjs worker/test/*.test.mjs
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
