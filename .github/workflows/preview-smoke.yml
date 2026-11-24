@@ -109,9 +109,32 @@ jobs:
           USAGE="$(printf '%s\n' "$USAGE_RESPONSE" | sed '$d')"
           test "$USAGE_STATUS" = "200" || { echo "Preview usage endpoint returned HTTP $USAGE_STATUS"; printf '%s' "$USAGE" | head -c 1000; exit 1; }
           echo "$USAGE" | jq -e '.usage != null' >/dev/null
-          if [[ "$GITHUB_HEAD_REF" == "fix/image-pipeline-and-usage-quotas" ]]; then
+          if [[ "$GITHUB_HEAD_REF" == "fix/image-pipeline-and-usage-quotas" || "$GITHUB_HEAD_REF" == "chore/mina-self-healing-runner" ]]; then
             echo "Health, authentication and usage checks passed; R2 lifecycle begins in the next feature branch."
             exit 0
+          fi
+
+          if [[ "$GITHUB_HEAD_REF" == "feature/mina-self-healing" ]]; then
+            HEAL_STATUS_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/admin/self-healing/status")"
+            HEAL_STATUS_CODE="$(printf '%s\n' "$HEAL_STATUS_RESPONSE" | tail -n 1)"
+            HEAL_STATUS="$(printf '%s\n' "$HEAL_STATUS_RESPONSE" | sed '$d')"
+            test "$HEAL_STATUS_CODE" = "200" || { echo "Self-healing status returned HTTP $HEAL_STATUS_CODE"; printf '%s' "$HEAL_STATUS" | head -c 1000; exit 1; }
+            echo "$HEAL_STATUS" | jq -e '.enabled == true and .incidentCapture == true and .approvalRequired == true and .automaticCodeChanges == false and .patchExecution == false' >/dev/null
+
+            REPORT_BODY="$(jq -nc --arg message 'Preview smoke test incident capture' '{source:"manual",route:"/api/admin/self-healing/status",message:$message}')"
+            REPORT_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" -H 'Content-Type: application/json' -d "$REPORT_BODY" "$PREVIEW_URL/api/admin/self-healing/report")"
+            REPORT_CODE="$(printf '%s\n' "$REPORT_RESPONSE" | tail -n 1)"
+            REPORT="$(printf '%s\n' "$REPORT_RESPONSE" | sed '$d')"
+            test "$REPORT_CODE" = "201" || { echo "Self-healing incident report returned HTTP $REPORT_CODE"; printf '%s' "$REPORT" | head -c 1000; exit 1; }
+            INCIDENT_ID="$(echo "$REPORT" | jq -r '.incident.id // empty')"
+            test -n "$INCIDENT_ID" || { echo "Self-healing incident did not return an id."; exit 1; }
+
+            INCIDENTS_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/admin/self-healing/incidents")"
+            INCIDENTS_CODE="$(printf '%s\n' "$INCIDENTS_RESPONSE" | tail -n 1)"
+            INCIDENTS="$(printf '%s\n' "$INCIDENTS_RESPONSE" | sed '$d')"
+            test "$INCIDENTS_CODE" = "200" || { echo "Self-healing incident list returned HTTP $INCIDENTS_CODE"; printf '%s' "$INCIDENTS" | head -c 1000; exit 1; }
+            echo "$INCIDENTS" | jq -e --arg id "$INCIDENT_ID" 'any(.incidents[]?; .id == $id)' >/dev/null
+            echo "Self-healing status, safety defaults and incident capture passed."
           fi
 
           FILE_DATA="$(printf 'Mina Preview smoke test\n' | base64 -w0)"
