@@ -1135,6 +1135,14 @@ test("Wrangler declares isolated Worker Preview settings", () => {
   assert.doesNotMatch(config, /^previews = \{\}$/m);
 });
 
+test("preview migration config can only target the isolated preview D1 database", () => {
+  const config = fs.readFileSync(path.join(workerDir, "wrangler.preview-migrations.toml"), "utf8");
+  assert.match(config, /^database_name = "mina-ai-db-preview"$/m);
+  assert.match(config, /^database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"$/m);
+  assert.doesNotMatch(config, /bdf7737f-b4b2-4158-982b-b7c7483ca702/);
+  assert.match(config, /^migrations_dir = "migrations"$/m);
+});
+
 test("temporary R2 files require login, retain original bytes, and can be downloaded and deleted", async () => {
   const { worker, r2Objects } = createWorker();
   const guest = await call(worker, "/api/files", { method: "POST", body: { name: "hello.txt", data: "aGVsbG8=" } });
