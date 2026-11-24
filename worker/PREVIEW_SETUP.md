@@ -1,78 +1,36 @@
 # Mina AI – Cloudflare Worker Preview setup
 
-Production resources must not be shared with branch Previews. Cloudflare Worker Previews do not inherit production variables, secrets, or bindings.
+Production API and Cloudflare Build Previews use separate Wrangler files and separate resources.
 
-## 1. Create isolated Preview resources
+- Cloudflare Workers Builds is connected to the existing Worker named `mina-ai-platform`; it must use `worker/wrangler.toml`.
+- The active production API is `mina-ai-api`; GitHub Actions deploys it using `worker/wrangler.production.toml`.
+- Preview D1 and R2 bindings are isolated from production.
 
-From the `worker/` directory, create the isolated resources with Wrangler (or create them in the Cloudflare dashboard):
+## Resources
 
-```sh
-npx wrangler d1 create mina-ai-db-preview
-npx wrangler r2 bucket create mina-temporary-files-preview
-```
+- Preview D1: `mina-ai-db-preview`, ID `a0c9df12-44bc-4e58-866c-25a3651edd66`
+- Preview R2: `mina-temporary-files-preview`
+- Production D1: `mina-ai-db`
+- Production R2: `mina-temporary-files`
 
-The isolated Preview D1 database has been created. Its ID is already configured in `worker/wrangler.toml`: `a0c9df12-44bc-4e58-866c-25a3651edd66`. Create the isolated Preview R2 bucket `mina-temporary-files-preview` if you have not already; keep it private (Public access disabled; Standard storage).
+## Cloudflare Workers Builds
 
-Keep the existing production resources unchanged:
-- D1: `mina-ai-db`
-- R2: `mina-temporary-files`
+Repository root: `/`
 
-## 2. Add Preview bindings to `worker/wrangler.toml`
-
-The Preview-only bindings are now configured in `worker/wrangler.toml`. The configuration must use the isolated Preview D1 and R2 resources shown below:
-
-```toml
-[previews.vars]
-ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
-GEMINI_MODEL = "gemini-3.8-flash"
-
-[[previews.d1_databases]]
-binding = "MINA_DB"
-database_name = "mina-ai-db-preview"
-database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"
-migrations_dir = "migrations"
-
-[[previews.r2_buckets]]
-binding = "MINA_FILES"
-bucket_name = "mina-temporary-files-preview"
-```
-
-Do not point Preview bindings at the production D1 database or production R2 bucket.
-
-## 3. Configure Preview-only secrets
-
-Using Wrangler 4.135.0 or later, set these in the Preview Base configuration. Wrangler prompts for each secret value:
+Build command:
 
 ```sh
-npx wrangler preview base-config secret put ADMIN_USERNAME
-npx wrangler preview base-config secret put ADMIN_PASSWORD
-npx wrangler preview base-config secret put SESSION_SECRET
-npx wrangler preview base-config secret put GEMINI_API_KEY
+cd worker && npm install --no-audit --no-fund
 ```
 
-Use the existing admin username if desired, but use a separate long random `SESSION_SECRET` for Preview. Never put secret values in this file or in `wrangler.toml`.
-
-## 4. Apply D1 migrations and create the Preview
-
-Apply the repository migrations to the Preview database, then create the branch Preview:
+Preview command:
 
 ```sh
-npx wrangler d1 migrations apply mina-ai-db-preview --remote
-npx wrangler preview
+cd worker && npx wrangler d1 migrations apply MINA_DB --remote --config wrangler.preview-migrations.toml && npx wrangler preview --config wrangler.toml
 ```
 
-Use the Preview URL—not the production Worker URL—for browser testing. Confirm that `/api/health` reports the API configured and that authenticated upload, download, delete, chat, and cleanup tests pass.
+Both Preview configs use the connected Worker name `mina-ai-platform` and isolated Preview D1/R2 resources.
 
-For end-to-end browser testing, serve the frontend files from this branch locally (for example, `python -m http.server 8000`). In a local-only copy of `index.html`, add this script immediately before `auth.js` is loaded, replacing the URL with the Preview URL returned by Wrangler:
+## Production deployment
 
-```html
-<script>window.MINA_API_BASE = "https://YOUR-WORKER-PREVIEW-URL";</script>
-```
-
-Do not commit that local Preview URL override to the production branch. The configured `localhost:8000` CORS origin allows this local test page to call the Preview Worker.
-
-## Safety notes
-
-- The top-level `MINA_DB` and `MINA_FILES` bindings remain production-only.
-- Cron triggers are production-only; Cloudflare does not run production cron triggers for Previews. Test cleanup by invoking the cleanup helper in automated tests or with an isolated Preview-only test path.
-- Do not merge or deploy the PR until the Preview uses the isolated resources and the end-to-end checks pass.
+Production deploys use `worker/wrangler.production.toml` only. GitHub Actions tests and dry-runs both configurations before deploying `mina-ai-api`. Never store secret values in Wrangler files or Git.
