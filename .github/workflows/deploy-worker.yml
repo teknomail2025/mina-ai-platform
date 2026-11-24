@@ -31,7 +31,8 @@ jobs:
       - name: Validate Worker and run tests
         run: |
           node --check worker/src/index.js
-          node --test worker/test/*.test.cjs
+          node --test worker/test/*.test.cjs worker/test/*.test.mjs
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
 
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
