@@ -1005,7 +1005,11 @@
           $("generateSelfHealingPatch").disabled=!selfHealingRunnerReady||!item||item.status!=="approved_for_manual_test";
         };
         proposalSelect.onchange=showProposal;showProposal();
-        status.textContent=(incidentData.incidents||[]).length+" hata kaydı · "+(proposalData.proposals||[]).length+" teşhis önerisi. Kod değişikliği ve yayın kapalı.";
+        const incidentCount=(incidentData.incidents||[]).length;
+        const proposalCount=(proposalData.proposals||[]).length;
+        status.textContent=uiLanguage==="en"
+          ? `${incidentCount} error report${incidentCount===1?"":"s"} · ${proposalCount} diagnosis proposal${proposalCount===1?"":"s"}. Code changes and publishing are disabled.`
+          : `${incidentCount} hata kaydı · ${proposalCount} teşhis önerisi. Kod değişikliği ve yayın kapalı.`;
       }catch(error){status.textContent=error.message||"Kendi kendini onarma bilgileri alınamadı.";}
     };
     $("refreshSelfHealing").addEventListener("click",refreshSelfHealing);
