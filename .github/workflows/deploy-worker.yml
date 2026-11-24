@@ -32,6 +32,7 @@ jobs:
           node --test worker/test/*.test.cjs
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
           npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.toml
+          npx --yes wrangler@4 deploy --dry-run --config wrangler.toml
       - name: Deploy Worker to Cloudflare
         uses: cloudflare/wrangler-action@v3
         with:
