@@ -1189,3 +1189,86 @@ test("chat attachment quota is based on the stored original R2 object size", asy
   assert.equal(result.status, 200);
   assert.ok([...usageStore.entries()].some(([key,value])=>key.includes("|file_bytes|")&&value.used===11));
 });
+
+test("Gemini 503 on ordinary chat switches to a different Flash-Lite model", async () => {
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-3.5-flash-lite:generateContent")) {
+      return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
+  assert.equal(result.data.requested_model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.model, "gemini-3.1-flash-lite");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
+  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"));
+  assert.ok(requestedModels[1].includes("gemini-3.1-flash-lite"));
+});
+
+test("chat loads durable D1 memory into Gemini system context and reports generation diagnostics", async () => {
+  let capturedPayload;
+  const { worker, mockDb } = createWorker(async (url, options) => {
+    capturedPayload = JSON.parse(options.body || "{}");
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [{ text: "Hafızanı dikkate alarak yanıtlıyorum." }] }, finishReason: "STOP" }],
+      usageMetadata: { promptTokenCount: 42, candidatesTokenCount: 12, thoughtsTokenCount: 3 }
+    }), { status: 200, headers: { "Content-Type": "application/json" } });
+  });
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const saved = await call(worker, "/api/memory", { method: "PUT", token: login.data.token, env: { MINA_DB: mockDb }, body: { memory: "Mina değişiklikleri yayımlamadan önce test etmelidir." } });
+  assert.equal(saved.status, 200);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Mina projesinde nelere dikkat edelim?" }] }
+  });
+  assert.equal(result.status, 200);
+  const systemPrompt = capturedPayload.systemInstruction.parts[0].text;
+  const userPrompt = capturedPayload.contents[0].parts[0].text;
+  assert.match(systemPrompt, /KALICI KULLANICI HAFIZASI \(D1\)/);
+  assert.match(systemPrompt, /Mina değişiklikleri yayımlamadan önce test etmelidir/);
+  assert.equal(userPrompt, "Mina projesinde nelere dikkat edelim?");
+  assert.equal(result.data.generation.finish_reason, "STOP");
+  assert.equal(result.data.generation.prompt_tokens, 42);
+  assert.equal(result.data.generation.output_tokens, 12);
+  assert.ok(result.data.generation.duration_ms >= 0);
+});
+
+test("DOCX attachments include extracted text alongside the original stored file", () => {
+  assert.ok(frontendSource.includes("content:file.content"));
+  assert.ok(frontendSource.includes("docx$/i.test(file.name)"));
+});
+
+test("unauthenticated live-minute and voice-discipline requests cannot consume quota or punish the admin", async () => {
+  const { worker, disciplineStore, usageStore } = createWorker();
+  const liveMinute = await call(worker, "/api/live-minute", { method: "POST", body: {} });
+  assert.equal(liveMinute.status, 401);
+  assert.equal(usageStore.size, 0, "guest requests must not consume live-minute quota");
+
+  const voiceCheck = await call(worker, "/api/discipline/voice-check", {
+    method: "POST",
+    body: { text: "Sen aptalsın." }
+  });
+  assert.equal(voiceCheck.status, 401);
+  assert.equal(disciplineStore.row, null, "guest requests must not create discipline state");
+  assert.equal(disciplineStore.events.length, 0, "guest requests must not create discipline events");
+});
+
+test("preview migration config can only target the isolated preview D1 database", () => {
+  const config = fs.readFileSync(path.join(workerDir, "wrangler.preview-migrations.toml"), "utf8");
+  assert.match(config, /^database_name = "mina-ai-db-preview"$/m);
+  assert.match(config, /^database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"$/m);
+  assert.doesNotMatch(config, /bdf7737f-b4b2-4158-982b-b7c7483ca702/);
+  assert.match(config, /^migrations_dir = "migrations"$/m);
+});
+
