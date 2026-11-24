@@ -19,6 +19,7 @@ test("Cloudflare Workers Builds config matches its linked mina-ai-platform servi
   assert.match(previewConfig, /^bucket_name = "mina-temporary-files-preview"$/m);
   assert.doesNotMatch(previewConfig, /bdf7737f-b4b2-4158-982b-b7c7483ca702/);
   assert.doesNotMatch(previewConfig, /bucket_name = "mina-temporary-files"$/m);
+  assert.match(previewMigrationConfig, /^name = "mina-ai-platform"$/m);
   assert.match(previewMigrationConfig, /^database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"$/m);
   assert.doesNotMatch(previewMigrationConfig, /bdf7737f-b4b2-4158-982b-b7c7483ca702/);
 });
