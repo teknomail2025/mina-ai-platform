@@ -9,6 +9,7 @@ const production = fs.readFileSync(path.join(root, "worker/wrangler.production.t
 const migration = fs.readFileSync(path.join(root, "worker/wrangler.preview-migrations.toml"), "utf8");
 const deploy = fs.readFileSync(path.join(root, ".github/workflows/deploy-worker.yml"), "utf8");
 const frontend = fs.readFileSync(path.join(root, "app.js"), "utf8");
+const rootPackage = JSON.parse(fs.readFileSync(path.join(root, "package.json"), "utf8"));
 test("Cloudflare Preview uses the connected Worker name and isolated storage", () => {
   assert.match(rootPreview, /^name = "mina-ai-platform"$/m);
   assert.ok(rootPreview.includes('main = "worker/src/index.js"'));
@@ -23,6 +24,7 @@ test("Cloudflare Preview uses the connected Worker name and isolated storage", (
   assert.match(migration, /^database_id = "a0c9df12-44bc-4e58-866c-25a3651edd66"$/m);
 });
 test("Production deploy uses active mina-ai-api and production storage", () => {
+  assert.equal(rootPackage.devDependencies.wrangler, "4.167.0");
   assert.match(production, /^name = "mina-ai-api"$/m);
   assert.match(production, /^database_name = "mina-ai-db"$/m);
   assert.match(production, /^bucket_name = "mina-temporary-files"$/m);
