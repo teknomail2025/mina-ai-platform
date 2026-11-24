@@ -404,8 +404,8 @@ test("temporary model capacity errors fall back to free-tier models", async () =
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
   assert.equal(requested.length, 2);
-  assert.match(requested[0], /gemini-3\.5-flash-lite:generateContent$/);
-  assert.match(requested[1], /gemini-3\.1-flash-lite:generateContent$/);
+  assert.match(requested[0], /gemini-3\.8-flash:generateContent$/);
+  assert.match(requested[1], /gemini-3\.5-flash-lite:generateContent$/);
   assert.equal(result.data.fallback_used, true);
 });
 
@@ -413,7 +413,7 @@ test("network failures also try the next free-tier model", async () => {
   const requested = [];
   const { worker } = createWorker(async (url) => {
     requested.push(url);
-    if (url.includes("gemini-3.5-flash-lite:generateContent")) throw new Error("upstream network unavailable");
+    if (url.includes("gemini-3.8-flash:generateContent")) throw new Error("upstream network unavailable");
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
   });
   const login = await call(worker, "/api/auth/login", {
@@ -425,7 +425,7 @@ test("network failures also try the next free-tier model", async () => {
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
-  assert.equal(result.data.model, "gemini-3.1-flash-lite");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
   assert.equal(requested.length, 2, "primary network failure is followed by the backup model");
 });
 
@@ -441,7 +441,7 @@ test("ordinary chat uses the Flash model", async () => {
     body: { messages: [{ role: "user", content: "Nasılsın?" }] }
   });
   assert.equal(result.status, 200);
-  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"), "ordinary chat must use the faster Flash-Lite model");
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "ordinary chat must use the configured Flash model");
 });
 
 test("image understanding validates input and reaches Gemini", async () => {
@@ -877,9 +877,9 @@ test("frontend applies chat capability to the composer and sends capability sett
 });
 
 
-test("Gemini 503 on ordinary chat switches to a different Flash-Lite model", async () => {
+test("Gemini 503 on ordinary chat switches to the Flash-Lite fallback model", async () => {
   const { worker, requestedModels } = createWorker(async target => {
-    if (target.includes("gemini-3.5-flash-lite:generateContent")) {
+    if (target.includes("gemini-3.8-flash:generateContent")) {
       return new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 });
     }
     return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Yedek model yanıtı" }] } }] }), { status: 200 });
@@ -895,12 +895,12 @@ test("Gemini 503 on ordinary chat switches to a different Flash-Lite model", asy
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.choices[0].message.content, "Yedek model yanıtı");
-  assert.equal(result.data.requested_model, "gemini-3.5-flash-lite");
-  assert.equal(result.data.model, "gemini-3.1-flash-lite");
+  assert.equal(result.data.requested_model, "gemini-3.8-flash");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
   assert.equal(result.data.fallback_used, true);
   assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
-  assert.ok(requestedModels[0].includes("gemini-3.5-flash-lite"));
-  assert.ok(requestedModels[1].includes("gemini-3.1-flash-lite"));
+  assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
+  assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
 });
 
 test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
