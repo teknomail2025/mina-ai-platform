@@ -24,4 +24,5 @@ jobs:
           node --check voice.js
           node --check worker/src/index.js
       - name: Run Worker regression tests
-        run: node --test worker/test/*.test.cjs
+        run: node --test worker/test/*.test.cjs worker/test/*.test.mjs
+          npx --yes wrangler@4 deploy --dry-run --config worker/wrangler.production.toml
