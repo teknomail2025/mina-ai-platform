@@ -13,6 +13,8 @@ test("production frontend and GitHub deployment target the same active mina-ai-a
   assert.match(workerConfig, /^name = "mina-ai-api"$/m);
   assert.match(frontend, /https:\/\/mina-ai-api\.teknomail2025\.workers\.dev/);
   assert.match(deployWorkflow, /workingDirectory: worker/);
+  assert.match(deployWorkflow, /node --test worker\/test\/\*\.test\.cjs worker\/test\/\*\.test\.mjs/);
+  assert.match(deployWorkflow, /wrangler@4 deploy --dry-run --config worker\/wrangler\.toml/);
   assert.match(deployWorkflow, /command: deploy/);
   assert.match(deployWorkflow, /branches: \[main\]/);
 });
