@@ -38,15 +38,15 @@ The generated patch cannot change regression tests, workflow files, package mani
 
 ## Activation requirements
 
-- GitHub permits `workflow_dispatch` only after the workflow file exists on the repository's default branch. A separate workflow-only PR (#12) adds this file directly to `main`; it must be reviewed and merged before GitHub can dispatch it. The Worker implementation remains in PR #11 and its parent branch chain.
-- The Worker code itself must also reach the deployed default branch through the existing PR dependency chain (#8 → #9 → #11); no PRs are merged automatically.
+- GitHub permits `workflow_dispatch` only after `.github/workflows/mina-self-healing-runner.yml` exists on the repository's default branch (`main`). This branch contains the workflow, but it is not active for dispatch until the workflow is reviewed and merged into `main`.
+- The self-healing Worker code must also be included in the deployed Worker version before the feature is active. Do not merge or deploy until the full Preview smoke test and regression suite pass. No PR is merged automatically.
 - Configure the Cloudflare Worker Secret `GITHUB_ACTIONS_TOKEN` with a fine-grained GitHub token limited to Actions: write on this repository. The Worker uses it only to dispatch the workflow; it is never passed to the runner.
-- After the workflow exists on the default branch, set the Cloudflare Worker variable `SELF_HEALING_RUNNER_ENABLED=true`. This explicit feature flag prevents dispatch attempts before the trusted workflow is available.
+- After the workflow exists on `main`, configure the matching GitHub repository secret and the appropriate Cloudflare Worker secrets/variable. Use Preview-only values during Preview validation; never reuse or expose production credentials in Preview. Set `SELF_HEALING_RUNNER_ENABLED=true` only after the workflow and required secrets have been verified.
 - Until all three conditions are met, the settings UI keeps patch generation disabled.
 
 ## Validation
 
-The latest successful GitHub Actions run for the repair pipeline changes passed 89 tests, with zero failures. Worker and frontend syntax checks passed, and Wrangler `--dry-run` completed. These checks did not deploy or write to production D1/R2.
+The complete-checkup development branch currently has a successful CI run covering 100 tests, JavaScript syntax, and Wrangler dry-run validation. The isolated Cloudflare Preview smoke test is a separate acceptance gate. These checks do not authorize production deployment.
 
 
 ## Deployment isolation
