@@ -46,7 +46,7 @@ The generated patch cannot change regression tests, workflow files, package mani
 
 ## Validation
 
-The complete-checkup development branch currently has a successful CI run covering 101 tests, JavaScript syntax, and Wrangler dry-run validation. The isolated Cloudflare Preview smoke test is a separate acceptance gate. These checks do not authorize production deployment.
+The complete-checkup development branch currently passes 101 regression tests, JavaScript syntax checks, and Wrangler dry-run validation. The isolated Playwright browser check covers interface localization, cloud workspace sync, image-generation request/result rendering with a stubbed provider response, fake-camera capture and cleanup, and the live-voice microphone/WebSocket lifecycle with a stubbed token/WebSocket. The isolated Cloudflare Preview smoke test verifies authentication plus D1/R2 file lifecycle and cleans up its temporary Preview. These checks do not exercise a real Gemini image-generation charge or a physical device, and do not authorize production deployment.
 
 
 ## Deployment isolation
