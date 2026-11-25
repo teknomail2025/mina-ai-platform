@@ -490,6 +490,7 @@
     "Mina AI - bilingual AI assistant": "Mina AI - Türkçe yapay zekâ sohbet platformu",
     "./manifest.en.webmanifest": "./manifest.webmanifest",
     "en": "tr",
+    "Bir teşhis önerisi seç…": "Select a diagnosis proposal…",
     "Mina'nın hata kayıtlarını incele, AI teşhisi iste ve önerileri değerlendir. Bu aşamada hiçbir öneri kodu değiştirmez veya yayımlamaz.": "Review Mina's incident logs, request an AI diagnosis, and evaluate proposals. No proposal changes or deploys code at this stage.",
     "Henüz hata seçilmedi.": "No incident selected yet.",
     "Bir teşhis önerisi seç…": "Select a diagnosis proposal…",
