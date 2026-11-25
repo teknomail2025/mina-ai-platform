@@ -1057,6 +1057,65 @@
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  let cameraStream = null;
+  const cameraDialog = $("cameraDialog");
+  const cameraVideo = $("cameraVideo");
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    if (cameraVideo) cameraVideo.srcObject = null;
+    if (cameraDialog) cameraDialog.hidden = true;
+  }
+  async function openCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert(uiText("Bu tarayıcı kamera erişimini desteklemiyor."));
+      return;
+    }
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 960 } }
+      });
+      cameraVideo.srcObject = cameraStream;
+      cameraDialog.hidden = false;
+      await cameraVideo.play();
+    } catch (error) {
+      stopCamera();
+      const message = error?.name === "NotAllowedError"
+        ? "Kamera izni verilmedi. Tarayıcı ayarlarından kamera izni verebilirsin."
+        : error?.name === "NotFoundError"
+          ? "Bu cihazda kullanılabilir kamera bulunamadı."
+          : "Kamera açılamadı. Kamera başka bir uygulama tarafından kullanılıyor olabilir.";
+      alert(uiText(message));
+    }
+  }
+  function captureCameraFrame() {
+    if (!cameraStream || !cameraVideo.videoWidth || !cameraVideo.videoHeight) {
+      alert(uiText("Kamera görüntüsü henüz hazır değil."));
+      return;
+    }
+    const scale = Math.min(1, 1280 / cameraVideo.videoWidth);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(cameraVideo.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(cameraVideo.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) { alert(uiText("Kamera görüntüsü alınamadı.")); return; }
+    context.drawImage(cameraVideo, 0, 0, canvas.width, canvas.height);
+    const data = canvas.toDataURL("image/jpeg", 0.86);
+    if (data.length > 11 * 1024 * 1024) { alert(uiText("Kamera görüntüsü çok büyük. Tekrar deneyebilirsin.")); return; }
+    attachedFile = { kind: "image", name: "kamera-goruntusu.jpg", mimeType: "image/jpeg", data };
+    els.fileName.textContent = "📷 " + uiText("Kamera görüntüsü hazır");
+    els.fileChip.hidden = false;
+    stopCamera();
+  }
+  $("cameraBtn").addEventListener("click", openCamera);
+  $("cameraCaptureBtn").addEventListener("click", captureCameraFrame);
+  $("cameraCloseBtn").addEventListener("click", stopCamera);
+  cameraDialog.addEventListener("click", event => { if (event.target === cameraDialog) stopCamera(); });
+  window.addEventListener("pagehide", stopCamera);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopCamera(); });
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;
