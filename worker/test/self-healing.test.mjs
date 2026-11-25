@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { sanitizeDiagnosticText, sanitizeSourceForPatch, isAllowedDiagnosticPath, parseDiagnosisOutput, parsePatchOutput, createRunnerApprovalSignature } from "../src/self-healing.mjs";
+import { sanitizeDiagnosticText, sanitizeSourceForPatch, isAllowedDiagnosticPath, parseDiagnosisOutput, parsePatchOutput, createRunnerApprovalSignature, recordSelfHealingIncident } from "../src/self-healing.mjs";
 
 test("diagnostic text redacts common credentials and bounds length", () => {
   const value = sanitizeDiagnosticText("Bearer abc.def SECRET=hidden GEMINI_API_KEY=AIza123456789012345678901234567890", 80);
@@ -178,3 +178,23 @@ test("runner approval signature binds proposal, source, exact patch and expires 
   await assert.rejects(createRunnerApprovalSignature({ ...input, secret: "short" }));
 });
 
+
+test("unexpected Worker incidents are throttled per route to protect D1 from error floods", async () => {
+  const statements = [];
+  const db = {
+    prepare(sql) {
+      return {
+        run: async () => { statements.push({ sql, params: [] }); return { success: true }; },
+        bind: (...params) => ({
+          run: async () => { statements.push({ sql, params }); return { success: true }; }
+        })
+      };
+    }
+  };
+  const env = { MINA_DB: db };
+  const first = await recordSelfHealingIncident(env, "/api/test-rate-limit", new Error("first failure"));
+  const second = await recordSelfHealingIncident(env, "/api/test-rate-limit", new Error("repeated failure"));
+  assert.ok(first, "first Worker incident should be recorded");
+  assert.equal(second, null, "repeated failures on the same route should be throttled");
+  assert.equal(statements.filter(item => item.sql.includes("INSERT INTO mina_self_healing_incidents")).length, 1);
+});
