@@ -18,7 +18,7 @@ All routes below require the existing signed Mina administrator session in the `
 
 ## Detection and data handling
 
-- Unhandled Worker request failures and scheduled cleanup failures are recorded when D1 is available.
+- Unhandled Worker request failures and scheduled cleanup failures are recorded when D1 is available. Incident writes are throttled per route and per isolate so repeated failures cannot flood D1.
 - Authenticated browser sessions report uncaught JavaScript errors and unhandled promise rejections. Voice startup and WebSocket failures are also reported.
 - Browser reports contain error metadata only; chat messages, conversation history, microphone audio, and transcripts are not attached.
 - Reports are throttled client-side. Diagnostic fields are size-limited and common bearer tokens, API keys, JWTs, GitHub tokens, and private-key blocks are redacted.
