@@ -371,7 +371,7 @@ const watchdog = setTimeout(() => {
     assert.deepEqual(pageErrors, [], "mocked live voice lifecycle must not produce browser runtime errors");
 
     stage = "checking localized sign-in errors";
-    await closeDialog();
+    if (!(await page.locator("#workspaceDialog").isHidden())) await closeDialog();
     await page.evaluate(() => window.MinaI18n.setLanguage("en"));
     await page.locator("#minaLogoutBtn").click();
     await page.locator("#minaLogin").waitFor({ state: "visible" });
