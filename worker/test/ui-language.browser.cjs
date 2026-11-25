@@ -17,6 +17,7 @@ const watchdog = setTimeout(() => {
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.addInitScript(() => {
     window.MINA_API_BASE = "http://127.0.0.1:8787";
+    window.__minaOriginalMediaDevices = navigator.mediaDevices;
     window.__minaTestMediaStreams = [];
     const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
     if (originalGetUserMedia) navigator.mediaDevices.getUserMedia = async constraints => {
@@ -142,6 +143,7 @@ const watchdog = setTimeout(() => {
     await page.waitForFunction(() => document.getElementById("micPermissionStatus").textContent === "Permission granted");
     assert.equal(await page.locator("#micTestStatus").innerText(), "Microphone access succeeded. Test complete; the microphone has been turned off.");
     assert.equal(await page.evaluate(() => window.__micTrackStopped), true, "microphone tracks must be stopped after permission testing");
+    await page.evaluate(() => { if (window.__minaOriginalMediaDevices) Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: window.__minaOriginalMediaDevices }); });
     await page.locator("#minaMemoryEditor").fill("Mina cross-device memory test");
     await page.locator("#saveMinaMemory").click();
     await page.waitForFunction(() => document.getElementById("memorySaveStatus").textContent === "MinaData memory was securely saved to your account.", null, { timeout: 15000 });
