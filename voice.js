@@ -7,6 +7,24 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
+  let lastVoiceIncidentAt = 0;
+  function reportVoiceIncident(message, error) {
+    if (window.MINA_AUTHENTICATED !== true) return;
+    const now = Date.now();
+    if (now - lastVoiceIncidentAt < 30000) return;
+    lastVoiceIncidentAt = now;
+    fetch(API_BASE + "/api/admin/self-healing/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "browser",
+        route: "/voice",
+        message: String(message || error?.message || "Voice connection error").slice(0, 1000),
+        stack: String(error?.stack || "").slice(0, 2500)
+      })
+    }).catch(() => {});
+  }
+
   let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false;
   const ui = value => window.MinaI18n?.t(value) || value;
   const setStatus = (s, state="") => { status.textContent=ui(s); orb.dataset.state=state; };
@@ -79,6 +97,7 @@
     setStatus("Mina konuşuyor…","speaking");
   }
   async function failVoice(message) {
+    reportVoiceIncident(message);
     await cleanup(false);
     setStatus(message,"error");
   }
@@ -126,7 +145,7 @@
         }
         if(msg.error)void failVoice(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")));
       };
-      socket.onerror=()=>{void failVoice("Canlı ses bağlantısında hata oluştu. Mikrofon kapatıldı; tekrar deneyebilirsin.");};
+      socket.onerror=()=>{reportVoiceIncident("Live voice WebSocket error");void failVoice("Canlı ses bağlantısında hata oluştu. Mikrofon kapatıldı; tekrar deneyebilirsin.");};
       socket.onclose=()=>{
         const wasActive=active;active=false;
         if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
@@ -135,7 +154,7 @@
           void cleanup(false);
         }
       };
-    }catch(error){setStatus(friendlyVoiceError(error),"error");await cleanup(false);}
+    }catch(error){reportVoiceIncident("Live voice startup failed",error);setStatus(friendlyVoiceError(error),"error");await cleanup(false);}
     finally{openBtn.disabled=false;}
   }
   function startMicStream(){
