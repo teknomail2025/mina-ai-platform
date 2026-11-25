@@ -58,6 +58,7 @@
           <button type="button" data-settings-section="data"><svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M5 3h10l4 4v14H5z"/><path d="M14 3v5h5M8 13h8m-8 4h8"/></svg><span>Veriler</span></button>
           <button type="button" data-settings-section="devices"><svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="13" height="15" rx="2"/><path d="M8 16h3m7-8h3v12h-8v-1"/></svg><span>Cihazlar</span></button>
           <button type="button" data-settings-section="system"><svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M3 12h4l3-8 4 16 3-8h4"/></svg><span>Sistem durumu</span></button>
+          <button type="button" data-settings-section="self-healing"><svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M12 3v3m0 12v3M3 12h3m12 0h3M5.6 5.6l2.1 2.1m8.6 8.6 2.1 2.1m0-12.8-2.1 2.1m-8.6 8.6-2.1 2.1"/><circle cx="12" cy="12" r="4"/></svg><span>Kendi kendini onarma</span></button>
           <button type="button" id="profileLogout"><svg class="menu-icon" viewBox="0 0 24 24" aria-hidden="true"><path d="M10 17l5-5-5-5m5 5H3"/><path d="M12 3h7a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-7"/></svg><span>Çıkış yap</span></button>
         </div>
       </section>
@@ -109,6 +110,7 @@
               <button class="tool-button" type="button" id="voiceModeBtn" title="Eller serbest sesli sohbeti başlat">🎧 Sesli sohbeti başlat</button>
               <button class="tool-button" type="button" id="memoryBtn" title="Mina hafıza notlarını düzenle">🧠 Hafıza notu</button>
               <button class="tool-button" type="button" id="imageBtn" title="Resim yükle">🖼 Resim ekle</button>
+              <button class="tool-button" type="button" id="cameraBtn" title="Kamerayla görüntü al">📷 Kamera</button>
               <button class="tool-button" type="button" id="imageGenerateBtn" title="Yapay zekâ ile resim üret">🎨 Resim üret</button>
               <button class="tool-button" type="button" id="steamBtn" title="Steam oyunlarında ara">🎮 Steam</button>
               <button class="tool-button" type="button" id="webBtn" title="İnternette kaynaklı araştırma yap">🌐 Web ara</button>
@@ -126,6 +128,17 @@
    </main>
   </div>
   <section class="workspace-dialog" id="workspaceDialog" hidden role="dialog" aria-modal="true" aria-labelledby="workspaceDialogTitle"><div class="workspace-dialog-card"><button type="button" id="workspaceDialogClose" class="workspace-dialog-close" aria-label="Kapat">×</button><h2 id="workspaceDialogTitle"></h2><div id="workspaceDialogContent"></div></div></section>
+  <section class="camera-dialog" id="cameraDialog" hidden role="dialog" aria-modal="true" aria-labelledby="cameraDialogTitle">
+    <div class="camera-dialog-card">
+      <button class="camera-dialog-close" id="cameraCloseBtn" type="button" aria-label="Kamerayı kapat">×</button>
+      <h2 id="cameraDialogTitle">Mina için kamera görüntüsü</h2>
+      <video id="cameraVideo" autoplay muted playsinline></video>
+      <p>Görüntü yalnızca sen çekim yaptığında sohbete eklenir.</p>
+      <div class="camera-dialog-actions">
+        <button id="cameraCaptureBtn" type="button">Fotoğraf çek</button>
+      </div>
+    </div>
+  </section>
   <section class="live-voice" id="liveVoice" hidden role="dialog" aria-modal="true" aria-labelledby="liveVoiceTitle">
     <div class="live-voice-card">
       <button class="live-voice-close" id="liveVoiceClose" type="button" aria-label="Sesli sohbeti kapat">×</button>

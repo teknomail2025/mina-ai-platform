@@ -2,6 +2,32 @@
 (() => {
   "use strict";
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
+  let lastBrowserIncidentAt = 0;
+  function reportBrowserIncident(message, stack = "") {
+    if (window.MINA_AUTHENTICATED !== true) return;
+    const now = Date.now();
+    if (now - lastBrowserIncidentAt < 30000) return;
+    lastBrowserIncidentAt = now;
+    fetch(API_BASE + "/api/admin/self-healing/report", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        source: "browser",
+        route: location.pathname,
+        message: String(message || "Browser runtime error").slice(0, 1000),
+        stack: String(stack || "").slice(0, 2500)
+      })
+    }).catch(() => {});
+  }
+  window.addEventListener("error", event => {
+    reportBrowserIncident(event.message || "Browser runtime error",
+      [event.filename, event.lineno, event.colno, event.error?.stack].filter(Boolean).join("\n"));
+  });
+  window.addEventListener("unhandledrejection", event => {
+    const reason = event.reason;
+    reportBrowserIncident(reason?.message || String(reason || "Unhandled promise rejection"), reason?.stack || "");
+  });
+
   const STORAGE_KEY = "mina-ai-conversations-v1";
   const MEMORY_KEY = "mina-ai-user-memory-v1";
   const LANGUAGE_KEY = "mina-ai-language-v1";
@@ -866,6 +892,24 @@
         <button type="button" class="settings-action secondary" id="refreshMinaUsage">Kotaları yenile</button>
         <button type="button" class="settings-action secondary" id="refreshMinaHealth">Durumu yenile</button>
       </section>
+      <section class="settings-section" data-settings-key="self-healing">
+        <h3>Kendi kendini onarma</h3>
+        <p>Mina'nın hata kayıtlarını incele, AI teşhisi iste ve önerileri değerlendir. Bu aşamada hiçbir öneri kodu değiştirmez veya yayımlamaz.</p>
+        <div class="settings-info-row"><strong>Hata yakalama</strong><span id="selfHealingCaptureStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>AI teşhisi</strong><span id="selfHealingAiStatus">Kontrol ediliyor…</span></div>
+        <div class="settings-info-row"><strong>Otomatik kod değişikliği</strong><span id="selfHealingPatchStatus">Kapalı</span></div>
+        <label class="settings-control-label" for="selfHealingIncidentSelect">Hata kayıtları</label>
+        <select id="selfHealingIncidentSelect" class="settings-select"><option value="">Hata kayıtları yükleniyor…</option></select>
+        <div class="settings-info-row"><strong>Seçili hata</strong><span id="selfHealingIncidentDetails">Henüz kayıt yok.</span></div>
+        <button type="button" class="settings-action" id="diagnoseSelfHealingIncident">Seçili hatayı AI ile teşhis et</button>
+        <button type="button" class="settings-action" id="generateSelfHealingPatch" disabled>Onaylanan öneri için düzeltme üret ve izole test başlat</button>
+        <label class="settings-control-label" for="selfHealingProposalSelect">Teşhis önerileri</label>
+        <select id="selfHealingProposalSelect" class="settings-select"><option value="">Öneriler yükleniyor…</option></select>
+        <div id="selfHealingProposalDetails" class="settings-status">Henüz teşhis önerisi yok.</div>
+        <div class="settings-actions"><button type="button" class="settings-action" id="approveSelfHealingProposal">Manuel test için onayla</button><button type="button" class="settings-action secondary" id="rejectSelfHealingProposal">Öneriyi reddet</button></div>
+        <small class="settings-status" id="selfHealingStatus" aria-live="polite"></small>
+        <button type="button" class="settings-action secondary" id="refreshSelfHealing">Hata kayıtlarını yenile</button>
+      </section>
       <section class="session-secret-panel" data-settings-extra="account" aria-labelledby="sessionSecretTitle">
         <div class="session-secret-heading"><strong id="sessionSecretTitle">Oturum güvenliği · SESSION_SECRET</strong><span class="security-badge">Korunuyor</span></div>
         <p>Bu anahtar yönetici oturumlarının imzalanmasında kullanılır. Mevcut anahtar güvenlik nedeniyle görüntülenemez.</p>
@@ -914,6 +958,106 @@
       }catch(error){status.textContent=error.message||"Disiplin kaydı alınamadı.";}
     };
     $("refreshDiscipline").addEventListener("click",refreshDiscipline);
+    let selfHealingRunnerReady=false;
+    const refreshSelfHealing=async()=>{
+      const status=$("selfHealingStatus");
+      status.textContent="Hata kayıtları ve sistem durumu yükleniyor…";
+      try{
+        const [statusResponse,incidentResponse,proposalResponse]=await Promise.all([
+          fetch(API_BASE+"/api/admin/self-healing/status",{cache:"no-store"}),
+          fetch(API_BASE+"/api/admin/self-healing/incidents",{cache:"no-store"}),
+          fetch(API_BASE+"/api/admin/self-healing/proposals",{cache:"no-store"})
+        ]);
+        const [system,incidentData,proposalData]=await Promise.all([
+          statusResponse.json().catch(()=>({})),incidentResponse.json().catch(()=>({})),proposalResponse.json().catch(()=>({}))
+        ]);
+        if(!statusResponse.ok)throw new Error(system.error||"Kendi kendini onarma durumu alınamadı.");
+        if(!incidentResponse.ok)throw new Error(incidentData.error||"Hata kayıtları alınamadı.");
+        if(!proposalResponse.ok)throw new Error(proposalData.error||"Teşhis önerileri alınamadı.");
+        $("selfHealingCaptureStatus").textContent=system.incidentCapture?"Etkin":"Kapalı";
+        $("selfHealingAiStatus").textContent=system.aiDiagnosis?"Etkin":"API anahtarı eksik";
+        selfHealingRunnerReady=system.patchGeneration===true&&system.isolatedTestRunner===true;
+        $("selfHealingPatchStatus").textContent=selfHealingRunnerReady?"Hazır · kod değişikliği yine kapalı":"Kapalı · GitHub Actions yapılandırması gerekli";
+        const incidentSelect=$("selfHealingIncidentSelect");
+        const selectedIncident=incidentSelect.value;
+        incidentSelect.replaceChildren(new Option("Bir hata kaydı seç…",""));
+        for(const item of incidentData.incidents||[]){
+          const label=new Date(item.createdAt||Date.now()).toLocaleString()+" · "+item.source+" · "+item.route+" · "+item.message.slice(0,90);
+          incidentSelect.add(new Option(label,item.id));
+        }
+        if((incidentData.incidents||[]).some(item=>item.id===selectedIncident))incidentSelect.value=selectedIncident;
+        const showIncident=()=>{
+          const item=(incidentData.incidents||[]).find(row=>row.id===incidentSelect.value);
+          $("selfHealingIncidentDetails").textContent=item?item.message+(item.stack?" · "+item.stack.slice(0,350):""):"Henüz hata seçilmedi.";
+        };
+        incidentSelect.onchange=showIncident;showIncident();
+        const proposalSelect=$("selfHealingProposalSelect");
+        const selectedProposal=proposalSelect.value;
+        proposalSelect.replaceChildren(new Option("Bir teşhis önerisi seç…",""));
+        for(const item of proposalData.proposals||[]){
+          proposalSelect.add(new Option(new Date(item.createdAt||Date.now()).toLocaleString()+" · "+item.status+" · "+item.summary.slice(0,100),item.id));
+        }
+        if((proposalData.proposals||[]).some(item=>item.id===selectedProposal))proposalSelect.value=selectedProposal;
+        const showProposal=()=>{
+          const item=(proposalData.proposals||[]).find(row=>row.id===proposalSelect.value);
+          $("selfHealingProposalDetails").textContent=item?(uiText("Kök neden: ")+item.rootCause+uiText(" | Risk: ")+item.riskLevel+uiText(" | Test planı: ")+item.testPlan+uiText(" | Dosyalar: ")+(item.suggestedFiles||[]).join(", ")):uiText("Henüz teşhis önerisi seçilmedi.");
+          $("approveSelfHealingProposal").disabled=!item||item.status!=="pending_review";
+          $("rejectSelfHealingProposal").disabled=!item||item.status!=="pending_review";
+          $("generateSelfHealingPatch").disabled=!selfHealingRunnerReady||!item||item.status!=="approved_for_manual_test";
+        };
+        proposalSelect.onchange=showProposal;showProposal();
+        status.textContent=(incidentData.incidents||[]).length+" "+uiText("hata kaydı")+" · "+(proposalData.proposals||[]).length+" "+uiText("teşhis önerisi")+". "+uiText("Kod değişikliği ve yayın kapalı.");
+      }catch(error){status.textContent=error.message||"Kendi kendini onarma bilgileri alınamadı.";}
+    };
+    $("refreshSelfHealing").addEventListener("click",refreshSelfHealing);
+    $("diagnoseSelfHealingIncident").addEventListener("click",async()=>{
+      const incidentId=$("selfHealingIncidentSelect").value;
+      const status=$("selfHealingStatus");
+      if(!incidentId){status.textContent="Önce bir hata kaydı seç.";return;}
+      status.textContent="AI hatayı inceliyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/diagnose",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({incidentId})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"AI teşhisi tamamlanamadı.");
+        status.textContent="Teşhis önerisi kaydedildi. Kod değiştirilmedi.";
+        await refreshSelfHealing();
+        $("selfHealingProposalSelect").value=data.proposal?.id||"";
+        $("selfHealingProposalSelect").dispatchEvent(new Event("change"));
+      }catch(error){status.textContent=error.message||"AI teşhisi tamamlanamadı.";}
+    });
+    const reviewSelfHealingProposal=async(decision)=>{
+      const proposalId=$("selfHealingProposalSelect").value;
+      const status=$("selfHealingStatus");
+      if(!proposalId){status.textContent="Önce bir teşhis önerisi seç.";return;}
+      status.textContent="Öneri değerlendiriliyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/proposals/"+encodeURIComponent(proposalId)+"/review",{method:"POST",headers:{"Content-Type":"application/json"},body:JSON.stringify({decision})});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"Öneri değerlendirilemedi.");
+        status.textContent=data.message||"Değerlendirme kaydedildi.";
+        await refreshSelfHealing();
+      }catch(error){status.textContent=error.message||"Öneri değerlendirilemedi.";}
+    };
+    $("generateSelfHealingPatch").addEventListener("click",async()=>{
+      const proposalId=$("selfHealingProposalSelect").value;
+      const status=$("selfHealingStatus");
+      if(!proposalId){status.textContent="Önce bir teşhis önerisi seç.";return;}
+      if(!window.confirm("Mina bu öneri için düzeltme üretecek ve kodu izole GitHub test ortamına gönderecek. Canlı kod değiştirilmeyecek. Devam edilsin mi?"))return;
+      status.textContent="AI düzeltme hazırlıyor ve izole test sürecini başlatıyor…";
+      try{
+        const response=await fetch(API_BASE+"/api/admin/self-healing/proposals/"+encodeURIComponent(proposalId)+"/generate-patch",{method:"POST",headers:{"Content-Type":"application/json"},body:"{}"});
+        const data=await response.json().catch(()=>({}));
+        if(!response.ok)throw new Error(data.error||"İzole test süreci başlatılamadı.");
+        status.textContent=data.message||"İzole test süreci başlatıldı. Canlı kod değiştirilmedi.";
+        await refreshSelfHealing();
+      }catch(error){status.textContent=error.message||"İzole test süreci başlatılamadı.";}
+    });
+        $("approveSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("approve"));
+    $("rejectSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("reject"));
+    void refreshSelfHealing();
+    if(window.__minaSelfHealingLanguageHandler) window.removeEventListener("mina:ui-language-changed",window.__minaSelfHealingLanguageHandler);
+    window.__minaSelfHealingLanguageHandler=()=>{void refreshSelfHealing();};
+    window.addEventListener("mina:ui-language-changed",window.__minaSelfHealingLanguageHandler);
     $("submitDisciplineAppeal").addEventListener("click",async()=>{
       const appeal=$("disciplineAppealText").value.trim();
       if(!appeal){$("disciplineStatus").textContent="Önce itiraz metnini yaz.";return;}
@@ -1057,6 +1201,65 @@
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  let cameraStream = null;
+  const cameraDialog = $("cameraDialog");
+  const cameraVideo = $("cameraVideo");
+  function stopCamera() {
+    if (cameraStream) {
+      cameraStream.getTracks().forEach(track => track.stop());
+      cameraStream = null;
+    }
+    if (cameraVideo) cameraVideo.srcObject = null;
+    if (cameraDialog) cameraDialog.hidden = true;
+  }
+  async function openCamera() {
+    if (!navigator.mediaDevices?.getUserMedia) {
+      alert(uiText("Bu tarayıcı kamera erişimini desteklemiyor."));
+      return;
+    }
+    try {
+      cameraStream = await navigator.mediaDevices.getUserMedia({
+        audio: false,
+        video: { facingMode: { ideal: "environment" }, width: { ideal: 1280 }, height: { ideal: 960 } }
+      });
+      cameraVideo.srcObject = cameraStream;
+      cameraDialog.hidden = false;
+      await cameraVideo.play();
+    } catch (error) {
+      stopCamera();
+      const message = error?.name === "NotAllowedError"
+        ? "Kamera izni verilmedi. Tarayıcı ayarlarından kamera izni verebilirsin."
+        : error?.name === "NotFoundError"
+          ? "Bu cihazda kullanılabilir kamera bulunamadı."
+          : "Kamera açılamadı. Kamera başka bir uygulama tarafından kullanılıyor olabilir.";
+      alert(uiText(message));
+    }
+  }
+  function captureCameraFrame() {
+    if (!cameraStream || !cameraVideo.videoWidth || !cameraVideo.videoHeight) {
+      alert(uiText("Kamera görüntüsü henüz hazır değil."));
+      return;
+    }
+    const scale = Math.min(1, 1280 / cameraVideo.videoWidth);
+    const canvas = document.createElement("canvas");
+    canvas.width = Math.max(1, Math.round(cameraVideo.videoWidth * scale));
+    canvas.height = Math.max(1, Math.round(cameraVideo.videoHeight * scale));
+    const context = canvas.getContext("2d");
+    if (!context) { alert(uiText("Kamera görüntüsü alınamadı.")); return; }
+    context.drawImage(cameraVideo, 0, 0, canvas.width, canvas.height);
+    const data = canvas.toDataURL("image/jpeg", 0.86);
+    if (data.length > 11 * 1024 * 1024) { alert(uiText("Kamera görüntüsü çok büyük. Tekrar deneyebilirsin.")); return; }
+    attachedFile = { kind: "image", name: "kamera-goruntusu.jpg", mimeType: "image/jpeg", data };
+    els.fileName.textContent = "📷 " + uiText("Kamera görüntüsü hazır");
+    els.fileChip.hidden = false;
+    stopCamera();
+  }
+  $("cameraBtn").addEventListener("click", openCamera);
+  $("cameraCaptureBtn").addEventListener("click", captureCameraFrame);
+  $("cameraCloseBtn").addEventListener("click", stopCamera);
+  cameraDialog.addEventListener("click", event => { if (event.target === cameraDialog) stopCamera(); });
+  window.addEventListener("pagehide", stopCamera);
+  document.addEventListener("visibilitychange", () => { if (document.hidden) stopCamera(); });
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;

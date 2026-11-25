@@ -2,25 +2,39 @@ name: Mina Cloudflare Preview end-to-end smoke test
 
 on:
   pull_request:
-    branches: [main, fix/image-pipeline-and-usage-quotas, feat/r2-temporary-file-storage]
+    branches: [main, fix/image-pipeline-and-usage-quotas, feat/r2-temporary-file-storage, fix/memory-and-response-speed-diagnostics]
     paths:
       - "worker/**"
       - "app.js"
       - "auth.js"
       - "voice.js"
       - "i18n.js"
+      - "index.html"
+      - "styles.css"
+      - "worker/test/**"
+  push:
+    branches: [feat/mina-complete-checkup]
+    paths:
+      - "worker/**"
+      - "app.js"
+      - "auth.js"
+      - "voice.js"
+      - "i18n.js"
+      - "index.html"
+      - "styles.css"
+      - ".github/workflows/preview-smoke.yml"
 
 permissions:
   contents: read
   deployments: write
 
 concurrency:
-  group: mina-preview-smoke-${{ github.event.pull_request.number }}
+  group: mina-preview-smoke-${{ github.event.pull_request.number || github.run_id }}
   cancel-in-progress: true
 
 jobs:
   preview-smoke:
-    if: github.event.pull_request.head.repo.full_name == github.repository
+    if: github.event_name == 'push' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-24.04
     timeout-minutes: 15
     steps:
@@ -34,7 +48,7 @@ jobs:
           apiToken: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           accountId: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           workingDirectory: worker
-          command: preview --config wrangler.toml --name mina-smoke-pr-${{ github.event.pull_request.number }} --json
+          command: preview --config wrangler.toml --name mina-smoke-${{ github.event.pull_request.number || github.run_id }} --json
           wranglerVersion: "4.167.0"
           gitHubToken: ${{ secrets.GITHUB_TOKEN }}
 
@@ -43,11 +57,12 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIEW_URL: ${{ steps.preview.outputs.preview-url }}
-          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+          PREVIEW_NAME: mina-smoke-${{ github.event.pull_request.number || github.run_id }}
         working-directory: worker
         run: |
           set -euo pipefail
           set +x
+          BRANCH="${GITHUB_HEAD_REF:-$GITHUB_REF_NAME}"
           test -n "$PREVIEW_URL" || { echo "Cloudflare did not return a Preview URL."; exit 1; }
 
           PREVIEW_ADMIN_USERNAME="mina-smoke-${{ github.event.pull_request.number }}"
@@ -104,7 +119,7 @@ jobs:
           TOKEN="$(echo "$LOGIN" | jq -r '.token // empty')"
           test -n "$TOKEN" || { echo "Preview admin login did not return a session token."; exit 1; }
 
-          if [[ "$GITHUB_HEAD_REF" == "chore/mina-self-healing-runner" ]]; then
+          if [[ "$BRANCH" == "chore/mina-self-healing-runner" ]]; then
             echo "Preview health and authentication passed; usage and R2 routes are covered by their own feature branches."
             exit 0
           fi
@@ -114,12 +129,12 @@ jobs:
           USAGE="$(printf '%s\n' "$USAGE_RESPONSE" | sed '$d')"
           test "$USAGE_STATUS" = "200" || { echo "Preview usage endpoint returned HTTP $USAGE_STATUS"; printf '%s' "$USAGE" | head -c 1000; exit 1; }
           echo "$USAGE" | jq -e '.usage != null' >/dev/null
-          if [[ "$GITHUB_HEAD_REF" == "fix/image-pipeline-and-usage-quotas" || "$GITHUB_HEAD_REF" == "chore/mina-self-healing-runner" ]]; then
+          if [[ "$BRANCH" == "fix/image-pipeline-and-usage-quotas" || "$BRANCH" == "chore/mina-self-healing-runner" ]]; then
             echo "Health, authentication and usage checks passed; R2 lifecycle begins in the next feature branch."
             exit 0
           fi
 
-          if [[ "$GITHUB_HEAD_REF" == "feature/mina-self-healing" ]]; then
+          if [[ "$BRANCH" == "feature/mina-self-healing" || "$BRANCH" == "feat/mina-complete-checkup" ]]; then
             HEAL_STATUS_RESPONSE="$(http_request -H "Authorization: Bearer $TOKEN" "$PREVIEW_URL/api/admin/self-healing/status")"
             HEAL_STATUS_CODE="$(printf '%s\n' "$HEAL_STATUS_RESPONSE" | tail -n 1)"
             HEAL_STATUS="$(printf '%s\n' "$HEAL_STATUS_RESPONSE" | sed '$d')"
@@ -186,7 +201,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+          PREVIEW_NAME: mina-smoke-${{ github.event.pull_request.number || github.run_id }}
         working-directory: worker
         run: npx wrangler preview delete --name "$PREVIEW_NAME" --config wrangler.toml --skip-confirmation
         continue-on-error: true

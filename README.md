@@ -4,31 +4,32 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 
 ## Şu anda bulunan özellikler
 
-- Türkçe sohbet ve tarayıcıda yerel sohbet geçmişi; sohbet silme, mesaj düzenleme/silme, dışa aktarma ve sabitleme.
+- Türkçe sohbet; sohbet geçmişi, projeler, sabitlenen sohbetler ve kitaplık için D1 bulut eşitlemesi, yerel önbellek, sürüm kontrolü ve çakışma çözümü. Sohbet silme, mesaj düzenleme/silme, dışa aktarma ve sabitleme.
 - Göreve göre otomatik model yönlendirmesi: günlük sohbetlerde Gemini 3.8 Flash; kodlama ve karmaşık analizlerde Gemini 3.1 Pro Preview. Pro isteği kota veya geçici servis hatası alırsa Flash ile yeniden denenir.
-- JPG, PNG ve WEBP görsel yükleme ve Gemini ile görsel anlama (en fazla 8 MB).
+- JPG, PNG ve WEBP görsel yükleme, Gemini ile görsel anlama (en fazla 8 MB) ve izin verildiğinde kameradan fotoğraf çekip sohbete ekleme. Kamera yalnızca kullanıcı başlattığında açılır; ses kaydı yapmaz ve çekim/iptal sonrası akış kapatılır.
 - Nano Banana 2.1 ile görsel üretimi.
 - Araştırma niyeti algılandığında Gemini Google Search grounding ile web araştırması ve kaynak bağlantıları.
 - Steam mağazasında oyun arama.
 - Kod çalışma alanı: kod yapıştırma, desteklenen metin/kod dosyalarını açma, Mina'ya inceletme ve indirme.
-- Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet.
+- Tarayıcı tabanlı sesli mesaj, metinden sese okuma ve Gemini Live ile canlı sesli sohbet; mikrofon izni, oturum kotası ve sesli hata raporlama kontrolleri.
 - PWA kurulum altyapısı: desteklenen tarayıcılarda ana ekrana ekleme ve çevrimdışı uygulama kabuğu; sohbet ve yapay zekâ API'si için internet bağlantısı gerekir.
 - Proje yönetimi: proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
 - Zamanlayıcı: geri sayım, tarayıcı bildirim izni isteme ve süre bitişini algılama. Uygulama kapalıyken arka plan bildirimi garantisi yoktur; tekrar açıldığında süre kontrol edilir.
-- Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme.
+- Kitaplık: en fazla 500 KB metin/kod dosyasını saklama, açma, indirme ve silme; çalışma alanı D1 üzerinden cihazlar arasında eşitlenir.
 - Eklenti merkezi: mevcut araçları listeleme ve ilgili arayüzleri açma.
 - Tek yönetici hesabı için oturum açma; herkese açık kayıt kapalıdır.
+- Kendi kendini onarma altyapısı: Worker/tarayıcı hatalarını kaydetme, AI teşhisi, yönetici onayı, izin verilen kaynak dosyalarla sınırlı düzeltme taslağı ve izole GitHub Actions testi. Otomatik birleştirme ve yayın kapalıdır.
 - Normal yönetici oturumu 8 saat geçerlidir ve sessionStorage alanında tutulur. “Oturumumu açık tut” seçeneği işaretlenirse belirteç localStorage alanında saklanır ve 30 gün sonra sona erer.
 
 ## Veri ve entegrasyon sınırları
 
-- MinaData hafızası ile tema ve dil tercihleri yönetici hesabına bağlı D1 veritabanında saklanır ve cihazlar arasında eşitlenir. Sohbetler, projeler, zamanlayıcı durumu ve kitaplık şimdilik tarayıcı localStorage alanında kalır; bunlar için cihazlar arası eşitleme henüz yoktur.
+- MinaData hafızası, tema/dil tercihleri, sohbetler, projeler, sabitlenen sohbetler ve kitaplık yönetici hesabına bağlı D1 veritabanında sürümlü biçimde saklanır ve cihazlar arasında eşitlenir. Tarayıcı localStorage yalnızca yerel önbellek görevi görür. Zamanlayıcılar cihaz yerelidir.
 - Projeler: tarayıcıda proje oluşturma/silme, sohbetleri projelere bağlama ve proje sohbetlerini açma.
 - Zamanlayıcılar: sekme açıkken çalışan geri sayım; sayfa yeniden açıldığında bitiş zamanından kalan süre hesaplanır. Tarayıcı kapalıyken sistem bildirimi garantisi yoktur.
-- Kitaplık: en fazla 500 KB metin/kod dosyasını tarayıcıda saklama, açma, indirme ve silme. Sunucuya yükleme ve cihazlar arası eşitleme yoktur.
+- Kitaplık: en fazla 500 KB metin/kod dosyasını çalışma alanı yedeğiyle birlikte D1'e eşitler; yerel önbellek ve açık çakışma çözümü bulunur.
 - Eklentiler: kullanılabilir araçları tek ekranda listeler ve ilgili arayüzü açar; GitHub OAuth/depo işlemleri henüz etkin değildir.
 - GitHub düğmesi yalnızca bağlantı durumunu gösterir; OAuth ve depo üzerinde güvenli okuma/yazma henüz etkin değildir.
-- PDF/DOCX dosyalarının içeriğini çıkarma henüz desteklenmez.
+- PDF ve DOCX ekleri geçici R2 deposuna yüklenir; metin çıkarımı yapılır ve günlük dosya kotası uygulanır. Geçici dosyalar süre sonunda temizlenir.
 - Android APK paketleme ve mağaza dağıtımı henüz yapılmamıştır; PWA altyapısı sonraki Capacitor paketlemesine hazırlık sağlar.
 - Ren'Py odaklı özel eğitim, mevcut temel özellikler tamamlandıktan sonraki aşamadır.
 
@@ -69,8 +70,9 @@ Worker, kimlik doğrulama yapılandırılmadığında yönetici girişini redded
 ## Veritabanı ve kalıcılık
 
 - Üretim Worker `mina-ai-api`, `worker/wrangler.production.toml` içindeki `MINA_DB` binding'i ile `mina-ai-db` veritabanına bağlanır. Cloudflare Preview Worker `mina-ai-platform`, `worker/wrangler.toml` içinden yalnızca `mina-ai-db-preview` ve `mina-temporary-files-preview` kaynaklarını kullanır.
-- MinaData yönetici hafızası, tema/dil tercihleri ve iletişim disiplini kayıtları D1 üzerinde tutulur. İlgili tablolar Worker tarafından ilk kullanımda `CREATE TABLE IF NOT EXISTS` ile güvenli biçimde hazırlanır.
-- Sohbet geçmişi, projeler, zamanlayıcılar ve kitaplık bu sürümde tarayıcı depolamasında kalır; bunlar henüz cihazlar arasında eşitlenmez.
+- MinaData yönetici hafızası, tema/dil tercihleri, sohbet/proje/kitaplık çalışma alanı, iletişim disiplini ve kendi kendini onarma kayıtları D1 üzerinde tutulur. İlgili tablolar Worker tarafından ilk kullanımda güvenli biçimde hazırlanır.
+- Sohbet, proje, sabitleme ve kitaplık verileri sürümlü D1 çalışma alanıyla eşitlenir; eşitleme çakışmaları otomatik olarak üzerine yazılmaz, açık çözüm ve dışa aktarma sunulur.
+- Zamanlayıcılar cihaz yerelidir. Dosya ekleri R2 üzerinde süreli ve kullanıcıya bağlı anahtarla tutulur.
 - `0001_auth_and_user_data.sql` çok kullanıcılı hesap mimarisi için eski şema taslağıdır; mevcut tek yönetici oturum akışının parçası değildir. `0002` ve `0003` migration dosyaları hafıza ve disiplin tablolarının şemasını ayrıca belgeler.
 
 ## Güvenlik ve sınırlar
@@ -82,5 +84,5 @@ Worker, kimlik doğrulama yapılandırılmadığında yönetici girişini redded
 - MinaData hafızası ile tema/dil tercihleri bulutta eşitlenir. Sohbetler, projeler, zamanlayıcılar ve kitaplık cihaz yerelidir.
 - Kod alanı yerel bir editördür; kullanıcının bilgisayarındaki dosyaları otomatik değiştirmez veya kod çalıştırmaz.
 - GitHub OAuth/depo yazma işlemleri henüz etkin değildir.
-- Otomatik testler sağlayıcıya gerçek Gemini isteği, gerçek mikrofon izni veya canlı WebSocket ses oturumu testi yapmaz.
+- Otomatik testler Gemini üretim API'sine gerçek görsel üretim isteği, gerçek kamera/mikrofon izni veya canlı WebSocket ses oturumu testi yapmaz. Bu işlevler ayrıca izole Preview üzerinde uçtan uca doğrulanmalıdır.
 - Ücretsiz model kullanımı sağlayıcının güncel kota ve şartlarına bağlıdır; sınırsız ücretsiz kullanım garantisi yoktur.

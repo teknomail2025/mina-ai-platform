@@ -7,12 +7,14 @@ on:
       - fix/image-pipeline-and-usage-quotas
       - feat/r2-temporary-file-storage
       - fix/memory-and-response-speed-diagnostics
+      - feat/mina-complete-checkup
   push:
     branches:
       - main
       - fix/image-pipeline-and-usage-quotas
       - feat/r2-temporary-file-storage
       - fix/memory-and-response-speed-diagnostics
+      - feat/mina-complete-checkup
 
 jobs:
   worker-tests:

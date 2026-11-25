@@ -1,0 +1,87 @@
+name: Mina isolated Preview browser checkup
+
+on:
+  push:
+    branches: [feat/mina-complete-checkup]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mina-browser-checkup-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  browser-checkup:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 20
+    steps:
+      - name: Checkout isolated development branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Validate syntax, regression tests and Wrangler configs
+        run: |
+          set -euo pipefail
+          node --check auth.js
+          node --check i18n.js
+          node --check app.js
+          node --check voice.js
+          node --check pwa.js
+          node --check sw.js
+          node --check worker/src/index.js
+          node --check worker/test/ui-language.browser.cjs
+          node --test worker/test/*.test.cjs worker/test/*.test.mjs
+          npx --yes wrangler@4.167.0 deploy --dry-run --config worker/wrangler.production.toml
+          npx --yes wrangler@4.167.0 deploy --dry-run --config worker/wrangler.toml
+          npx --yes wrangler@4.167.0 deploy --dry-run --config wrangler.toml
+
+      - name: Install Playwright Chromium
+        timeout-minutes: 5
+        run: |
+          npm install --no-save playwright@1.56.1
+          npx playwright install chromium
+
+      - name: Run local Worker and browser UI/camera checks
+        timeout-minutes: 8
+        run: |
+          set -euo pipefail
+          cd worker
+          npx --yes wrangler@4.167.0 d1 migrations apply mina-ai-db --local --config wrangler.production.toml
+          setsid npx --yes wrangler@4.167.0 dev --config wrangler.production.toml --local --ip 127.0.0.1 --port 8787 \
+            --var ADMIN_USERNAME:Argion \
+            --var ADMIN_PASSWORD:ci-test-password-at-least-12 \
+            --var SESSION_SECRET:ci-session-secret-at-least-32-characters-long \
+            --var GEMINI_API_KEY:ci-fake-gemini-key > /tmp/mina-browser-worker.log 2>&1 &
+          WRANGLER_PID=$!
+          cd ..
+          python3 -m http.server 8000 --bind 127.0.0.1 > /tmp/mina-browser-http.log 2>&1 &
+          HTTP_PID=$!
+          cleanup() {
+            kill "$HTTP_PID" 2>/dev/null || true
+            wait "$HTTP_PID" 2>/dev/null || true
+            kill -- "-$WRANGLER_PID" 2>/dev/null || kill "$WRANGLER_PID" 2>/dev/null || true
+            wait "$WRANGLER_PID" 2>/dev/null || true
+            rm -rf worker/.wrangler
+            echo "Browser static server and local Worker stopped."
+          }
+          trap cleanup EXIT
+          READY=false
+          for i in $(seq 1 45); do
+            if curl --connect-timeout 1 --max-time 2 -fsS http://127.0.0.1:8787/api/health >/dev/null && curl --connect-timeout 1 --max-time 2 -fsS http://127.0.0.1:8000/ >/dev/null; then READY=true; break; fi
+            sleep 1
+          done
+          if [ "$READY" != "true" ]; then
+            echo "Local Worker or static server did not become ready."
+            cat /tmp/mina-browser-worker.log || true
+            cat /tmp/mina-browser-http.log || true
+            exit 1
+          fi
+          echo "Local Worker and static server are ready; starting Playwright checks."
+          timeout 180s node worker/test/ui-language.browser.cjs
+          echo "Browser localization, cloud workspace sync and fake-camera lifecycle checks passed."
