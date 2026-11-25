@@ -46,7 +46,7 @@ The generated patch cannot change regression tests, workflow files, package mani
 
 ## Validation
 
-The complete-checkup development branch currently has a successful CI run covering 100 tests, JavaScript syntax, and Wrangler dry-run validation. The isolated Cloudflare Preview smoke test is a separate acceptance gate. These checks do not authorize production deployment.
+The complete-checkup development branch currently has a successful CI run covering 101 tests, JavaScript syntax, and Wrangler dry-run validation. The isolated Cloudflare Preview smoke test is a separate acceptance gate. These checks do not authorize production deployment.
 
 
 ## Deployment isolation
