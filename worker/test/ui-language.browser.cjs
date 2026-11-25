@@ -179,6 +179,27 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.locator("#fileToolBtn").innerText(), "📎 Attach file");
     assert.equal(await page.locator("#webBtn").innerText(), "🌐 Search the web");
     assert.equal(await page.locator("#toolsToggle").getAttribute("aria-label"), "Close tools");
+    let imageRequestPrompt = "";
+    await page.route("**/api/image", async route => {
+      imageRequestPrompt = route.request().postDataJSON().prompt;
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({
+          image: {
+            mimeType: "image/png",
+            data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z3sAAAAASUVORK5CYII="
+          },
+          caption: "Browser image generation UI test"
+        })
+      });
+    });
+    await page.locator("#messageInput").fill("A tiny blue test star");
+    await page.locator("#imageGenerateBtn").click();
+    await page.locator(".message.assistant .image-result img").waitFor({ state: "visible" });
+    assert.equal(imageRequestPrompt, "A tiny blue test star", "image prompt must reach the image generation API");
+    assert.match(await page.locator(".message.assistant .image-result img").getAttribute("src"), /^data:image\/png;base64,/);
+    assert.equal(await page.locator(".message.assistant .image-result p").innerText(), "Browser image generation UI test");
     await page.locator("#toolsToggle").click();
 
     await page.locator("#sidebarProfile").click();
