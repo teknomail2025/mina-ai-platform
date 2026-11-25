@@ -57,7 +57,7 @@ jobs:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
           PREVIEW_URL: ${{ steps.preview.outputs.preview-url }}
-          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+          PREVIEW_NAME: mina-smoke-${{ github.event.pull_request.number || github.run_id }}
         working-directory: worker
         run: |
           set -euo pipefail
@@ -201,7 +201,7 @@ jobs:
         env:
           CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-          PREVIEW_NAME: mina-smoke-pr-${{ github.event.pull_request.number }}
+          PREVIEW_NAME: mina-smoke-${{ github.event.pull_request.number || github.run_id }}
         working-directory: worker
         run: npx wrangler preview delete --name "$PREVIEW_NAME" --config wrangler.toml --skip-confirmation
         continue-on-error: true
