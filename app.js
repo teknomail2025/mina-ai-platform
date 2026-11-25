@@ -1055,6 +1055,7 @@
         $("approveSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("approve"));
     $("rejectSelfHealingProposal").addEventListener("click",()=>reviewSelfHealingProposal("reject"));
     void refreshSelfHealing();
+    window.addEventListener("mina:ui-language-changed", () => { void refreshSelfHealing(); });
     $("submitDisciplineAppeal").addEventListener("click",async()=>{
       const appeal=$("disciplineAppealText").value.trim();
       if(!appeal){$("disciplineStatus").textContent="Önce itiraz metnini yaz.";return;}
