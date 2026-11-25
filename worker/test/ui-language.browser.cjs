@@ -17,10 +17,12 @@ const watchdog = setTimeout(() => {
   page.on("pageerror", error => pageErrors.push(error.message));
   await page.addInitScript(() => {
     window.MINA_API_BASE = "http://127.0.0.1:8787";
+    window.__minaTestMediaStreams = [];
     const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
     if (originalGetUserMedia) navigator.mediaDevices.getUserMedia = async constraints => {
       const stream = await originalGetUserMedia(constraints);
       window.__minaTestCameraStream = stream;
+      window.__minaTestMediaStreams.push(stream);
       return stream;
     };
   });
@@ -324,6 +326,46 @@ const watchdog = setTimeout(() => {
     assert.equal(cameraTracksStopped, true, "camera tracks must stop immediately after capture");
     await page.locator("#removeFileBtn").click();
     assert.deepEqual(pageErrors, [], "camera capture must not produce browser runtime errors");
+
+    stage = "testing live voice microphone and WebSocket lifecycle";
+    await page.context().grantPermissions(["microphone"], { origin: "http://127.0.0.1:8000" });
+    await page.route("**/api/live-token", route => route.fulfill({
+      status: 200,
+      contentType: "application/json",
+      body: JSON.stringify({ token: "ci-ephemeral-voice-token", model: "models/gemini-3.8-live" })
+    }));
+    await page.evaluate(() => {
+      class MinaTestWebSocket {
+        static OPEN = 1;
+        constructor(url) {
+          this.url = url;
+          this.readyState = 0;
+          window.__minaTestWebSocket = this;
+          setTimeout(() => { this.readyState = 1; this.onopen?.(); }, 0);
+        }
+        send(payload) {
+          const message = JSON.parse(payload);
+          if (message.setup) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ setupComplete: {} }) }), 0);
+        }
+        close() {
+          this.readyState = 3;
+          this.onclose?.();
+        }
+      }
+      window.WebSocket = MinaTestWebSocket;
+    });
+    await page.locator("#voiceModeBtn").click();
+    await page.waitForFunction(() => document.getElementById("liveVoiceStatus").textContent === "Seni dinliyorum…", null, { timeout: 15000 });
+    await page.locator("#liveVoiceMute").click();
+    assert.equal(await page.locator("#liveVoiceMute").innerText(), "Mikrofonu aç", "voice mute control must update the microphone state");
+    await page.locator("#liveVoiceEnd").click();
+    await page.waitForFunction(() => document.getElementById("liveVoice").hidden, null, { timeout: 10000 });
+    const voiceTracksStopped = await page.evaluate(() => {
+      const stream = window.__minaTestMediaStreams.at(-1);
+      return !!stream && stream.getTracks().every(track => track.readyState === "ended");
+    });
+    assert.equal(voiceTracksStopped, true, "ending live voice must stop microphone tracks");
+    assert.deepEqual(pageErrors, [], "mocked live voice lifecycle must not produce browser runtime errors");
 
     stage = "checking localized sign-in errors";
     await closeDialog();
