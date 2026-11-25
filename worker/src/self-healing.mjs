@@ -6,6 +6,9 @@ const ALLOWED_SOURCE_PATHS = Object.freeze([
   "i18n.js"
 ]);
 
+const incidentRouteThrottle = new Map();
+let lastIncidentCaptureAt = 0;
+
 const SECRET_PATTERNS = [
   /\bBearer\s+[A-Za-z0-9._~+/-]+=*/gi,
   /\bAIza[0-9A-Za-z_-]{20,}\b/g,
@@ -356,13 +359,23 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
 
 export async function recordSelfHealingIncident(env, route, error) {
   if (!env?.MINA_DB) return null;
+  const safeRoute = typeof route === "string" && route.startsWith("/") && /^[a-z0-9/_-]{1,100}$/i.test(route.slice(1)) ? route : "/";
+  const now = Date.now();
+  const lastForRoute = incidentRouteThrottle.get(safeRoute) || 0;
+  // Keep unexpected unauthenticated failures from flooding D1 across a single isolate.
+  if (now - lastIncidentCaptureAt < 2000 || now - lastForRoute < 60_000) return null;
+  lastIncidentCaptureAt = now;
+  incidentRouteThrottle.set(safeRoute, now);
+  if (incidentRouteThrottle.size > 100) {
+    for (const [key, timestamp] of incidentRouteThrottle) {
+      if (now - timestamp > 60 * 60_000) incidentRouteThrottle.delete(key);
+    }
+  }
   try {
     await ensureSelfHealingSchema(env.MINA_DB);
     const id = crypto.randomUUID();
-    const now = Date.now();
     const message = sanitizeDiagnosticText(error?.message || error || "Unhandled Worker error", 1000).trim() || "Unhandled Worker error";
     const stack = sanitizeDiagnosticText(error?.stack || "", 2500);
-    const safeRoute = typeof route === "string" && route.startsWith("/") && /^[a-z0-9/_-]{1,100}$/i.test(route.slice(1)) ? route : "/";
     await env.MINA_DB.prepare("INSERT INTO mina_self_healing_incidents (id, source, route, message, stack, status, created_at, updated_at) VALUES (?, 'worker', ?, ?, ?, 'new', ?, ?)")
       .bind(id, safeRoute, message, stack, now, now).run();
     await pruneSelfHealingHistory(env.MINA_DB, now);
