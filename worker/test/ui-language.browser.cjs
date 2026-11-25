@@ -8,14 +8,22 @@ const watchdog = setTimeout(() => {
 }, 120000);
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({ headless: true, args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"] });
   const page = await browser.newPage();
   stage = "opening the app and signing in";
   page.setDefaultTimeout(15000);
   page.setDefaultNavigationTimeout(30000);
   const pageErrors = [];
   page.on("pageerror", error => pageErrors.push(error.message));
-  await page.addInitScript(() => { window.MINA_API_BASE = "http://127.0.0.1:8787"; });
+  await page.addInitScript(() => {
+    window.MINA_API_BASE = "http://127.0.0.1:8787";
+    const originalGetUserMedia = navigator.mediaDevices?.getUserMedia?.bind(navigator.mediaDevices);
+    if (originalGetUserMedia) navigator.mediaDevices.getUserMedia = async constraints => {
+      const stream = await originalGetUserMedia(constraints);
+      window.__minaTestCameraStream = stream;
+      return stream;
+    };
+  });
 
   const untranslatedTurkishUi = () => page.evaluate(() => {
     const turkish = /[çğıöşüÇĞİÖŞÜ]/;
@@ -296,6 +304,26 @@ const watchdog = setTimeout(() => {
     assert.ok(uploadedWorkspace.projects.some(project => project.name === "Local Conflict Project"), "explicit local upload must save this device's data");
     assert.ok(!uploadedWorkspace.projects.some(project => project.name === "Remote Device Project"), "explicit local upload must replace the remote snapshot only after confirmation");
     assert.deepEqual(pageErrors, [], "workspace restore and conflict resolution must not produce browser runtime errors");
+
+    stage = "testing privacy-first camera capture";
+    await closeDialog();
+    await page.evaluate(() => window.MinaI18n.setLanguage("tr"));
+    await page.context().grantPermissions(["camera"], { origin: "http://127.0.0.1:8000" });
+    await page.locator("#toolsToggle").click();
+    await page.locator("#cameraBtn").click();
+    await page.locator("#cameraDialog").waitFor({ state: "visible" });
+    await page.waitForFunction(() => {
+      const video = document.getElementById("cameraVideo");
+      return video && video.videoWidth > 0 && video.videoHeight > 0;
+    }, null, { timeout: 15000 });
+    assert.equal(await page.locator("#fileChip").isHidden(), true, "camera preview must not attach or upload an image before capture");
+    await page.locator("#cameraCaptureBtn").click();
+    await page.waitForFunction(() => document.getElementById("cameraDialog").hidden, null, { timeout: 10000 });
+    assert.match(await page.locator("#fileName").innerText(), /Kamera görüntüsü hazır/, "captured camera frame must be attached to the composer");
+    const cameraTracksStopped = await page.evaluate(() => window.__minaTestCameraStream?.getTracks().every(track => track.readyState === "ended") === true);
+    assert.equal(cameraTracksStopped, true, "camera tracks must stop immediately after capture");
+    await page.locator("#removeFileBtn").click();
+    assert.deepEqual(pageErrors, [], "camera capture must not produce browser runtime errors");
 
     stage = "checking localized sign-in errors";
     await closeDialog();
