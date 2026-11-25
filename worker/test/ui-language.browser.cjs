@@ -356,6 +356,7 @@ const watchdog = setTimeout(() => {
       }
       window.WebSocket = MinaTestWebSocket;
     });
+    if (await page.locator("#voiceModeBtn").isHidden()) await page.locator("#toolsToggle").click();
     await page.locator("#voiceModeBtn").click();
     await page.waitForFunction(() => document.getElementById("liveVoiceStatus").textContent === "Seni dinliyorum…", null, { timeout: 15000 });
     await page.locator("#liveVoiceMute").click();
