@@ -18,7 +18,7 @@ const env = {
   GEMINI_API_KEY: "test-gemini-key"
 };
 
-function createWorker(fetchOverride, selfHealingHandler = async () => null, selfHealingIncidentRecorder = async () => {}) {
+function createWorker(fetchOverride, selfHealingHandler = async () => null, selfHealingIncidentRecorder = async () => {}, liveTokenFetchOverride = null) {
   const requestedModels = [];
   const liveTokenRequests = [];
   const mockFetch = async (url, options = {}) => {
@@ -26,6 +26,7 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
     if (target.includes("/v1beta/auth_tokens")) {
       const payload = JSON.parse(options.body || "{}");
       liveTokenRequests.push({ url: target, headers: options.headers, payload });
+      if (liveTokenFetchOverride) return liveTokenFetchOverride(target, options);
       return new Response(JSON.stringify({ name: "authTokens/test-ephemeral-token" }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
@@ -1047,6 +1048,20 @@ test("frontend exposes discipline appeal and admin review controls", () => {
   assert.match(frontendSource, /submitDisciplineAppeal/);
   assert.match(frontendSource, /approveDisciplineAppeal/);
   assert.match(frontendSource, /rejectDisciplineAppeal/);
+});
+
+test("live voice token provider failures are recorded for self-healing", async () => {
+  const incidents=[];
+  const { worker }=createWorker(
+    undefined,
+    undefined,
+    async (_env,route,error)=>incidents.push({route,message:error.message}),
+    async ()=>new Response(JSON.stringify({error:{message:"provider unavailable"}}),{status:503})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/live-token",{token:login.data.token,method:"POST"});
+  assert.equal(result.status,502);
+  assert.deepEqual(incidents,[{route:"/api/live-token",message:"Live voice token provider request failed: HTTP 503"}]);
 });
 
 test("live voice token endpoint requires an authenticated session and creates a constrained ephemeral token", async () => {
