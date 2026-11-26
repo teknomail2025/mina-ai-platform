@@ -398,6 +398,71 @@ test("concurrent patch requests claim one runner dispatch before spending a seco
   assert.equal([...db.patches.values()][0].status, "runner_dispatched");
 });
 
+test("GitHub 5xx dispatch results stay locked because the runner may have accepted the request", async t => {
+  const db = new MemoryD1({
+    incidents: [fakeIncident()],
+    proposals: [fakeProposal({ status: "approved_for_manual_test" })]
+  });
+  const patch = [
+    "diff --git a/app.js b/app.js",
+    "--- a/app.js",
+    "+++ b/app.js",
+    "@@ -1 +1 @@",
+    '-const answer = "before";',
+    '+const answer = "after";',
+    ""
+  ].join("\n");
+  let generationCalls = 0;
+  let dispatchCalls = 0;
+  let sourceFetches = 0;
+  t.mock.method(globalThis, "fetch", async url => {
+    const target = String(url);
+    if (target.endsWith("/commits/main")) return jsonResponse({ sha: BASE_SHA });
+    if (target.includes("raw.githubusercontent.com/")) {
+      sourceFetches++;
+      return new Response('const answer = "before";\n', { status: 200 });
+    }
+    if (target.includes("generativelanguage.googleapis.com/")) {
+      generationCalls++;
+      return jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify({ explanation: "Test uncertain dispatch recovery.", patch }) }] } }] });
+    }
+    if (target.endsWith("/dispatches")) {
+      dispatchCalls++;
+      return new Response("GitHub temporarily unavailable", { status: 503 });
+    }
+    throw new Error("Unexpected mocked network request: " + target);
+  });
+  const env = {
+    GEMINI_API_KEY: "fake-gemini-key",
+    GITHUB_ACTIONS_TOKEN: "fake-runner-token",
+    SELF_HEALING_APPROVAL_SECRET: APPROVAL_SECRET,
+    SELF_HEALING_RUNNER_ENABLED: "true"
+  };
+  const first = await callHandler({
+    db,
+    path: "/api/admin/self-healing/proposals/" + PROPOSAL_ID + "/generate-patch",
+    method: "POST",
+    body: {},
+    env
+  });
+  const firstData = await first.json();
+  assert.equal(first.status, 502);
+  assert.equal(firstData.runnerDispatched, "unknown");
+  assert.equal([...db.patches.values()][0].status, "dispatch_uncertain");
+
+  const retry = await callHandler({
+    db,
+    path: "/api/admin/self-healing/proposals/" + PROPOSAL_ID + "/generate-patch",
+    method: "POST",
+    body: {},
+    env
+  });
+  assert.equal(retry.status, 409);
+  assert.equal(generationCalls, 1);
+  assert.equal(dispatchCalls, 1);
+  assert.equal(sourceFetches, 1, "locked retries should stop before contacting source or provider services");
+});
+
 test("critical-risk proposals are blocked before any patch or runner request", async t => {
   const db = new MemoryD1({
     incidents: [fakeIncident()],

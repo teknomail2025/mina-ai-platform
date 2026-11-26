@@ -326,7 +326,9 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         return json({ error: "GitHub onarım isteğinin sonucu doğrulanamadı. Yinelenen çalışma başlatmamak için yeniden denemeden önce Actions geçmişini kontrol et.", patchGenerated: true, runnerDispatched: "unknown" }, 502, cors);
       }
       if (!dispatchResponse.ok) {
-        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'dispatch_failed' WHERE id = ?").bind(patchId).run();
+        const dispatchUncertain = dispatchResponse.status >= 500;
+        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = '" + (dispatchUncertain ? "dispatch_uncertain" : "dispatch_failed") + "' WHERE id = ?").bind(patchId).run();
+        if (dispatchUncertain) return json({ error: "GitHub onarım isteğinin sonucu doğrulanamadı. Yinelenen çalışma başlatmamak için yeniden denemeden önce Actions geçmişini kontrol et.", patchGenerated: true, runnerDispatched: "unknown" }, 502, cors);
         return json({ error: "Patch güvenli biçimde üretildi ancak izole GitHub test süreci başlatılamadı. GitHub Actions yetkisini kontrol et.", patchGenerated: true, runnerDispatched: false }, 502, cors);
       }
       await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'runner_dispatched' WHERE id = ?").bind(patchId).run();
