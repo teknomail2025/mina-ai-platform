@@ -1,8 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
-import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import { execFileSync, spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { fileURLToPath } from "node:url";
@@ -222,6 +222,22 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
     incidents: [fakeIncident()],
     proposals: [fakeProposal()]
   });
+  const repairRepository = mkdtempSync(path.join(os.tmpdir(), "mina-self-healing-repository-"));
+  t.after(() => rmSync(repairRepository, { recursive: true, force: true }));
+  const git = args => execFileSync("git", args, { cwd: repairRepository, encoding: "utf8" }).trim();
+  git(["init", "--quiet"]);
+  git(["config", "core.autocrlf", "false"]);
+  git(["config", "user.name", "Mina isolated test"]);
+  git(["config", "user.email", "mina-isolated-test@example.invalid"]);
+  const originalSource = 'const answer = "before";\n';
+  const repairedSource = 'const answer = "after";\n';
+  writeFileSync(path.join(repairRepository, "app.js"), originalSource, "utf8");
+  git(["add", "--", "app.js"]);
+  git(["commit", "--quiet", "-m", "trusted source"]);
+  const baseSha = git(["rev-parse", "HEAD"]);
+  writeFileSync(path.join(repairRepository, "app.js"), repairedSource, "utf8");
+  const patch = execFileSync("git", ["diff", "--", "app.js"], { cwd: repairRepository, encoding: "utf8" });
+  git(["checkout", "--", "app.js"]);
   const approval = await callHandler({
     db,
     path: "/api/admin/self-healing/proposals/" + PROPOSAL_ID + "/review",
@@ -234,22 +250,13 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
   assert.equal(approvalData.applied, false);
   assert.equal(approvalData.testsExecuted, false);
 
-  const patch = [
-    "diff --git a/app.js b/app.js",
-    "--- a/app.js",
-    "+++ b/app.js",
-    "@@ -1 +1 @@",
-    '-const answer = "before";',
-    '+const answer = "after";',
-    ""
-  ].join("\n");
   let requestCount = 0;
   let dispatchInputs;
   t.mock.method(globalThis, "fetch", async (url, options = {}) => {
     requestCount += 1;
     const target = String(url);
-    if (target.endsWith("/commits/main")) return jsonResponse({ sha: BASE_SHA });
-    if (target.includes("raw.githubusercontent.com/")) return new Response('const answer = "before";\n', { status: 200 });
+    if (target.endsWith("/commits/main")) return jsonResponse({ sha: baseSha });
+    if (target.includes("raw.githubusercontent.com/")) return new Response(originalSource, { status: 200 });
     if (target.includes("generativelanguage.googleapis.com/")) {
       return jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify({ explanation: "Normalize the empty answer branch.", patch }) }] } }] });
     }
@@ -287,13 +294,13 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
 
   assert.ok(dispatchInputs);
   assert.equal(dispatchInputs.proposal_id, PROPOSAL_ID);
-  assert.equal(dispatchInputs.base_sha, BASE_SHA);
+  assert.equal(dispatchInputs.base_sha, baseSha);
   assert.equal(dispatchInputs.patch, patch);
   assert.match(dispatchInputs.approval_issued_at, /^\d{13}$/);
   assert.match(dispatchInputs.approval_signature, /^[0-9a-f]{64}$/);
   const patchDigest = createHash("sha256").update(patch).digest("hex");
   const expected = createHmac("sha256", APPROVAL_SECRET)
-    .update([PROPOSAL_ID, BASE_SHA, patchDigest, dispatchInputs.approval_issued_at].join("\n"))
+    .update([PROPOSAL_ID, baseSha, patchDigest, dispatchInputs.approval_issued_at].join("\n"))
     .digest("hex");
   assert.equal(dispatchInputs.approval_signature, expected);
   const runnerTemp = mkdtempSync(path.join(os.tmpdir(), "mina-self-healing-e2e-"));
@@ -312,7 +319,11 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
     }
   });
   assert.equal(runnerValidation.status, 0, runnerValidation.stderr || runnerValidation.stdout);
-  assert.equal(readFileSync(path.join(runnerTemp, "mina-repair.patch"), "utf8"), patch, "the approved and signed patch must reach the isolated runner unchanged");
+  const materializedPatch = path.join(runnerTemp, "mina-repair.patch");
+  assert.equal(readFileSync(materializedPatch, "utf8"), patch, "the approved and signed patch must reach the isolated runner unchanged");
+  execFileSync("git", ["apply", "--check", materializedPatch], { cwd: repairRepository, stdio: "pipe" });
+  execFileSync("git", ["apply", materializedPatch], { cwd: repairRepository, stdio: "pipe" });
+  assert.equal(readFileSync(path.join(repairRepository, "app.js"), "utf8"), repairedSource, "the approved runner patch must apply to its exact source commit");
   const storedPatch = [...db.patches.values()][0];
   assert.equal(storedPatch.status, "runner_dispatched");
   assert.equal(storedPatch.patch_text, patch);
