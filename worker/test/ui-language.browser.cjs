@@ -77,7 +77,7 @@ const watchdog = setTimeout(() => {
     await page.waitForFunction(() => document.getElementById("cameraDialog").hidden);
     assert.equal(await page.locator("#fileChip").isVisible(), true, "camera capture must attach a photo to the composer");
     assert.ok((await page.locator("#fileName").innerText()).includes("Kameradan çekilen fotoğraf"));
-    await page.locator("#messageInput").fill("Bu fotoğrafta ne var?");
+    await page.locator("#messageInput").fill("What is in this photo?");
     const cameraAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
     await page.locator("#sendBtn").click();
     await cameraAnalysisResponse;
@@ -85,12 +85,12 @@ const watchdog = setTimeout(() => {
     assert.equal(imageAnalysisRequests.length, 1, "camera photo must be sent to image analysis");
     assert.equal(imageAnalysisRequests[0].image.mimeType, "image/jpeg");
     assert.match(imageAnalysisRequests[0].image.data, /^[A-Za-z0-9+/]+=*$/);
-    assert.ok(imageAnalysisRequests[0].messages.some(message => message.content.includes("Bu fotoğrafta ne var?")));
+    assert.ok(imageAnalysisRequests[0].messages.some(message => message.content.includes("What is in this photo?")));
 
     const uploadedPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=", "base64");
     await page.locator("#imageInput").setInputFiles({ name: "analysis-test.png", mimeType: "image/png", buffer: uploadedPng });
     await page.waitForFunction(() => document.getElementById("fileName")?.textContent === "🖼 analysis-test.png", null, { timeout: 10000 });
-    await page.locator("#messageInput").fill("Yüklenen resmi incele.");
+    await page.locator("#messageInput").fill("Please analyze the uploaded photo.");
     const uploadedAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
     await page.locator("#sendBtn").click();
     await uploadedAnalysisResponse;

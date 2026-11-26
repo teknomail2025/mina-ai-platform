@@ -7,6 +7,10 @@ on:
       - "app.js"
       - "index.html"
       - "media.js"
+      - "i18n.js"
+      - "auth.js"
+      - "pwa.js"
+      - "sw.js"
       - "voice.js"
       - ".github/workflows/test-pr.yml"
 permissions:

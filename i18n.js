@@ -144,6 +144,7 @@
     "📷 Kamerayla çek": "📷 Take a photo",
     "Kamerayı aç": "Open camera",
     "Kamerayı kapat": "Close camera",
+    "İptal": "Cancel",
     "Kamerayla fotoğraf çek": "Take a photo with camera",
     "Kamera hazırlanıyor…": "Preparing camera…",
     "Hazır. Fotoğrafı çekebilirsin.": "Ready. You can take a photo.",
