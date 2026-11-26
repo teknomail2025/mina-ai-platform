@@ -1,6 +1,7 @@
 const test = require("node:test");
 const assert = require("node:assert/strict");
 const crypto = require("node:crypto");
+const { execFileSync } = require("node:child_process");
 const fs = require("node:fs");
 const os = require("node:os");
 const path = require("node:path");
@@ -67,4 +68,47 @@ test("runner validates a fresh approval and rejects tampered, expired and unsafe
   const wrongSource = run({ sha: "b".repeat(40), issuedAt, signature: validSignature });
   assert.notEqual(wrongSource.status, 0);
   assert.match(wrongSource.stderr + wrongSource.stdout, /does not match/);
+});
+
+test("approved runner patch validates and applies unchanged to its exact isolated source commit", t => {
+  const repository = fs.mkdtempSync(path.join(os.tmpdir(), "mina-healing-repository-"));
+  const runnerTemp = fs.mkdtempSync(path.join(os.tmpdir(), "mina-healing-apply-"));
+  t.after(() => {
+    fs.rmSync(repository, { recursive: true, force: true });
+    fs.rmSync(runnerTemp, { recursive: true, force: true });
+  });
+  const git = (args, options = {}) => execFileSync("git", args, { cwd: repository, encoding: "utf8", ...options }).trim();
+  git(["init", "--quiet"]);
+  git(["config", "core.autocrlf", "false"]);
+  git(["config", "user.name", "Mina isolated test"]);
+  git(["config", "user.email", "mina-isolated-test@example.invalid"]);
+  fs.writeFileSync(path.join(repository, "app.js"), "const answer = 'before';\n", "utf8");
+  git(["add", "--", "app.js"]);
+  git(["commit", "--quiet", "-m", "trusted source"]);
+  const pinnedSourceSha = git(["rev-parse", "HEAD"]);
+
+  fs.writeFileSync(path.join(repository, "app.js"), "const answer = 'after';\n", "utf8");
+  const approvedPatch = execFileSync("git", ["diff", "--", "app.js"], { cwd: repository, encoding: "utf8" });
+  assert.match(approvedPatch, /diff --git a\/app\.js b\/app\.js/);
+  git(["checkout", "--", "app.js"]);
+  const issuedAt = String(Date.now());
+  const signature = sign({ patchText: approvedPatch, sha: pinnedSourceSha, issuedAt });
+  const verifierEnv = {
+    ...process.env,
+    PATCH_JSON: JSON.stringify(approvedPatch),
+    BASE_SHA: pinnedSourceSha,
+    PROPOSAL_ID: proposalId,
+    APPROVAL_ISSUED_AT: issuedAt,
+    APPROVAL_SIGNATURE: signature,
+    APPROVAL_SECRET: secret,
+    RUNNER_TEMP: runnerTemp,
+  };
+  const validation = spawnSync(process.platform === "win32" ? "python" : "python3", [verifier], { encoding: "utf8", env: verifierEnv });
+  assert.equal(validation.status, 0, validation.stderr || validation.stdout);
+  const materializedPatch = path.join(runnerTemp, "mina-repair.patch");
+  assert.equal(fs.readFileSync(materializedPatch, "utf8"), approvedPatch);
+
+  execFileSync("git", ["apply", "--check", materializedPatch], { cwd: repository, stdio: "pipe" });
+  execFileSync("git", ["apply", materializedPatch], { cwd: repository, stdio: "pipe" });
+  assert.equal(fs.readFileSync(path.join(repository, "app.js"), "utf8"), "const answer = 'after';\n");
 });
