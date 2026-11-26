@@ -1336,3 +1336,28 @@ test("every self-healing route requires a valid administrator session", async ()
   assert.match(incidents[0].stack, /\[REDACTED\]/);
   assert.doesNotMatch(incidents[0].message + incidents[0].stack, /example-token-value|example-private-key/);
 });
+
+
+test("exhausted Gemini fallback records a redacted self-healing incident", async () => {
+  const incidents = [];
+  const { worker, requestedModels } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 }),
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
+  });
+  assert.equal(result.status, 502);
+  assert.equal(requestedModels.length, 3, "all configured fallback models should be attempted");
+  assert.equal(incidents.length, 1, "the final provider failure should create one incident");
+  assert.equal(incidents[0].route, "/api/chat");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /temporary high demand|test-gemini-key/);
+});
