@@ -666,6 +666,34 @@ test("image generation uses Nano Banana 2.1 with explicit 1K square output and v
   assert.deepEqual(capturedPayload.generationConfig.imageConfig, { aspectRatio: "1:1", imageSize: "1K" });
 });
 
+test("image generation provider failures are recorded for self-healing and quota is refunded", async () => {
+  const incidents=[];
+  const { worker, usageStore, usageKey } = createWorker(
+    async () => new Response(JSON.stringify({error:{message:"provider unavailable"}}), {status:503}),
+    undefined,
+    async (_env, route, error) => incidents.push({route,message:error.message})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A failing test image"}});
+  assert.equal(result.status,502);
+  assert.deepEqual(incidents,[{route:"/api/image",message:"Image provider request failed: HTTP 503"}]);
+  const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  assert.equal(usageStore.get(usageKey("Argion","image_generation",today))?.used,0);
+});
+
+test("image generation invalid provider output is recorded for self-healing", async () => {
+  const incidents=[];
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({candidates:[{content:{parts:[{inlineData:{mimeType:"image/png",data:"aGVsbG8="}}]}}]}),{status:200}),
+    undefined,
+    async (_env, route, error) => incidents.push({route,message:error.message})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"An invalid image test"}});
+  assert.equal(result.status,502);
+  assert.deepEqual(incidents,[{route:"/api/image",message:"Image provider returned invalid or missing image bytes"}]);
+});
+
 test("image generation rejects malformed provider image bytes", async () => {
   const { worker } = createWorker(async () => new Response(JSON.stringify({
     candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }] } }]
