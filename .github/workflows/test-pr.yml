@@ -5,6 +5,8 @@ on:
     paths:
       - "worker/**"
       - "app.js"
+      - "index.html"
+      - "media.js"
       - "voice.js"
       - ".github/workflows/test-pr.yml"
 permissions:

@@ -53,8 +53,6 @@
   libraryItems = libraryItems.filter(item => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.content === "string");
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
-  let cameraStream = null;
-  let cameraRequestId = 0;
   let busy = false;
   let listQuery = "";
   let voiceMode = false;
@@ -1206,56 +1204,28 @@
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
-  async function openCamera() {
-    const dialog=$("cameraDialog"),video=$("cameraPreview"),status=$("cameraStatus"),capture=$("cameraCaptureBtn");
-    const requestId=++cameraRequestId;
-    dialog.hidden=false;capture.disabled=true;status.textContent=uiText("Kamera hazırlanıyor…");
+  const camera=window.MinaMedia.createCameraController({
+    dialog:$("cameraDialog"),video:$("cameraPreview"),status:$("cameraStatus"),captureButton:$("cameraCaptureBtn"),
+    mediaDevices:navigator.mediaDevices,document,translate:uiText,
+    onCapture:file=>{attachedFile=file;$("fileName").textContent="📷 "+uiText("Kameradan çekilen fotoğraf");els.fileChip.hidden=false;els.input.focus();}
+  });
+  els.cameraBtn?.addEventListener("click",camera.open);
+  $("cameraCaptureBtn").addEventListener("click",camera.capture);
+  $("cameraCloseBtn").addEventListener("click",camera.close);
+  $("cameraCancelBtn").addEventListener("click",camera.close);
+  $("cameraDialog").addEventListener("click",event=>{if(event.target===$("cameraDialog"))camera.close();});
+  $("cameraDialog").addEventListener("keydown",event=>{if(event.key==="Escape")camera.close();});
+  window.addEventListener("mina:unauthenticated",camera.close);
+  window.addEventListener("beforeunload",camera.close);
+  els.imageInput.addEventListener("change", async () => {
+    const file = els.imageInput.files?.[0]; if (!file) return;
     try {
-      if(!navigator.mediaDevices?.getUserMedia)throw new Error("Bu tarayıcı kamera erişimini desteklemiyor. Resim ekle seçeneğini kullanabilirsin.");
-      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
-      if(requestId!==cameraRequestId||dialog.hidden){stream.getTracks().forEach(track=>track.stop());return;}
-      cameraStream=stream;
-      video.srcObject=stream;
-      await video.play();
-      if(requestId!==cameraRequestId||dialog.hidden)return;
-      capture.disabled=false;status.textContent=uiText("Hazır. Fotoğrafı çekebilirsin.");
-    } catch(error) {
-      if(requestId!==cameraRequestId)return;
-      cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;video.srcObject=null;capture.disabled=true;
-      status.textContent=error?.name==="NotAllowedError"?uiText("Kamera izni reddedildi. Tarayıcı ayarlarından kamera iznini aç."):uiText("Kamera açılamadı: ")+(error?.message||uiText("Bilinmeyen hata"));
+      attachedFile = await window.MinaMedia.readImageFile(file, FileReader);
+      els.fileName.textContent = "🖼 " + file.name; els.fileChip.hidden = false;
+    } catch (error) {
+      alert(uiText(error.message || "Resim okunamadı.")); els.imageInput.value = "";
     }
-  }
-  function closeCamera() {
-    cameraRequestId++;
-    cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;
-    const video=$("cameraPreview");if(video)video.srcObject=null;
-    const dialog=$("cameraDialog");if(dialog)dialog.hidden=true;
-    const capture=$("cameraCaptureBtn");if(capture)capture.disabled=true;
-  }
-  function captureCameraImage() {
-    const video=$("cameraPreview");
-    if(!video?.videoWidth||!video?.videoHeight){$("cameraStatus").textContent=uiText("Kamera görüntüsü henüz hazır değil.");return;}
-    const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
-    const canvas=document.createElement("canvas");
-    canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
-    const context=canvas.getContext("2d");
-    if(!context){$("cameraStatus").textContent=uiText("Fotoğraf hazırlanamadı.");return;}
-    context.drawImage(video,0,0,canvas.width,canvas.height);
-    const data=canvas.toDataURL("image/jpeg",0.88);
-    const base64=data.split(",")[1]||"";
-    if(Math.ceil(base64.length*0.75)>8*1024*1024){$("cameraStatus").textContent=uiText("Fotoğraf 8 MB sınırını aşıyor. Daha düşük çözünürlükle yeniden dene.");return;}
-    attachedFile={kind:"image",name:"mina-camera-capture.jpg",mimeType:"image/jpeg",data};
-    $("fileName").textContent="📷 "+uiText("Kameradan çekilen fotoğraf");els.fileChip.hidden=false;
-    closeCamera();els.input.focus();
-  }
-  els.cameraBtn?.addEventListener("click",openCamera);
-  $("cameraCaptureBtn").addEventListener("click",captureCameraImage);
-  $("cameraCloseBtn").addEventListener("click",closeCamera);
-  $("cameraCancelBtn").addEventListener("click",closeCamera);
-  $("cameraDialog").addEventListener("click",event=>{if(event.target===$("cameraDialog"))closeCamera();});
-  $("cameraDialog").addEventListener("keydown",event=>{if(event.key==="Escape")closeCamera();});
-  window.addEventListener("mina:unauthenticated",closeCamera);
-  window.addEventListener("beforeunload",closeCamera);
+  });
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;
@@ -1271,17 +1241,6 @@
       els.toolsToggle.textContent = "＋";
       els.toolsToggle.setAttribute("aria-label", "Araçları aç");
     }
-  });
-  els.imageInput.addEventListener("change", async () => {
-    const file = els.imageInput.files?.[0]; if (!file) return;
-    if (file.size > 8 * 1024 * 1024) { alert(uiText("Resim en fazla 8 MB olabilir.")); els.imageInput.value = ""; return; }
-    const reader = new FileReader();
-    reader.onload = () => {
-      attachedFile = {kind:"image",name:file.name,mimeType:file.type,data:reader.result};
-      els.fileName.textContent = "🖼 " + file.name; els.fileChip.hidden = false;
-    };
-    reader.onerror = () => alert(uiText("Resim okunamadı."));
-    reader.readAsDataURL(file);
   });
   els.imageGenerateBtn.addEventListener("click", generateImage);
   els.steamBtn.addEventListener("click", () => {

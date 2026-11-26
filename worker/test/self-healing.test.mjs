@@ -85,6 +85,7 @@ test("patch parser accepts only bounded unified diffs for approved allowlisted f
 test("isolated repair workflow tests without secrets and creates only a review pull request", async () => {
   const fs = await import("node:fs");
   const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
+  const validator = fs.readFileSync(new URL("../scripts/validate_self_healing_patch.py", import.meta.url), "utf8");
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /validate-and-test:[\s\S]*?permissions:\s*contents: read/);
   assert.match(workflow, /create-review-pull-request:[\s\S]*?permissions:\s*contents: write\s*pull-requests: write/);
@@ -93,8 +94,10 @@ test("isolated repair workflow tests without secrets and creates only a review p
   assert.match(workflow, /--base main/);
   assert.doesNotMatch(workflow, /wrangler@4 deploy --config/);
   assert.ok(workflow.includes("APPROVAL_SECRET: " + "$" + "{{ secrets.MINA_SELF_HEALING_APPROVAL_SECRET }}"));
-  assert.match(workflow, /hmac\.compare_digest/);
-  assert.match(workflow, /APPROVAL_SIGNATURE/);
+  assert.match(workflow, /python worker\/scripts\/validate_self_healing_patch\.py/);
+  assert.match(validator, /hmac\.compare_digest/);
+  assert.match(validator, /abs\(int\(time\.time\(\) \* 1000\) - issued_ms\) > 600000/);
+  assert.match(validator, /APPROVAL_SIGNATURE/);
   const writeJob = workflow.split("create-review-pull-request:")[1] || "";
   assert.doesNotMatch(writeJob, /APPROVAL_SECRET|secrets\.MINA_SELF_HEALING_APPROVAL_SECRET/);
 });

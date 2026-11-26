@@ -824,6 +824,8 @@ test("PWA shell is installable and never caches API or authorization requests", 
   assert.equal(parsed.scope, "./");
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /request\.headers\.has\("Authorization"\)/);
+  assert.match(serviceWorker, /"\.\/media\.js"/);
+  assert.match(serviceWorker, /mina-shell-v8/);
   assert.match(serviceWorker, /fetch\(request\).*catch/s);
   assert.match(registration, /navigator\.serviceWorker\.register/);
 });
