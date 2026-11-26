@@ -109,6 +109,8 @@
     "Ayarlar bu cihazda korundu; bulut eşitlemesi şu anda kullanılamıyor.": "Settings are preserved on this device; cloud sync is currently unavailable.",
     "Ayarlar bu cihazda kaydedildi; bulut eşitlemesi başarısız.": "Settings were saved on this device; cloud sync failed.",
     "Günlük kullanım kotaları": "Daily usage quotas",
+    "Günlük kullanım: ": "Daily usage: ",
+    "Kota günü: ": "Quota day: ",
     "Kotaları yenile": "Refresh quotas",
     "Resim inceleme": "Image analysis",
     "Dosya": "Files",

@@ -99,6 +99,24 @@ const watchdog = setTimeout(() => {
     assert.equal(imageAnalysisRequests[1].image.mimeType, "image/png");
     assert.equal(Buffer.from(imageAnalysisRequests[1].image.data, "base64").toString("base64"), uploadedPng.toString("base64"));
 
+    stage = "checking daily quota guidance";
+    await page.route("http://127.0.0.1:8787/api/chat", async route => {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.", quota: { type: "chat", used: 5, limit: 5, remaining: 0, day: "2026-11-27" } })
+      });
+    });
+    await page.locator("#messageInput").fill("Quota message test");
+    const quotaResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await quotaResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    const quotaMessage = await page.locator(".message.assistant .bubble").last().innerText();
+    assert.match(quotaMessage, /5\/5/);
+    assert.match(quotaMessage, /2026-11-27/);
+    assert.doesNotMatch(quotaMessage, /Cloudflare Worker ve Gemini API anahtarını kontrol et/i);
+
     await page.locator("#sidebarProfile").click();
     assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Hesap ve ayarlar");
     await page.locator('[data-settings-section="language"]').click();
