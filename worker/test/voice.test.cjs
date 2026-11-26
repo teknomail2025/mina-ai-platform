@@ -16,6 +16,10 @@ test("voice moderation preserves every completed utterance and checks them in or
   };
   let socket;
   let firstModerationResolve;
+  let microphoneConstraints;
+  let audioContext;
+  let processor;
+  let microphoneStopped = false;
   const moderationRequests = [];
   const fetch = async (url, options = {}) => {
     if (String(url).endsWith("/api/live-token")) {
@@ -36,21 +40,21 @@ test("voice moderation preserves every completed utterance and checks them in or
   };
   class FakeWebSocket {
     static OPEN = 1;
-    constructor(url) { this.url = url; this.readyState = 1; socket = this; }
-    send(value) { this.lastSent = value; }
+    constructor(url) { this.url = url; this.readyState = 1; this.sent = []; socket = this; }
+    send(value) { this.lastSent = value; this.sent.push(value); }
     close() { this.readyState = 3; this.onclose?.(); }
   }
   class FakeAudioContext {
-    constructor() { this.sampleRate = 48000; this.currentTime = 0; this.destination = {}; }
+    constructor() { this.sampleRate = 48000; this.currentTime = 0; this.destination = {}; audioContext = this; }
     async resume() {}
-    async close() {}
+    async close() { this.closed = true; }
     createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
-    createScriptProcessor() { return { connect() {}, disconnect() {}, onaudioprocess: null }; }
+    createScriptProcessor() { processor = { connect() {}, disconnect() {}, onaudioprocess: null }; return processor; }
     createGain() { return { gain: { value: 1 }, connect() {} }; }
   }
   const window = { MINA_API_BASE: "https://mina.test", MinaI18n: { t: value => value }, WebSocket: FakeWebSocket, AudioContext: FakeAudioContext, addEventListener() {} };
   const document = { getElementById: element };
-  const navigator = { mediaDevices: { getUserMedia: async () => ({ getTracks: () => [{ stop() {} }] }) } };
+  const navigator = { mediaDevices: { getUserMedia: async constraints => { microphoneConstraints = constraints; return { getTracks: () => [{ stop() { microphoneStopped = true; } }] }; } } };
   const context = {
     window, document, navigator, fetch, WebSocket: FakeWebSocket,
     AudioContext: FakeAudioContext, setTimeout, clearTimeout, setInterval, clearInterval, console,
@@ -69,6 +73,18 @@ test("voice moderation preserves every completed utterance and checks them in or
   assert.ok(setupFrame.setup.inputAudioTranscription);
   assert.ok(setupFrame.setup.outputAudioTranscription);
   socket.onmessage({ data: JSON.stringify({ setupComplete: {} }) });
+  for (let i = 0; i < 20 && !processor; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.deepEqual(JSON.parse(JSON.stringify(microphoneConstraints)), { audio: { channelCount: 1, echoCancellation: true, noiseSuppression: true, autoGainControl: true } });
+  assert.ok(processor, "live voice must connect the microphone processor after setup and quota approval");
+  for (const handler of element("liveVoiceMute").handlers.click) handler();
+  assert.equal(element("liveVoiceStatus").textContent, "Mikrofon kapalı");
+  processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.25) } });
+  assert.equal(socket.sent.length, 1, "muting must stop audio frames from being sent");
+  for (const handler of element("liveVoiceMute").handlers.click) handler();
+  processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(2048).fill(0.25) } });
+  const audioFrame = JSON.parse(socket.lastSent);
+  assert.equal(audioFrame.realtimeInput.audio.mimeType, "audio/pcm;rate=16000");
+  assert.ok(audioFrame.realtimeInput.audio.data);
   socket.onmessage({ data: JSON.stringify({ serverContent: { inputTranscription: { text: "İlk " } } }) });
   socket.onmessage({ data: JSON.stringify({ serverContent: { inputTranscription: { text: "konuşma" } } }) });
   socket.onmessage({ data: JSON.stringify({ serverContent: { turnComplete: true } }) });
@@ -82,4 +98,7 @@ test("voice moderation preserves every completed utterance and checks them in or
   for (let i = 0; i < 20 && moderationRequests.length < 2; i++) await new Promise(resolve => setImmediate(resolve));
   assert.deepEqual(moderationRequests, ["İlk konuşma", "İkinci konuşma"]);
   for (const handler of element("liveVoiceClose").handlers.click) await handler();
+  assert.equal(microphoneStopped, true, "ending voice chat must stop microphone tracks");
+  assert.equal(audioContext.closed, true, "ending voice chat must close the audio context");
+  assert.equal(element("liveVoice").hidden, true);
 });

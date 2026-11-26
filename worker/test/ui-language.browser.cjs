@@ -8,7 +8,10 @@ const watchdog = setTimeout(() => {
 }, 120000);
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
+  });
   const page = await browser.newPage();
   stage = "opening the app and signing in";
   page.setDefaultTimeout(15000);
@@ -57,6 +60,45 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
+    stage = "checking camera capture and image analysis requests";
+    const imageAnalysisRequests = [];
+    await page.route("http://127.0.0.1:8787/api/chat", async route => {
+      imageAnalysisRequests.push(JSON.parse(route.request().postData() || "{}"));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { role: "assistant", content: "Görseli inceledim." } }] })
+      });
+    });
+    await page.locator("#toolsToggle").click();
+    await page.locator("#cameraBtn").click();
+    await page.waitForFunction(() => document.getElementById("cameraStatus")?.textContent === "Hazır. Fotoğrafı çekebilirsin.", null, { timeout: 15000 });
+    await page.locator("#cameraCaptureBtn").click();
+    await page.waitForFunction(() => document.getElementById("cameraDialog").hidden);
+    assert.equal(await page.locator("#fileChip").isVisible(), true, "camera capture must attach a photo to the composer");
+    assert.ok((await page.locator("#fileName").innerText()).includes("Kameradan çekilen fotoğraf"));
+    await page.locator("#messageInput").fill("Bu fotoğrafta ne var?");
+    const cameraAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await cameraAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(imageAnalysisRequests.length, 1, "camera photo must be sent to image analysis");
+    assert.equal(imageAnalysisRequests[0].image.mimeType, "image/jpeg");
+    assert.match(imageAnalysisRequests[0].image.data, /^[A-Za-z0-9+/]+=*$/);
+    assert.ok(imageAnalysisRequests[0].messages.some(message => message.content.includes("Bu fotoğrafta ne var?")));
+
+    const uploadedPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=", "base64");
+    await page.locator("#imageInput").setInputFiles({ name: "analysis-test.png", mimeType: "image/png", buffer: uploadedPng });
+    await page.waitForFunction(() => document.getElementById("fileName")?.textContent === "🖼 analysis-test.png", null, { timeout: 10000 });
+    await page.locator("#messageInput").fill("Yüklenen resmi incele.");
+    const uploadedAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await uploadedAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(imageAnalysisRequests.length, 2, "uploaded photo must be sent to image analysis");
+    assert.equal(imageAnalysisRequests[1].image.mimeType, "image/png");
+    assert.equal(Buffer.from(imageAnalysisRequests[1].image.data, "base64").toString("base64"), uploadedPng.toString("base64"));
+
     await page.locator("#sidebarProfile").click();
     assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Hesap ve ayarlar");
     await page.locator('[data-settings-section="language"]').click();
