@@ -1211,11 +1211,12 @@
     try {
       if(!navigator.mediaDevices?.getUserMedia)throw new Error("Bu tarayıcı kamera erişimini desteklemiyor. Resim ekle seçeneğini kullanabilirsin.");
       cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+      if(dialog.hidden){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;return;}
       video.srcObject=cameraStream;
       await video.play();
       capture.disabled=false;status.textContent=uiText("Hazır. Fotoğrafı çekebilirsin.");
     } catch(error) {
-      closeCamera();
+      cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;video.srcObject=null;capture.disabled=true;
       status.textContent=error?.name==="NotAllowedError"?uiText("Kamera izni reddedildi. Tarayıcı ayarlarından kamera iznini aç."):uiText("Kamera açılamadı: ")+(error?.message||uiText("Bilinmeyen hata"));
     }
   }
