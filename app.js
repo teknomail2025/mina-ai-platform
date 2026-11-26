@@ -54,6 +54,7 @@
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
   let cameraStream = null;
+  let cameraRequestId = 0;
   let busy = false;
   let listQuery = "";
   let voiceMode = false;
@@ -1207,20 +1208,25 @@
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
   async function openCamera() {
     const dialog=$("cameraDialog"),video=$("cameraPreview"),status=$("cameraStatus"),capture=$("cameraCaptureBtn");
+    const requestId=++cameraRequestId;
     dialog.hidden=false;capture.disabled=true;status.textContent=uiText("Kamera hazırlanıyor…");
     try {
       if(!navigator.mediaDevices?.getUserMedia)throw new Error("Bu tarayıcı kamera erişimini desteklemiyor. Resim ekle seçeneğini kullanabilirsin.");
-      cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
-      if(dialog.hidden){cameraStream.getTracks().forEach(track=>track.stop());cameraStream=null;return;}
-      video.srcObject=cameraStream;
+      const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+      if(requestId!==cameraRequestId||dialog.hidden){stream.getTracks().forEach(track=>track.stop());return;}
+      cameraStream=stream;
+      video.srcObject=stream;
       await video.play();
+      if(requestId!==cameraRequestId||dialog.hidden)return;
       capture.disabled=false;status.textContent=uiText("Hazır. Fotoğrafı çekebilirsin.");
     } catch(error) {
+      if(requestId!==cameraRequestId)return;
       cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;video.srcObject=null;capture.disabled=true;
       status.textContent=error?.name==="NotAllowedError"?uiText("Kamera izni reddedildi. Tarayıcı ayarlarından kamera iznini aç."):uiText("Kamera açılamadı: ")+(error?.message||uiText("Bilinmeyen hata"));
     }
   }
   function closeCamera() {
+    cameraRequestId++;
     cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;
     const video=$("cameraPreview");if(video)video.srcObject=null;
     const dialog=$("cameraDialog");if(dialog)dialog.hidden=true;
