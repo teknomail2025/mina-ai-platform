@@ -1249,7 +1249,7 @@ test("preview migration config can only target the isolated preview D1 database"
 
 
 
-test("self-healing endpoints are protected by the real admin session middleware", async () => {
+test("every self-healing route requires a valid administrator session", async () => {
   const { handleSelfHealingRequest, recordSelfHealingIncident } = await import("../src/self-healing.mjs");
   const { worker } = createWorker(undefined, handleSelfHealingRequest, recordSelfHealingIncident);
   const incidents = [];
@@ -1260,8 +1260,8 @@ test("self-healing endpoints are protected by the real admin session middleware"
         bind(...params) { values = params; return this; },
         async run() {
           if (sql.startsWith("INSERT INTO mina_self_healing_incidents")) {
-            const [id, source, route, message, stack, status, createdAt, updatedAt] = values;
-            incidents.push({ id, source, route, message, stack, status, createdAt, updatedAt });
+            const [id, source, route, message, stack, createdAt, updatedAt] = values;
+            incidents.push({ id, source, route, message, stack, status: "new", createdAt, updatedAt });
           }
           return { success: true, meta: { changes: 1 } };
         },
@@ -1277,16 +1277,30 @@ test("self-healing endpoints are protected by the real admin session middleware"
     SELF_HEALING_APPROVAL_SECRET: "test-self-healing-approval-secret-at-least-32-chars",
     SELF_HEALING_RUNNER_ENABLED: "true"
   };
-
-  const guestStatus = await call(worker, "/api/admin/self-healing/status", { env: healingEnv });
-  assert.equal(guestStatus.status, 401, "self-healing status must not be public");
-  const guestReport = await call(worker, "/api/admin/self-healing/report", {
-    method: "POST",
-    body: { source: "manual", message: "guest must not be able to create an incident" },
+  const proposalId = "223e4567-e89b-42d3-a456-426614174000";
+  const protectedRoutes = [
+    ["/api/admin/self-healing/status", "GET"],
+    ["/api/admin/self-healing/report", "POST"],
+    ["/api/admin/self-healing/incidents", "GET"],
+    ["/api/admin/self-healing/diagnose", "POST"],
+    ["/api/admin/self-healing/proposals", "GET"],
+    ["/api/admin/self-healing/proposals/" + proposalId + "/review", "POST"],
+    ["/api/admin/self-healing/proposals/" + proposalId + "/generate-patch", "POST"]
+  ];
+  for (const [path, method] of protectedRoutes) {
+    const guest = await call(worker, path, {
+      method,
+      body: method === "POST" ? {} : undefined,
+      env: healingEnv
+    });
+    assert.equal(guest.status, 401, path + " must require an administrator session");
+  }
+  const tamperedSession = await call(worker, "/api/admin/self-healing/status", {
+    token: "not.a.valid.session",
     env: healingEnv
   });
-  assert.equal(guestReport.status, 401, "unauthenticated visitors must not create incident records");
-  assert.equal(incidents.length, 0);
+  assert.equal(tamperedSession.status, 401);
+  assert.equal(incidents.length, 0, "unauthenticated visitors must not create incident records");
 
   const login = await call(worker, "/api/auth/login", {
     method: "POST",
