@@ -1478,6 +1478,8 @@ test("live voice provider failures are recorded for self-healing without leaking
     body: {}
   });
   assert.equal(result.status, 502);
+  assert.doesNotMatch(JSON.stringify(result.data), /private upstream diagnostic|test-gemini-key/);
+  assert.equal("provider_detail" in result.data, false);
   assert.equal(incidents.length, 1);
   assert.equal(incidents[0].route, "/api/live-token");
   assert.match(incidents[0].message, /HTTP 503/);
@@ -1501,6 +1503,8 @@ test("failed image generation refunds its daily quota and records a self-healing
     body: { prompt: "A small blue house" }
   });
   assert.equal(result.status, 502);
+  assert.doesNotMatch(JSON.stringify(result.data), /private image provider diagnostic|test-gemini-key/);
+  assert.equal("provider_detail" in result.data, false);
   const day = new Intl.DateTimeFormat("en-CA", {
     timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit"
   }).format(new Date());
