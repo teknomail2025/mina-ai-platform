@@ -677,7 +677,9 @@ test("image generation provider failures are recorded for self-healing and quota
   const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A failing test image"}});
   assert.equal(result.status,502);
   assert.deepEqual(incidents,[{route:"/api/image",message:"Image provider request failed: HTTP 503"}]);
-  const today=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());
+  const dateParts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const dateValues=Object.fromEntries(dateParts.map(part=>[part.type,part.value]));
+  const today=dateValues.year+"-"+dateValues.month+"-"+dateValues.day;
   assert.equal(usageStore.get(usageKey("Argion","image_generation",today))?.used,0);
 });
 
