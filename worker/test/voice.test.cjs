@@ -139,3 +139,37 @@ test("closing live voice while microphone permission is pending stops the late s
   assert.equal(microphoneStopped, true, "a stream arriving after close must be stopped immediately");
   assert.equal(socketCount, 0, "a closed voice session must not connect to the provider after permission resolves");
 });
+
+test("muting while microphone permission is pending disables the track when it arrives", async () => {
+  const source = fs.readFileSync(path.join(__dirname, "..", "..", "voice.js"), "utf8");
+  const elements = new Map();
+  const element = id => {
+    if (!elements.has(id)) elements.set(id, {
+      id, hidden: true, disabled: false, textContent: "", text: "", dataset: {},
+      handlers: {}, addEventListener(name, callback) { (this.handlers[name] ||= []).push(callback); }
+    });
+    return elements.get(id);
+  };
+  let resolvePermission;
+  let socketCount = 0;
+  const track = { enabled: true, stopped: false, stop() { this.stopped = true; } };
+  class FakeWebSocket { constructor() { socketCount++; } }
+  class FakeAudioContext { async resume() {} async close() {} }
+  const fetch = async () => ({ ok: true, json: async () => ({ token: "short-lived-test-token", model: "models/gemini-live" }) });
+  const window = { MINA_API_BASE: "https://mina.test", MinaI18n: { t: value => value }, WebSocket: FakeWebSocket, AudioContext: FakeAudioContext, addEventListener() {} };
+  const document = { getElementById: element };
+  const navigator = { mediaDevices: { getUserMedia: () => new Promise(resolve => { resolvePermission = resolve; }) } };
+  const context = { window, document, navigator, fetch, WebSocket: FakeWebSocket, AudioContext: FakeAudioContext, setTimeout, clearTimeout, setInterval, clearInterval, console, btoa: value => Buffer.from(value, "binary").toString("base64"), atob: value => Buffer.from(value, "base64").toString("binary") };
+  vm.runInNewContext(source, context, { filename: "voice.js" });
+  for (const handler of element("voiceModeBtn").handlers.click) handler();
+  for (let i = 0; i < 20 && !resolvePermission; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(typeof resolvePermission, "function", "startup must request microphone access");
+  for (const handler of element("liveVoiceMute").handlers.click) handler();
+  assert.equal(element("liveVoiceStatus").textContent, "Mikrofon kapalı");
+  resolvePermission({ getTracks: () => [track], getAudioTracks: () => [track] });
+  for (let i = 0; i < 20 && socketCount === 0; i++) await new Promise(resolve => setImmediate(resolve));
+  assert.equal(socketCount, 1, "voice startup may continue after the microphone stream arrives");
+  assert.equal(track.enabled, false, "a mute chosen before permission resolves must disable device capture immediately");
+  for (const handler of element("liveVoiceClose").handlers.click) await handler();
+  assert.equal(track.stopped, true, "closing must stop the microphone track");
+});

@@ -115,6 +115,7 @@
       }
       const microphoneStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
       if(currentSessionId!==sessionId){microphoneStream.getTracks().forEach(track=>track.stop());return;}
+      microphoneStream.getAudioTracks?.().forEach(track=>{track.enabled=!muted;});
       stream=microphoneStream;
       audioContext=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
