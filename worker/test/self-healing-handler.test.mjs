@@ -34,6 +34,7 @@ class MemoryD1 {
 
   async run(sql, p) {
     const q = sql.replace(/\s+/g, " ").trim();
+    let changes = 1;
     if (q.startsWith("INSERT INTO mina_self_healing_incidents")) {
       const [id, source, route, message, stack, createdAt, updatedAt] = p;
       this.incidents.set(id, { id, source, route, message, stack, status: "new", created_at: createdAt, updated_at: updatedAt });
@@ -48,18 +49,27 @@ class MemoryD1 {
       const [status, reviewed_at, id] = p;
       const row = this.proposals.get(id);
       if (row) Object.assign(row, { status, reviewed_at });
-    } else if (q.startsWith("INSERT INTO mina_self_healing_patches")) {
-      const [id, proposal_id, patch_text, explanation, files_json, created_at] = p;
-      this.patches.set(id, { id, proposal_id, patch_text, explanation, files_json, status: "generated", created_at });
+    } else if (q.startsWith("INSERT INTO mina_self_healing_patches") && q.includes("'generating'")) {
+      const [id, proposal_id, created_at, staleBefore] = p;
+      const existing = [...this.patches.values()].find(row => row.proposal_id === proposal_id);
+      if (!existing) this.patches.set(id, { id, proposal_id, patch_text: "", explanation: "", files_json: "[]", status: "generating", created_at });
+      else if (existing.status === "dispatch_failed" || (existing.status === "generating" && existing.created_at < staleBefore)) {
+        Object.assign(existing, { id, patch_text: "", explanation: "", files_json: "[]", status: "generating", created_at });
+      } else changes = 0;
+    } else if (q.startsWith("UPDATE mina_self_healing_patches SET patch_text =")) {
+      const [patch_text, explanation, files_json, created_at, id] = p;
+      const row = this.patches.get(id);
+      if (row?.status === "generating") Object.assign(row, { patch_text, explanation, files_json, created_at, status: "generated" });
+      else changes = 0;
     } else if (q.startsWith("UPDATE mina_self_healing_patches SET status =")) {
-      const status = q.includes("'runner_dispatched'") ? "runner_dispatched" : "dispatch_failed";
+      const status = q.includes("'runner_dispatched'") ? "runner_dispatched" : q.includes("'dispatch_uncertain'") ? "dispatch_uncertain" : "dispatch_failed";
       const row = this.patches.get(p[0]);
-      if (row) row.status = status;
+      if (row && (!q.includes("AND status = 'generating'") || row.status === "generating")) row.status = status;
     } else if (q.startsWith("UPDATE mina_self_healing_proposals SET status = 'patch_queued'")) {
       const row = this.proposals.get(p[0]);
       if (row) row.status = "patch_queued";
     }
-    return { success: true, meta: { changes: 1 } };
+    return { success: true, meta: { changes } };
   }
 
   async first(sql, p) {
@@ -283,7 +293,7 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
     }
   });
   const data = await response.json();
-  assert.equal(response.status, 202);
+  assert.equal(response.status, 202, JSON.stringify(data));
   assert.equal(data.patchGenerated, true);
   assert.equal(data.runnerDispatched, true);
   assert.equal(data.applied, false);
@@ -329,6 +339,65 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
   assert.equal(storedPatch.patch_text, patch);
 });
 
+test("concurrent patch requests claim one runner dispatch before spending a second AI generation", async t => {
+  const db = new MemoryD1({
+    incidents: [fakeIncident()],
+    proposals: [fakeProposal({ status: "approved_for_manual_test" })]
+  });
+  const patch = [
+    "diff --git a/app.js b/app.js",
+    "--- a/app.js",
+    "+++ b/app.js",
+    "@@ -1 +1 @@",
+    '-const answer = "before";',
+    '+const answer = "after";',
+    ""
+  ].join("\n");
+  let sourceFetches = 0;
+  let resolveSources;
+  const bothSourceFetches = new Promise(resolve => { resolveSources = resolve; });
+  let generationCalls = 0;
+  let dispatchCalls = 0;
+  t.mock.method(globalThis, "fetch", async (url) => {
+    const target = String(url);
+    if (target.endsWith("/commits/main")) return jsonResponse({ sha: BASE_SHA });
+    if (target.includes("raw.githubusercontent.com/")) {
+      sourceFetches++;
+      if (sourceFetches === 2) resolveSources();
+      await bothSourceFetches;
+      return new Response('const answer = "before";\n', { status: 200 });
+    }
+    if (target.includes("generativelanguage.googleapis.com/")) {
+      generationCalls++;
+      return jsonResponse({ candidates: [{ content: { parts: [{ text: JSON.stringify({ explanation: "Test a concurrency-safe repair.", patch }) }] } }] });
+    }
+    if (target.endsWith("/dispatches")) {
+      dispatchCalls++;
+      return new Response(null, { status: 204 });
+    }
+    throw new Error("Unexpected mocked network request: " + target);
+  });
+  const env = {
+    GEMINI_API_KEY: "fake-gemini-key",
+    GITHUB_ACTIONS_TOKEN: "fake-runner-token",
+    SELF_HEALING_APPROVAL_SECRET: APPROVAL_SECRET,
+    SELF_HEALING_RUNNER_ENABLED: "true"
+  };
+  const responses = await Promise.all([1, 2].map(() => callHandler({
+    db,
+    path: "/api/admin/self-healing/proposals/" + PROPOSAL_ID + "/generate-patch",
+    method: "POST",
+    body: {},
+    env
+  })));
+  assert.deepEqual(responses.map(response => response.status).sort(), [202, 409]);
+  assert.equal(sourceFetches, 2, "both requests may finish the bounded source reads before claiming");
+  assert.equal(generationCalls, 1, "only the winning request may call the AI repair model");
+  assert.equal(dispatchCalls, 1, "only one signed patch may be dispatched for an approved proposal");
+  assert.equal([...db.patches.values()].length, 1);
+  assert.equal([...db.patches.values()][0].status, "runner_dispatched");
+});
+
 test("critical-risk proposals are blocked before any patch or runner request", async t => {
   const db = new MemoryD1({
     incidents: [fakeIncident()],
@@ -354,3 +423,4 @@ test("critical-risk proposals are blocked before any patch or runner request", a
   assert.match(data.error, /Kritik riskli/);
   assert.equal(db.patches.size, 0);
 });
+
