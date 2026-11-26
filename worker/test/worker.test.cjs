@@ -8,7 +8,7 @@ const training = JSON.parse(fs.readFileSync(path.join(workerDir, "src/training.j
 const workerSource = fs.readFileSync(path.join(workerDir, "src/index.js"), "utf8")
   .replace(/^import minaTraining from "\.\/training\.json";\s*/, "")
   .replace('import { handleSelfHealingRequest, recordSelfHealingIncident } from "./self-healing.mjs";', "")
-  .replace("export default {", "const handleSelfHealingRequest = async () => null; const recordSelfHealingIncident = async () => {}; return {");
+  .replace("export default {", "return {");
 
 const env = {
   ALLOWED_ORIGINS: "https://teknomail2025.github.io",
@@ -18,7 +18,7 @@ const env = {
   GEMINI_API_KEY: "test-gemini-key"
 };
 
-function createWorker(fetchOverride) {
+function createWorker(fetchOverride, selfHealingHandler = async () => null, selfHealingIncidentRecorder = async () => {}) {
   const requestedModels = [];
   const liveTokenRequests = [];
   const mockFetch = async (url, options = {}) => {
@@ -128,7 +128,7 @@ function createWorker(fetchOverride) {
       };
     }
   };
-  const worker = new Function("minaTraining", "fetch", workerSource)(training, mockFetch);
+  const worker = new Function("minaTraining", "fetch", "handleSelfHealingRequest", "recordSelfHealingIncident", workerSource)(training, mockFetch, selfHealingHandler, selfHealingIncidentRecorder);
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
@@ -1247,3 +1247,78 @@ test("preview migration config can only target the isolated preview D1 database"
   assert.match(config, /^migrations_dir = "migrations"$/m);
 });
 
+
+
+test("self-healing endpoints are protected by the real admin session middleware", async () => {
+  const { handleSelfHealingRequest, recordSelfHealingIncident } = await import("../src/self-healing.mjs");
+  const { worker } = createWorker(undefined, handleSelfHealingRequest, recordSelfHealingIncident);
+  const incidents = [];
+  const healingDb = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...params) { values = params; return this; },
+        async run() {
+          if (sql.startsWith("INSERT INTO mina_self_healing_incidents")) {
+            const [id, source, route, message, stack, status, createdAt, updatedAt] = values;
+            incidents.push({ id, source, route, message, stack, status, createdAt, updatedAt });
+          }
+          return { success: true, meta: { changes: 1 } };
+        },
+        async first() { return null; },
+        async all() { return { results: [] }; }
+      };
+    }
+  };
+  const healingEnv = {
+    MINA_DB: healingDb,
+    GEMINI_API_KEY: "fake-gemini-key",
+    GITHUB_ACTIONS_TOKEN: "fake-runner-token",
+    SELF_HEALING_APPROVAL_SECRET: "test-self-healing-approval-secret-at-least-32-chars",
+    SELF_HEALING_RUNNER_ENABLED: "true"
+  };
+
+  const guestStatus = await call(worker, "/api/admin/self-healing/status", { env: healingEnv });
+  assert.equal(guestStatus.status, 401, "self-healing status must not be public");
+  const guestReport = await call(worker, "/api/admin/self-healing/report", {
+    method: "POST",
+    body: { source: "manual", message: "guest must not be able to create an incident" },
+    env: healingEnv
+  });
+  assert.equal(guestReport.status, 401, "unauthenticated visitors must not create incident records");
+  assert.equal(incidents.length, 0);
+
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  assert.equal(login.status, 200);
+  const adminStatus = await call(worker, "/api/admin/self-healing/status", {
+    token: login.data.token,
+    env: healingEnv
+  });
+  assert.equal(adminStatus.status, 200);
+  assert.equal(adminStatus.data.patchGeneration, true);
+  assert.equal(adminStatus.data.isolatedTestRunner, true);
+  assert.equal(adminStatus.data.approvalRequired, true);
+  assert.equal(adminStatus.data.automaticCodeChanges, false);
+  assert.doesNotMatch(JSON.stringify(adminStatus.data), /fake-gemini-key|fake-runner-token|test-self-healing-approval-secret/);
+
+  const adminReport = await call(worker, "/api/admin/self-healing/report", {
+    token: login.data.token,
+    method: "POST",
+    body: {
+      source: "manual",
+      route: "/settings",
+      message: "Synthetic error with Bearer example-token-value",
+      stack: "GEMINI_API_KEY=example-private-key"
+    },
+    env: healingEnv
+  });
+  assert.equal(adminReport.status, 201);
+  assert.equal(adminReport.data.recorded, true);
+  assert.equal(incidents.length, 1);
+  assert.match(incidents[0].message, /\[REDACTED\]/);
+  assert.match(incidents[0].stack, /\[REDACTED\]/);
+  assert.doesNotMatch(incidents[0].message + incidents[0].stack, /example-token-value|example-private-key/);
+});
