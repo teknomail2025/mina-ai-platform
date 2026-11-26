@@ -539,15 +539,15 @@ export default {
     try{
       const r=await callGemini(env,IMAGE_MODEL,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}});
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
-      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);}
+      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider request failed: HTTP "+r.status));return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status,provider_detail:d.error?.message||raw.slice(0,500)},502,cors);}
       const parts=d.candidates?.[0]?.content?.parts||[];
       const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
       const textPart=parts.find(p=>p.text);
       const blob=imagePart?.inlineData||imagePart?.inline_data;
       const image={mimeType:blob?.mimeType||blob?.mime_type||"image/png",data:blob?.data};
-      if(!imageDataIsValid(image)){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);}
+      if(!imageDataIsValid(image)){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider returned invalid or missing image bytes"));return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",provider_detail:textPart?.text||"Görsel verisi eksik veya bozuk."},502,cors);}
       return json({image,caption:textPart?.text||"",model:IMAGE_MODEL},200,cors);
-    }catch(e){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
+    }catch(e){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,e);return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
   if(url.pathname==="/api/discipline/voice-check"&&request.method==="POST"){
@@ -601,10 +601,10 @@ export default {
         })
       });
       const d=await r.json().catch(()=>({}));
-      if(!r.ok) return json({error:"Gemini canlı ses oturumu başlatılamadı.",provider_status:r.status,provider_detail:d.error?.message||"Token alınamadı."},502,cors);
-      if(!d.name) return json({error:"Gemini geçici ses anahtarı döndürmedi."},502,cors);
+      if(!r.ok){await recordSelfHealingIncident(env,url.pathname,new Error("Live voice token provider request failed: HTTP "+r.status));return json({error:"Gemini canlı ses oturumu başlatılamadı.",provider_status:r.status,provider_detail:d.error?.message||"Token alınamadı."},502,cors);}
+      if(!d.name){await recordSelfHealingIncident(env,url.pathname,new Error("Live voice token provider returned no ephemeral token"));return json({error:"Gemini geçici ses anahtarı döndürmedi."},502,cors);}
       return json({token:d.name,model:"models/gemini-3.8-live"},200,cors);
-    }catch(e){return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
+    }catch(e){await recordSelfHealingIncident(env,url.pathname,e);return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname!=="/api/chat"||request.method!=="POST") return json({error:"Uç nokta bulunamadı."},404,cors);
   const parsedChat=await readJsonLimited(request,15_500_000);
