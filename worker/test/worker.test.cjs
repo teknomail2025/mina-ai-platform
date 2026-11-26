@@ -1406,3 +1406,107 @@ test("exhausted Gemini fallback records a redacted self-healing incident", async
   assert.match(incidents[0].message, /HTTP 503/);
   assert.doesNotMatch(incidents[0].message, /temporary high demand|test-gemini-key/);
 });
+
+
+test("live voice token is administrator-only and issues a one-use short-lived token", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const guest = await call(worker, "/api/live-token", { method: "POST", body: {} });
+  assert.equal(guest.status, 401);
+  assert.equal(liveTokenRequests.length, 0, "guest requests must not contact Google's token API");
+
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.token, "authTokens/test-ephemeral-token");
+  assert.equal(result.data.model, "models/gemini-3.8-live");
+  assert.equal(liveTokenRequests.length, 1);
+  const payload = liveTokenRequests[0].payload;
+  assert.equal(payload.uses, 1, "ephemeral voice token must be single-use");
+  assert.equal(payload.bidiGenerateContentSetup.model, "models/gemini-3.8-live");
+  assert.deepEqual(payload.bidiGenerateContentSetup.generationConfig.responseModalities, ["AUDIO"]);
+  assert.ok(Date.parse(payload.expireTime) > Date.now());
+  assert.ok(Date.parse(payload.newSessionExpireTime) > Date.now());
+  assert.ok(Date.parse(payload.newSessionExpireTime) < Date.parse(payload.expireTime));
+});
+
+test("live voice token is not issued after the daily live-minute quota is exhausted", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  for (let minute = 0; minute < 10; minute++) {
+    const result = await call(worker, "/api/live-minute", {
+      method: "POST",
+      token: login.data.token,
+      body: {}
+    });
+    assert.equal(result.status, 200);
+  }
+  const blocked = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.data.quota.remaining, 0);
+  assert.equal(liveTokenRequests.length, 0, "quota-exhausted sessions must not mint provider tokens");
+});
+
+test("live voice provider failures are recorded for self-healing without leaking provider details", async () => {
+  const incidents = [];
+  const { worker } = createWorker(
+    undefined,
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) }),
+    async () => new Response(JSON.stringify({ error: { message: "private upstream diagnostic" } }), { status: 503 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(result.status, 502);
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].route, "/api/live-token");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /private upstream diagnostic|test-gemini-key/);
+});
+
+test("failed image generation refunds its daily quota and records a self-healing incident", async () => {
+  const incidents = [];
+  const { worker, usageStore, usageKey } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: "private image provider diagnostic" } }), { status: 503 }),
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    body: { prompt: "A small blue house" }
+  });
+  assert.equal(result.status, 502);
+  const day = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
+  assert.equal(usageStore.get(usageKey("Argion", "image_generation", day))?.used || 0, 0);
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].route, "/api/image");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /private image provider diagnostic|test-gemini-key/);
+});
