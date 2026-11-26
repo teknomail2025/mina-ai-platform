@@ -620,3 +620,19 @@ body{background:radial-gradient(ellipse at 72% -12%,#30234b 0%,transparent 38%),
 :root[data-theme="light"] .bubble{background:#fff;border-color:#e4deeb}
 :root[data-theme="light"] .user .bubble{background:#f0e9fb;border-color:#dcd0f0}
 :root[data-theme="light"] .sidebar-profile{background:#fff;border-color:#e2dbea}
+
+
+/* Secure camera capture modal */
+.camera-dialog[hidden]{display:none!important}
+.camera-dialog{position:fixed;inset:0;z-index:950;display:grid;place-items:center;padding:18px;background:#080b12c9;backdrop-filter:blur(8px)}
+.camera-dialog-card{position:relative;width:min(620px,100%);padding:24px;border:1px solid var(--line);border-radius:18px;background:var(--panel);color:var(--text);box-shadow:0 24px 70px #0009}
+.camera-dialog-card h2{margin:0 36px 16px 0;font:700 19px Manrope}
+.camera-dialog-close{position:absolute;right:13px;top:9px;border:0;background:transparent;color:var(--muted);font-size:28px;cursor:pointer}
+.camera-dialog-card video{display:block;width:100%;max-height:min(62vh,520px);aspect-ratio:4/3;object-fit:cover;border-radius:12px;background:#05070b}
+.camera-dialog-card p{min-height:20px;margin:12px 0;color:var(--muted);font-size:12px}
+.camera-dialog-actions{display:flex;flex-wrap:wrap;gap:9px}
+.camera-dialog-actions button{min-height:40px;padding:0 15px;border:1px solid var(--line);border-radius:10px;background:var(--panel2);color:var(--text);font:600 12px 'DM Sans';cursor:pointer}
+.camera-dialog-actions button:first-child{background:#d94d96;border-color:#d94d96;color:#fff}
+.camera-dialog-actions button:disabled{opacity:.45;cursor:not-allowed}
+:root[data-theme="light"] .camera-dialog-card{background:#fff}
+@media(max-width:520px){.camera-dialog{padding:10px}.camera-dialog-card{padding:18px}.camera-dialog-card video{max-height:55vh}}
