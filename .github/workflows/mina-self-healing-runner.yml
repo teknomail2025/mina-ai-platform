@@ -49,7 +49,9 @@ jobs:
           APPROVAL_ISSUED_AT: ${{ inputs.approval_issued_at }}
           APPROVAL_SIGNATURE: ${{ inputs.approval_signature }}
           APPROVAL_SECRET: ${{ secrets.MINA_SELF_HEALING_APPROVAL_SECRET }}
-        run: python worker/scripts/validate_self_healing_patch.py
+        run: |
+          python worker/scripts/validate_self_healing_patch.py
+          git fetch origin main --quiet
           git merge-base --is-ancestor "$BASE_SHA" origin/main || { echo "Pinned source commit is not part of the trusted repair branch." >&2; exit 1; }
           git switch --detach "$BASE_SHA"
           git apply --check "$RUNNER_TEMP/mina-repair.patch"
@@ -102,6 +104,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$BASE_SHA" || { echo "Repair branch checkout does not match the tested source SHA." >&2; exit 1; }
           git fetch origin main --quiet
+          test "$(git rev-parse origin/main)" = "$BASE_SHA" || { echo "Trusted main changed after validation; rerun diagnosis and tests." >&2; exit 1; }
           git merge-base --is-ancestor "$BASE_SHA" origin/main || { echo "Tested source SHA is no longer an ancestor of main; rerun diagnosis." >&2; exit 1; }
           if [[ ! "$PROPOSAL_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "Invalid proposal id." >&2

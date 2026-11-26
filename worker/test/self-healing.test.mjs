@@ -148,11 +148,13 @@ test("repair workflow pins tests to the exact source commit and checks branch an
   const fs = await import("node:fs");
   const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
   assert.ok(workflow.includes("base_sha:"));
+  assert.match(workflow, /name: Validate and materialize patch\s+env:[\s\S]*?run: \|\s+python worker\/scripts\/validate_self_healing_patch\.py\s+git fetch origin main --quiet\s+git merge-base --is-ancestor "\$BASE_SHA" origin\/main[\s\S]*?git switch --detach "\$BASE_SHA"\s+git apply --check "\$RUNNER_TEMP\/mina-repair\.patch"/);
   assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/main'));
   assert.ok(workflow.includes('git switch --detach "$BASE_SHA"'));
   assert.ok(workflow.includes("ref: ${{ inputs.base_sha }}"));
   assert.ok(workflow.includes('test "$(git rev-parse HEAD)" = "$BASE_SHA"'));
-  assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/main'));
+  assert.ok(workflow.includes('test "$(git rev-parse origin/main)" = "$BASE_SHA"'));
+  assert.match(workflow, /create-review-pull-request:[\s\S]*?needs: validate-and-test[\s\S]*?permissions:\s+contents: write\s+pull-requests: write/);
 });
 
 
