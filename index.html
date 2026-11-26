@@ -100,7 +100,7 @@
         <div class="file-chip" id="fileChip" hidden><span id="fileName" data-i18n-ignore></span><button id="removeFileBtn" aria-label="Dosyayı kaldır">×</button></div>
         <form class="composer" id="chatForm">
           <input type="file" id="fileInput" accept=".pdf,.docx,.txt,.rpy,.md,.csv,.json,.html,.css,.js,.py,.log,.ts,.tsx,.jsx,.java,.cs,.cpp,.h,.xml,.yaml,.yml,.toml,.ini,.sql" hidden>
-          <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" hidden>
+          <input type="file" id="imageInput" accept="image/png,image/jpeg,image/webp" capture="environment" hidden>
           <button class="attach-button" type="button" id="attachBtn" aria-label="Dosya ekle" title="Kod veya metin dosyası ekle" hidden>＋</button>
           <div class="tools-menu">
             <button class="tools-toggle" type="button" id="toolsToggle" aria-expanded="false" aria-controls="toolsPanel" aria-label="Araçları aç" title="Araçlar">＋</button>
@@ -110,6 +110,7 @@
               <button class="tool-button" type="button" id="voiceModeBtn" title="Eller serbest sesli sohbeti başlat">🎧 Sesli sohbeti başlat</button>
               <button class="tool-button" type="button" id="memoryBtn" title="Mina hafıza notlarını düzenle">🧠 Hafıza notu</button>
               <button class="tool-button" type="button" id="imageBtn" title="Resim yükle">🖼 Resim ekle</button>
+              <button class="tool-button" type="button" id="cameraBtn" title="Kamerayı aç">📷 Kamerayla çek</button>
               <button class="tool-button" type="button" id="imageGenerateBtn" title="Yapay zekâ ile resim üret">🎨 Resim üret</button>
               <button class="tool-button" type="button" id="steamBtn" title="Steam oyunlarında ara">🎮 Steam</button>
               <button class="tool-button" type="button" id="webBtn" title="İnternette kaynaklı araştırma yap">🌐 Web ara</button>
@@ -127,6 +128,18 @@
    </main>
   </div>
   <section class="workspace-dialog" id="workspaceDialog" hidden role="dialog" aria-modal="true" aria-labelledby="workspaceDialogTitle"><div class="workspace-dialog-card"><button type="button" id="workspaceDialogClose" class="workspace-dialog-close" aria-label="Kapat">×</button><h2 id="workspaceDialogTitle"></h2><div id="workspaceDialogContent"></div></div></section>
+  <section class="camera-dialog" id="cameraDialog" hidden role="dialog" aria-modal="true" aria-labelledby="cameraDialogTitle">
+    <div class="camera-dialog-card">
+      <button class="camera-dialog-close" id="cameraCloseBtn" type="button" aria-label="Kamerayı kapat">×</button>
+      <h2 id="cameraDialogTitle">Kamerayla fotoğraf çek</h2>
+      <video id="cameraPreview" autoplay playsinline muted></video>
+      <p id="cameraStatus" aria-live="polite">Kamera hazırlanıyor…</p>
+      <div class="camera-dialog-actions">
+        <button id="cameraCaptureBtn" type="button" disabled>Fotoğrafı çek ve ekle</button>
+        <button id="cameraCancelBtn" type="button">İptal</button>
+      </div>
+    </div>
+  </section>
   <section class="live-voice" id="liveVoice" hidden role="dialog" aria-modal="true" aria-labelledby="liveVoiceTitle">
     <div class="live-voice-card">
       <button class="live-voice-close" id="liveVoiceClose" type="button" aria-label="Sesli sohbeti kapat">×</button>
