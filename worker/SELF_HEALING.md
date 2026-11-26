@@ -36,17 +36,15 @@ All routes below require the existing signed Mina administrator session in the `
 
 The generated patch cannot change regression tests, workflow files, package manifests, deployment configuration, or files outside the allowlist. The workflow does not merge, modify the live Worker, or deploy. Tests run without repository write credentials or application secrets.
 
-## Activation requirements
+## Activation and current readiness
 
-- GitHub permits `workflow_dispatch` only after the workflow file exists on the repository's default branch. A separate workflow-only PR (#12) adds this file directly to `main`; it must be reviewed and merged before GitHub can dispatch it. The Worker implementation remains in PR #11 and its parent branch chain.
-- The Worker code itself must also reach the deployed default branch through the existing PR dependency chain (#8 → #9 → #11); no PRs are merged automatically.
-- Configure the Cloudflare Worker Secret `GITHUB_ACTIONS_TOKEN` with a fine-grained GitHub token limited to Actions: write on this repository. The Worker uses it only to dispatch the workflow; it is never passed to the runner.
-- After the workflow exists on the default branch, set the Cloudflare Worker variable `SELF_HEALING_RUNNER_ENABLED=true`. This explicit feature flag prevents dispatch attempts before the trusted workflow is available.
-- Until all three conditions are met, the settings UI keeps patch generation disabled.
+This feature is not activated in production by this pull request. The repository must contain the trusted workflow on its default branch and the Worker must be deployed with its explicit runner flag and separately managed credentials before dispatch can work. Keep the runner flag disabled until those prerequisites have been reviewed and intentionally configured. Never enable automatic merging or deployment.
+
+An administrator's explicit proposal approval is required for patch generation. Critical-risk proposals are rejected. A short-lived HMAC binds the approval to the proposal, immutable source commit, exact patch digest, and timestamp; the isolated runner independently checks the signature, age, source, and allowlisted patch paths before testing. The runner has no application secrets in its read-only test job. A passing repair can create a review-only pull request; it cannot merge or deploy.
 
 ## Validation
 
-The latest successful GitHub Actions run for the repair pipeline changes passed 89 tests, with zero failures. Worker and frontend syntax checks passed, and Wrangler `--dry-run` completed. These checks did not deploy or write to production D1/R2.
+The test count and CI state change with each commit; use the current pull request checks as the source of truth. Local Worker tests include an end-to-end approval-signature handoff into the Python runner validator. Browser CI uses simulated camera devices and does not verify physical camera hardware, real microphone permission prompts, or a live Gemini voice session. No test deploys to production.
 
 
 ## Deployment isolation

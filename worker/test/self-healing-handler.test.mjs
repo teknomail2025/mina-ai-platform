@@ -1,12 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash, createHmac } from "node:crypto";
+import { spawnSync } from "node:child_process";
+import { mkdtempSync, readFileSync, rmSync } from "node:fs";
+import os from "node:os";
+import path from "node:path";
+import { fileURLToPath } from "node:url";
 import { handleSelfHealingRequest } from "../src/self-healing.mjs";
 
 const INCIDENT_ID = "123e4567-e89b-42d3-a456-426614174000";
 const PROPOSAL_ID = "223e4567-e89b-42d3-a456-426614174000";
 const BASE_SHA = "a".repeat(40);
 const APPROVAL_SECRET = "self-healing-test-secret-with-at-least-32-characters";
+const RUNNER_VALIDATOR = fileURLToPath(new URL("../scripts/validate_self_healing_patch.py", import.meta.url));
 
 class MemoryD1 {
   constructor({ incidents = [], proposals = [], patches = [] } = {}) {
@@ -290,6 +296,23 @@ test("manual approval gates patch generation; signed patch is dispatched for iso
     .update([PROPOSAL_ID, BASE_SHA, patchDigest, dispatchInputs.approval_issued_at].join("\n"))
     .digest("hex");
   assert.equal(dispatchInputs.approval_signature, expected);
+  const runnerTemp = mkdtempSync(path.join(os.tmpdir(), "mina-self-healing-e2e-"));
+  t.after(() => rmSync(runnerTemp, { recursive: true, force: true }));
+  const runnerValidation = spawnSync(process.platform === "win32" ? "python" : "python3", [RUNNER_VALIDATOR], {
+    encoding: "utf8",
+    env: {
+      ...process.env,
+      PATCH_JSON: JSON.stringify(dispatchInputs.patch),
+      BASE_SHA: dispatchInputs.base_sha,
+      PROPOSAL_ID: dispatchInputs.proposal_id,
+      APPROVAL_ISSUED_AT: dispatchInputs.approval_issued_at,
+      APPROVAL_SIGNATURE: dispatchInputs.approval_signature,
+      APPROVAL_SECRET,
+      RUNNER_TEMP: runnerTemp
+    }
+  });
+  assert.equal(runnerValidation.status, 0, runnerValidation.stderr || runnerValidation.stdout);
+  assert.equal(readFileSync(path.join(runnerTemp, "mina-repair.patch"), "utf8"), patch, "the approved and signed patch must reach the isolated runner unchanged");
   const storedPatch = [...db.patches.values()][0];
   assert.equal(storedPatch.status, "runner_dispatched");
   assert.equal(storedPatch.patch_text, patch);

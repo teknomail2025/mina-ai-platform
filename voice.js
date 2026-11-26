@@ -7,7 +7,7 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false;
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false, sessionId=0;
   const ui = value => window.MinaI18n?.t(value) || value;
   let lastVoiceIncidentAt = 0;
   function reportVoiceIncident(message, error) {
@@ -101,18 +101,24 @@
   }
   async function start() {
     if(active)return;
+    const currentSessionId=++sessionId;
     panel.hidden=false;openBtn.disabled=true;intentionalClose=false;pendingInputText="";moderationQueue.length=0;setStatus("Güvenli ses bağlantısı kuruluyor…");
     try{
       if(!navigator.mediaDevices?.getUserMedia||!(window.AudioContext||window.webkitAudioContext)||!window.WebSocket) throw new Error("Bu tarayıcı canlı ses veya mikrofon erişimini desteklemiyor. Güncel Chrome ya da Edge kullan.");
       const tokenResponse=await fetch(API_BASE+"/api/live-token",{method:"POST"});
+      if(currentSessionId!==sessionId)return;
       const tokenData=await tokenResponse.json().catch(()=>({}));
+      if(currentSessionId!==sessionId)return;
       if(!tokenResponse.ok||!tokenData.token){
         const detail=tokenData.provider_detail?(" ("+(tokenData.provider_status||"Google")+": "+tokenData.provider_detail+")"):"";
         throw new Error((tokenData.error||"Canlı ses anahtarı alınamadı.")+detail);
       }
-      stream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      const microphoneStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if(currentSessionId!==sessionId){microphoneStream.getTracks().forEach(track=>track.stop());return;}
+      stream=microphoneStream;
       audioContext=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
+      if(currentSessionId!==sessionId)return;
       socket=new WebSocket("wss://generativelanguage.googleapis.com/ws/google.ai.generativelanguage.v1beta.GenerativeService.BidiGenerateContentConstrained?access_token="+encodeURIComponent(tokenData.token));
       setupTimer=setTimeout(()=>{if(!active)void failVoice("Google canlı ses oturumu zamanında hazır olmadı. Bir kez daha deneyebilirsin.");},20000);
       socket.onopen=()=>{
@@ -152,8 +158,8 @@
           void cleanup(false);
         }
       };
-    }catch(error){reportVoiceIncident("Voice startup failed: "+(error?.name||"Error")+": "+(error?.message||"unknown error"),error);setStatus(friendlyVoiceError(error),"error");await cleanup(false);}
-    finally{openBtn.disabled=false;}
+    }catch(error){if(currentSessionId!==sessionId)return;reportVoiceIncident("Voice startup failed: "+(error?.name||"Error")+": "+(error?.message||"unknown error"),error);setStatus(friendlyVoiceError(error),"error");await cleanup(false);}
+    finally{if(currentSessionId===sessionId)openBtn.disabled=false;}
   }
   function startMicStream(){
     if(!stream||!audioContext||!socket)return;
@@ -168,6 +174,7 @@
     source.connect(processor);processor.connect(silent);silent.connect(audioContext.destination);
   }
   async function cleanup(hide=true){
+    sessionId++;
     intentionalClose=true;
     if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
     if(liveQuotaTimer)clearInterval(liveQuotaTimer);liveQuotaTimer=null;
@@ -187,6 +194,7 @@
   endBtn.addEventListener("click",()=>cleanup(true));
   muteBtn.addEventListener("click",()=>{
     muted=!muted;muteBtn.textContent=ui(muted?"Mikrofonu aç":"Mikrofonu kapat");
+    stream?.getAudioTracks?.().forEach(track=>{track.enabled=!muted;});
     setStatus(muted?"Mikrofon kapalı":"Seni dinliyorum…",muted?"muted":"listening");
   });
   window.addEventListener("mina:ui-language-changed",()=>{
@@ -195,6 +203,6 @@
   });
   openBtn.addEventListener("click",()=>{muteBtn.disabled=false;});
   panel.addEventListener("keydown",e=>{if(e.key==="Escape")cleanup(true);});
-  window.addEventListener("beforeunload",()=>{active=false;if(liveQuotaTimer)clearInterval(liveQuotaTimer);stream?.getTracks().forEach(t=>t.stop());socket?.close();});
+  window.addEventListener("beforeunload",()=>{void cleanup(false);});
 })();
 
