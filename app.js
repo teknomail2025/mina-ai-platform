@@ -38,7 +38,7 @@
   const els = {
     list:$("conversationList"), messages:$("messages"), welcome:$("welcome"), form:$("chatForm"),
     input:$("messageInput"), send:$("sendBtn"), model:$("modelSelect"), status:$("connectionLabel"),
-    fileInput:$("fileInput"), imageInput:$("imageInput"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
+    fileInput:$("fileInput"), imageInput:$("imageInput"), cameraBtn:$("cameraBtn"), fileChip:$("fileChip"), fileName:$("fileName"), chatScroll:$("chatScroll"),
     sidebar:$("sidebar"), voiceInput:$("voiceInputBtn"), search:$("chatSearch"), exportChat:$("exportChatBtn"), voiceModeBtn:$("voiceModeBtn"), memoryBtn:$("memoryBtn"), toolsToggle:$("toolsToggle"), toolsPanel:$("toolsPanel"), imageBtn:$("imageBtn"), imageGenerateBtn:$("imageGenerateBtn"), steamBtn:$("steamBtn"), webBtn:$("webBtn"), githubBtn:$("githubBtn"), codeWorkspaceBtn:$("codeWorkspaceBtn"), codeWorkspacePanel:$("codeWorkspacePanel"), codeEditor:$("codeEditor")
   };
   let conversations = loadConversations();
@@ -53,6 +53,7 @@
   libraryItems = libraryItems.filter(item => item && typeof item.id === "string" && typeof item.name === "string" && typeof item.content === "string");
   let activeId = conversations[0]?.id || null;
   let attachedFile = null;
+  let cameraStream = null;
   let busy = false;
   let listQuery = "";
   let voiceMode = false;
@@ -791,7 +792,7 @@
   }
   function applyAICapabilities() {
     const caps=MINA_CAPABILITIES;
-    [["imageBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
+    [["imageBtn","vision"],["cameraBtn","vision"],["imageGenerateBtn","vision"],["webBtn","web"],["codeWorkspaceBtn","code"],["voiceModeBtn","voice"],["voiceInputBtn","voice"]].forEach(([id,key])=>{const el=$(id);if(el)el.hidden=caps[key]===false;});
     if(caps.code===false)els.codeWorkspacePanel.hidden=true;
     const chatDisabled=caps.chat===false;
     els.input.disabled=chatDisabled||busy;els.send.disabled=chatDisabled||busy;
@@ -1204,6 +1205,50 @@
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  async function openCamera() {
+    const dialog=$("cameraDialog"),video=$("cameraPreview"),status=$("cameraStatus"),capture=$("cameraCaptureBtn");
+    dialog.hidden=false;capture.disabled=true;status.textContent=uiText("Kamera hazırlanıyor…");
+    try {
+      if(!navigator.mediaDevices?.getUserMedia)throw new Error("Bu tarayıcı kamera erişimini desteklemiyor. Resim ekle seçeneğini kullanabilirsin.");
+      cameraStream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:"environment"}},audio:false});
+      video.srcObject=cameraStream;
+      await video.play();
+      capture.disabled=false;status.textContent=uiText("Hazır. Fotoğrafı çekebilirsin.");
+    } catch(error) {
+      closeCamera();
+      status.textContent=error?.name==="NotAllowedError"?uiText("Kamera izni reddedildi. Tarayıcı ayarlarından kamera iznini aç."):uiText("Kamera açılamadı: ")+(error?.message||uiText("Bilinmeyen hata"));
+    }
+  }
+  function closeCamera() {
+    cameraStream?.getTracks().forEach(track=>track.stop());cameraStream=null;
+    const video=$("cameraPreview");if(video)video.srcObject=null;
+    const dialog=$("cameraDialog");if(dialog)dialog.hidden=true;
+    const capture=$("cameraCaptureBtn");if(capture)capture.disabled=true;
+  }
+  function captureCameraImage() {
+    const video=$("cameraPreview");
+    if(!video?.videoWidth||!video?.videoHeight){$("cameraStatus").textContent=uiText("Kamera görüntüsü henüz hazır değil.");return;}
+    const scale=Math.min(1,1920/Math.max(video.videoWidth,video.videoHeight));
+    const canvas=document.createElement("canvas");
+    canvas.width=Math.max(1,Math.round(video.videoWidth*scale));canvas.height=Math.max(1,Math.round(video.videoHeight*scale));
+    const context=canvas.getContext("2d");
+    if(!context){$("cameraStatus").textContent=uiText("Fotoğraf hazırlanamadı.");return;}
+    context.drawImage(video,0,0,canvas.width,canvas.height);
+    const data=canvas.toDataURL("image/jpeg",0.88);
+    const base64=data.split(",")[1]||"";
+    if(Math.ceil(base64.length*0.75)>8*1024*1024){$("cameraStatus").textContent=uiText("Fotoğraf 8 MB sınırını aşıyor. Daha düşük çözünürlükle yeniden dene.");return;}
+    attachedFile={kind:"image",name:"mina-camera-capture.jpg",mimeType:"image/jpeg",data};
+    $("fileName").textContent="📷 "+uiText("Kameradan çekilen fotoğraf");els.fileChip.hidden=false;
+    closeCamera();els.input.focus();
+  }
+  els.cameraBtn?.addEventListener("click",openCamera);
+  $("cameraCaptureBtn").addEventListener("click",captureCameraImage);
+  $("cameraCloseBtn").addEventListener("click",closeCamera);
+  $("cameraCancelBtn").addEventListener("click",closeCamera);
+  $("cameraDialog").addEventListener("click",event=>{if(event.target===$("cameraDialog"))closeCamera();});
+  $("cameraDialog").addEventListener("keydown",event=>{if(event.key==="Escape")closeCamera();});
+  window.addEventListener("mina:unauthenticated",closeCamera);
+  window.addEventListener("beforeunload",closeCamera);
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;
