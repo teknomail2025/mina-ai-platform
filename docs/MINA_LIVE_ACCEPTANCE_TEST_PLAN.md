@@ -30,7 +30,21 @@
 
 **Pass criteria:** Real staging request reaches Gemini with the exact image payload; successful output returns; invalid inputs are blocked before provider calls; provider failures are redacted and quota accounting is correct.
 
-## 3. Gemini Live voice and physical-device acceptance
+## 3. Gemini video-analysis acceptance
+
+**Fixtures:** One short, non-sensitive MP4 and one WebM, each no larger than 10 MB. The current UI accepts MP4/WebM only; video analysis has a separate configurable default cap of 10 requests per Istanbul day.
+
+1. Upload each clip through the normal chat attachment control.
+2. Confirm the file is stored in the user's private R2 namespace and expires under the existing 24-hour retention policy.
+3. Confirm the Worker verifies the MP4 ftyp or WebM EBML signature and MIME/extension match before analysis.
+4. Confirm the Worker sends the actual base64 video bytes and the user's prompt to Gemini's Interactions API using video input, not a still-image approximation.
+5. Confirm the returned output_text is rendered and the video-analysis usage counter increments exactly once.
+6. Test a malformed signature, mismatched MIME type, unsupported extension, and file larger than 10 MB. Reject each before provider invocation.
+7. Simulate provider 429/503 responses. Confirm configured fallback models are tried, raw provider diagnostics are not exposed, and the usage reservation is refunded if all attempts fail.
+
+**Pass criteria:** A real staging MP4 and WebM both produce grounded summaries; invalid uploads never reach Gemini; fallback and quota accounting behave correctly.
+
+## 4. Gemini Live voice and physical-device acceptance
 
 Use a desktop browser with a real microphone. Do not record or retain unrelated people.
 
