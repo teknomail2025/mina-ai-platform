@@ -113,6 +113,7 @@
     "Kota günü: ": "Quota day: ",
     "Kotaları yenile": "Refresh quotas",
     "Resim inceleme": "Image analysis",
+    "Video analizi": "Video analysis",
     "Dosya": "Files",
     "Sistem durumu": "System status",
     "Çıkış yap": "Log out",
