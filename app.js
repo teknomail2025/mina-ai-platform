@@ -1209,6 +1209,23 @@
   $("fileToolBtn").addEventListener("click", () => $("attachBtn").click());
   $("voiceToolBtn").addEventListener("click", () => $("voiceInputBtn").click());
   els.imageBtn.addEventListener("click", () => els.imageInput.click());
+  if (window.MinaMedia?.createCameraController) {
+    const cameraController = window.MinaMedia.createCameraController({
+      dialog: $("cameraDialog"), video: $("cameraPreview"), status: $("cameraStatus"),
+      captureButton: $("cameraCaptureBtn"), mediaDevices: navigator.mediaDevices, document,
+      translate: uiText,
+      onCapture(file) {
+        attachedFile = file;
+        els.fileName.textContent = "📷 " + uiText("Kameradan çekilen fotoğraf");
+        els.fileChip.hidden = false;
+      }
+    });
+    $("cameraBtn").addEventListener("click", () => cameraController.open());
+    $("cameraCloseBtn").addEventListener("click", () => cameraController.close());
+    $("cameraCancelBtn").addEventListener("click", () => cameraController.close());
+  } else {
+    $("cameraBtn").hidden = true;
+  }
   els.toolsPanel.addEventListener("click", event => {
     if (event.target.closest("button")) {
       els.toolsPanel.hidden = true;
