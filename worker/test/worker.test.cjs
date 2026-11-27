@@ -488,57 +488,94 @@ test("daily usage endpoint reports server-side counters and limits", async () =>
   const result = await call(worker, "/api/usage", { token: login.data.token });
   assert.equal(result.status, 200);
   assert.equal(result.data.timezone, "Europe/Istanbul");
-  assert.deepEqual(result.data.usage.chat, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 10, remaining: 10 });
+  assert.deepEqual(result.data.usage.chat, { used: 0, limit: 100, remaining: 100 });
+  assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 10, remaining: 10 });
+  assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 30, remaining: 30 });
+  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 30, remaining: 30 });
   assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
 });
 
-test("image generation enforces five successful requests per Istanbul day", async () => {
+test("daily usage limits can be overridden safely by Worker variables", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/usage", {
+    token: login.data.token,
+    env: { CHAT_DAILY_LIMIT: "12", IMAGE_GENERATION_DAILY_LIMIT: "7", IMAGE_ANALYSIS_DAILY_LIMIT: "18", LIVE_MINUTES_DAILY_LIMIT: "45" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.usage.chat.limit, 12);
+  assert.equal(result.data.usage.image_generation.limit, 7);
+  assert.equal(result.data.usage.image_analysis.limit, 18);
+  assert.equal(result.data.usage.live_minutes.limit, 45);
+});
+
+test("Gemini model IDs are read from Worker variables and exposed without secrets", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/models", {
+    token: login.data.token,
+    env: {
+      GEMINI_MODEL: "gemini-test-fast",
+      GEMINI_COMPLEX_MODEL: "gemini-test-reasoning",
+      GEMINI_FALLBACK_MODEL: "gemini-test-fallback",
+      GEMINI_SECONDARY_FALLBACK_MODEL: "gemini-test-secondary",
+      GEMINI_IMAGE_MODEL: "gemini-test-image",
+      GEMINI_LIVE_MODEL: "gemini-test-live"
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.models, [
+    { id: "gemini-test-fast", role: "fast" },
+    { id: "gemini-test-reasoning", role: "advanced" },
+    { id: "gemini-test-image", role: "image" },
+    { id: "gemini-test-live", role: "live" }
+  ]);
+});
+
+test("image generation enforces its configured daily request limit", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<10;i++) {
     const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A test image "+i}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"One more image"}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.remaining,0);
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,10);
 });
 
-test("normal AI requests are limited to five per Istanbul day", async () => {
+test("normal AI requests enforce the configured daily chat quota", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<100;i++) {
     const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create a fresh idea number "+i}]}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create one more fresh idea"}]}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.remaining,0);
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,100);
 });
 
-test("image analysis has its own five-request daily quota", async () => {
+test("image analysis enforces its configured daily request limit", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
   const image={mimeType:"image/png",data:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII="};
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<30;i++) {
     const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image"}],image}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image again"}],image}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.type,"image_analysis");
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,30);
 });
 
-test("Live voice is limited to ten server-counted minutes per Istanbul day", async () => {
+test("Live voice enforces its configured server-counted minute limit", async () => {
   const { worker }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
-  for(let minute=0;minute<10;minute++){
+  for(let minute=0;minute<30;minute++){
     const result=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
     assert.equal(result.status,200);
     assert.equal(result.data.usedMinutes,minute+1);
