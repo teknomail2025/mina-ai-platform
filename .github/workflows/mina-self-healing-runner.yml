@@ -50,80 +50,8 @@ jobs:
           APPROVAL_SIGNATURE: ${{ inputs.approval_signature }}
           APPROVAL_SECRET: ${{ secrets.MINA_SELF_HEALING_APPROVAL_SECRET }}
         run: |
-          python - <<'PY'
-          import hashlib, hmac, json, os, pathlib, re, sys, time
-          base_sha = os.environ.get("BASE_SHA", "")
-          if not re.fullmatch(r"[0-9a-f]{40}", base_sha):
-              sys.exit("Invalid pinned base commit SHA.")
-          patch = json.loads(os.environ["PATCH_JSON"])
-          if not isinstance(patch, str) or not patch or len(patch) > 40000:
-              sys.exit("Patch is empty or exceeds 40 KB.")
-          proposal_id = os.environ.get("PROPOSAL_ID", "")
-          issued_at = os.environ.get("APPROVAL_ISSUED_AT", "")
-          signature = os.environ.get("APPROVAL_SIGNATURE", "")
-          secret = os.environ.get("APPROVAL_SECRET", "")
-          if not re.fullmatch(r"[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{4}-[0-9a-fA-F]{12}", proposal_id):
-              sys.exit("Invalid approved proposal id.")
-          if not re.fullmatch(r"[0-9]{13}", issued_at) or not re.fullmatch(r"[0-9a-f]{64}", signature):
-              sys.exit("Missing or malformed approval proof.")
-          if len(secret) < 32:
-              sys.exit("Approval verification secret is not configured.")
-          issued_ms = int(issued_at)
-          if abs(int(time.time() * 1000) - issued_ms) > 600000:
-              sys.exit("Approval proof expired; request a fresh diagnosis.")
-          patch_sha256 = hashlib.sha256(patch.encode("utf-8")).hexdigest()
-          message = "\n".join([proposal_id.lower(), base_sha.lower(), patch_sha256, issued_at]).encode("utf-8")
-          expected = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
-          if not hmac.compare_digest(expected, signature):
-              sys.exit("Approval proof does not match this proposal, source commit, or patch.")
-          allowed = {
-              "worker/src/index.js",
-              "app.js",
-              "auth.js",
-              "voice.js",
-              "i18n.js",
-          }
-          paths = []
-          current = None
-          old_header = False
-          new_header = False
-          in_hunk = False
-          for line in patch.splitlines():
-              if line.startswith("diff --git "):
-                  if current and not (old_header and new_header):
-                      sys.exit("Previous file headers are incomplete.")
-                  match = re.fullmatch(r"diff --git a/([^ ]+) b/([^ ]+)", line)
-                  if not match or match.group(1) != match.group(2):
-                      sys.exit("Rename, create/delete, or malformed diff is forbidden.")
-                  current = match.group(1)
-                  if current not in allowed or current in paths:
-                      sys.exit("Patch contains a path outside the allowlist or a duplicate path.")
-                  paths.append(current)
-                  old_header = new_header = in_hunk = False
-                  continue
-              if line.startswith(("new file mode ", "deleted file mode ", "old mode ", "new mode ", "rename from ", "rename to ", "copy from ", "copy to ", "GIT binary patch")):
-                  sys.exit("File mode, rename, copy, and binary patches are forbidden.")
-              if current and not in_hunk and line.startswith("--- "):
-                  if old_header or line != f"--- a/{current}":
-                      sys.exit("Unexpected old-file header.")
-                  old_header = True
-              elif current and not in_hunk and line.startswith("+++ "):
-                  if not old_header or new_header or line != f"+++ b/{current}":
-                      sys.exit("Unexpected new-file header.")
-                  new_header = True
-              elif current and line.startswith("@@ "):
-                  if not (old_header and new_header):
-                      sys.exit("Unified diff headers are incomplete.")
-                  in_hunk = True
-          if current and not (old_header and new_header):
-              sys.exit("Final file headers are incomplete.")
-          if not paths or len(paths) > 5:
-              sys.exit("Patch must change between one and five allowlisted files.")
-          if "@@" not in patch:
-              sys.exit("Unified diff hunks are missing.")
-          pathlib.Path(os.environ["RUNNER_TEMP"], "mina-repair.patch").write_text(patch, encoding="utf-8")
-          print("Validated paths:", ", ".join(paths))
-          PY
+          python worker/scripts/validate_self_healing_patch.py
+          git fetch origin main --quiet
           git merge-base --is-ancestor "$BASE_SHA" origin/main || { echo "Pinned source commit is not part of the trusted repair branch." >&2; exit 1; }
           git switch --detach "$BASE_SHA"
           git apply --check "$RUNNER_TEMP/mina-repair.patch"
@@ -133,6 +61,7 @@ jobs:
         run: |
           node --check worker/src/index.js
           node --check app.js
+          node --check media.js
           node --check auth.js
           node --check voice.js
           node --check i18n.js
@@ -175,6 +104,7 @@ jobs:
         run: |
           test "$(git rev-parse HEAD)" = "$BASE_SHA" || { echo "Repair branch checkout does not match the tested source SHA." >&2; exit 1; }
           git fetch origin main --quiet
+          test "$(git rev-parse origin/main)" = "$BASE_SHA" || { echo "Trusted main changed after validation; rerun diagnosis and tests." >&2; exit 1; }
           git merge-base --is-ancestor "$BASE_SHA" origin/main || { echo "Tested source SHA is no longer an ancestor of main; rerun diagnosis." >&2; exit 1; }
           if [[ ! "$PROPOSAL_ID" =~ ^[0-9a-fA-F-]{36}$ ]]; then
             echo "Invalid proposal id." >&2
@@ -182,7 +112,7 @@ jobs:
           fi
           git apply --check "$RUNNER_TEMP/mina-repair/mina-repair.patch"
           git apply "$RUNNER_TEMP/mina-repair/mina-repair.patch"
-          git add -- worker/src/index.js app.js auth.js voice.js i18n.js
+          git add -- worker/src/index.js app.js media.js auth.js voice.js i18n.js
           if git diff --cached --quiet; then
             echo "Validated patch produced no changes." >&2
             exit 1

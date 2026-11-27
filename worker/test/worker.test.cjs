@@ -8,7 +8,7 @@ const training = JSON.parse(fs.readFileSync(path.join(workerDir, "src/training.j
 const workerSource = fs.readFileSync(path.join(workerDir, "src/index.js"), "utf8")
   .replace(/^import minaTraining from "\.\/training\.json";\s*/, "")
   .replace('import { handleSelfHealingRequest, recordSelfHealingIncident } from "./self-healing.mjs";', "")
-  .replace("export default {", "const handleSelfHealingRequest = async () => null; const recordSelfHealingIncident = async () => {}; return {");
+  .replace("export default {", "return {");
 
 const env = {
   ALLOWED_ORIGINS: "https://teknomail2025.github.io",
@@ -18,23 +18,36 @@ const env = {
   GEMINI_API_KEY: "test-gemini-key"
 };
 
-function createWorker(fetchOverride) {
+function createWorker(fetchOverride, selfHealingHandler = async () => null, selfHealingIncidentRecorder = async () => {}, liveTokenFetchOverride = null) {
   const requestedModels = [];
+  const requestedPayloads = [];
   const liveTokenRequests = [];
+  const interactionRequests = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
     if (target.includes("/v1beta/auth_tokens")) {
       const payload = JSON.parse(options.body || "{}");
       liveTokenRequests.push({ url: target, headers: options.headers, payload });
+      if (liveTokenFetchOverride) return liveTokenFetchOverride(target, options);
       return new Response(JSON.stringify({ name: "authTokens/test-ephemeral-token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    if (target.includes("/v1beta/interactions")) {
+      const payload = JSON.parse(options.body || "{}");
+      interactionRequests.push({ url: target, headers: options.headers, payload });
+      if (fetchOverride) return fetchOverride(target, options);
+      return new Response(JSON.stringify({ output_text: "Gemini video test yanıtı" }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
     }
     if (target.includes(":generateContent")) {
       requestedModels.push(target);
-      if (fetchOverride) return fetchOverride(target, options);
       const payload = JSON.parse(options.body || "{}");
+      requestedPayloads.push({ url: target, payload });
+      if (fetchOverride) return fetchOverride(target, options);
       const wantsImage = payload.generationConfig?.responseModalities?.includes("IMAGE");
       const parts = wantsImage
         ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }]
@@ -128,14 +141,14 @@ function createWorker(fetchOverride) {
       };
     }
   };
-  const worker = new Function("minaTraining", "fetch", workerSource)(training, mockFetch);
+  const worker = new Function("minaTraining", "fetch", "handleSelfHealingRequest", "recordSelfHealingIncident", workerSource)(training, mockFetch, selfHealingHandler, selfHealingIncidentRecorder);
   const originalFetch = worker.fetch.bind(worker);
   worker.fetch = (request, bindings = {}) => {
     const pathname = new URL(request.url).pathname;
     const needsDisciplineDb = pathname === "/api/files" || pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), MINA_FILES: mockR2, ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
+  return { worker, requestedModels, requestedPayloads, liveTokenRequests, interactionRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -444,8 +457,8 @@ test("ordinary chat uses the Flash model", async () => {
   assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "ordinary chat must use the Flash model");
 });
 
-test("image understanding validates input and reaches Gemini", async () => {
-  const { worker } = createWorker();
+test("image understanding validates input and forwards the exact photo bytes to Gemini", async () => {
+  const { worker, requestedPayloads } = createWorker();
   const login = await call(worker, "/api/auth/login", {
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
@@ -469,6 +482,14 @@ test("image understanding validates input and reaches Gemini", async () => {
   });
   assert.equal(valid.status, 200);
   assert.equal(valid.data.task, "vision");
+  assert.equal(requestedPayloads.length, 1, "valid image analysis must make exactly one Gemini request");
+  const sent = requestedPayloads[0].payload.contents.at(-1);
+  assert.equal(sent.role, "user");
+  assert.deepEqual(sent.parts[0], { text: "Bu resimde ne var?" });
+  assert.deepEqual(sent.parts[1].inlineData, {
+    mimeType: "image/png",
+    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII="
+  });
 });
 
 test("daily usage endpoint reports server-side counters and limits", async () => {
@@ -477,57 +498,213 @@ test("daily usage endpoint reports server-side counters and limits", async () =>
   const result = await call(worker, "/api/usage", { token: login.data.token });
   assert.equal(result.status, 200);
   assert.equal(result.data.timezone, "Europe/Istanbul");
-  assert.deepEqual(result.data.usage.chat, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 5, remaining: 5 });
-  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 10, remaining: 10 });
+  assert.deepEqual(result.data.usage.chat, { used: 0, limit: 100, remaining: 100 });
+  assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 10, remaining: 10 });
+  assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 30, remaining: 30 });
+  assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 30, remaining: 30 });
+  assert.deepEqual(result.data.usage.video_analysis, { used: 0, limit: 10, remaining: 10 });
   assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
 });
 
-test("image generation enforces five successful requests per Istanbul day", async () => {
+test("daily usage limits can be overridden safely by Worker variables", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/usage", {
+    token: login.data.token,
+    env: { CHAT_DAILY_LIMIT: "12", IMAGE_GENERATION_DAILY_LIMIT: "7", IMAGE_ANALYSIS_DAILY_LIMIT: "18", LIVE_MINUTES_DAILY_LIMIT: "45", VIDEO_ANALYSIS_DAILY_LIMIT: "4" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.usage.chat.limit, 12);
+  assert.equal(result.data.usage.image_generation.limit, 7);
+  assert.equal(result.data.usage.image_analysis.limit, 18);
+  assert.equal(result.data.usage.live_minutes.limit, 45);
+  assert.equal(result.data.usage.video_analysis.limit, 4);
+});
+
+test("MP4 and WebM uploads require matching video signatures", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const mp4 = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const webm = Buffer.from([0x1a,0x45,0xdf,0xa3,0x93,0x42,0x82,0x88]);
+  const validMp4 = await call(worker, "/api/files", { token: login.data.token, body: { name: "clip.mp4", data: mp4.toString("base64") } });
+  const validWebm = await call(worker, "/api/files", { token: login.data.token, body: { name: "clip.webm", data: webm.toString("base64") } });
+  const invalidMp4 = await call(worker, "/api/files", { token: login.data.token, body: { name: "fake.mp4", data: Buffer.from("not a video").toString("base64") } });
+  assert.equal(validMp4.status, 201);
+  assert.equal(validWebm.status, 201);
+  assert.equal(invalidMp4.status, 400);
+});
+
+test("video analysis sends the actual stored MP4 payload to Gemini Interactions API", async () => {
+  const { worker, interactionRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const base64Video = videoBytes.toString("base64");
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "sample.mp4", data: base64Video }
+  });
+  assert.equal(upload.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu videoyu özetle ve önemli sahneleri anlat." }],
+      video: { name: "sample.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Gemini video test yanıtı");
+  assert.equal(result.data.task, "video");
+  assert.equal(result.data.model, "gemini-3.8-flash");
+  assert.equal(interactionRequests.length, 1);
+  assert.equal(interactionRequests[0].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+  assert.equal(interactionRequests[0].payload.input[0].type, "video");
+  assert.equal(interactionRequests[0].payload.input[0].mime_type, "video/mp4");
+  assert.equal(interactionRequests[0].payload.input[0].data, base64Video);
+  assert.match(interactionRequests[0].payload.input[1].text, /Baba: Bu videoyu özetle/);
+  assert.equal(interactionRequests[0].payload.system_instruction.includes("Sen Mina'sın"), true);
+});
+
+test("video analysis enforces its own daily quota before calling Gemini", async () => {
+  const { worker, interactionRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "quota.mp4", data: videoBytes.toString("base64") }
+  });
+  assert.equal(upload.status, 201);
+  const options = {
+    token: login.data.token,
+    env: { VIDEO_ANALYSIS_DAILY_LIMIT: "1" },
+    body: {
+      messages: [{ role: "user", content: "Bu kısa videoyu özetle." }],
+      video: { name: "quota.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  };
+  const first = await call(worker, "/api/chat", options);
+  const second = await call(worker, "/api/chat", options);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 429);
+  assert.equal(second.data.quota.type, "video_analysis");
+  assert.equal(second.data.quota.limit, 1);
+  assert.equal(interactionRequests.length, 1);
+});
+
+test("video analysis switches to the configured fallback model after HTTP 503", async () => {
+  const { worker, interactionRequests } = createWorker(async (target, options) => {
+    const payload = JSON.parse(options.body || "{}");
+    if (payload.model === "gemini-3.8-flash") {
+      return new Response(JSON.stringify({ error: { message: "temporary video capacity" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({ output_text: "Yedek model video özeti" }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "fallback.mp4", data: videoBytes.toString("base64") }
+  });
+  assert.equal(upload.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu videoyu yedek modelle analiz et." }],
+      video: { name: "fallback.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model video özeti");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.fallback_used, true);
+  assert.deepEqual(interactionRequests.map(x => x.payload.model), ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+});
+
+test("Gemini model IDs are read from Worker variables and exposed without secrets", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
+  const result = await call(worker, "/api/models", {
+    token: login.data.token,
+    env: {
+      GEMINI_MODEL: "gemini-test-fast",
+      GEMINI_COMPLEX_MODEL: "gemini-test-reasoning",
+      GEMINI_FALLBACK_MODEL: "gemini-test-fallback",
+      GEMINI_SECONDARY_FALLBACK_MODEL: "gemini-test-secondary",
+      GEMINI_IMAGE_MODEL: "gemini-test-image",
+      GEMINI_IMAGE_FALLBACK_MODEL: "gemini-test-image-fallback",
+      GEMINI_IMAGE_SECONDARY_FALLBACK_MODEL: "gemini-test-image-secondary",
+      GEMINI_LIVE_MODEL: "gemini-test-live"
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.deepEqual(result.data.models, [
+    { id: "gemini-test-fast", role: "fast" },
+    { id: "gemini-test-reasoning", role: "advanced" },
+    { id: "gemini-test-image", role: "image" },
+    { id: "gemini-test-image-fallback", role: "image_fallback" },
+    { id: "gemini-test-image-secondary", role: "image_secondary_fallback" },
+    { id: "gemini-test-live", role: "live" }
+  ]);
+});
+
+test("image generation enforces its configured daily request limit", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<10;i++) {
     const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A test image "+i}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"One more image"}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.remaining,0);
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,10);
 });
 
-test("normal AI requests are limited to five per Istanbul day", async () => {
+test("normal AI requests enforce the configured daily chat quota", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<100;i++) {
     const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create a fresh idea number "+i}]}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Create one more fresh idea"}]}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.remaining,0);
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,100);
 });
 
-test("image analysis has its own five-request daily quota", async () => {
+test("image analysis enforces its configured daily request limit", async () => {
   const { worker, requestedModels } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
   const image={mimeType:"image/png",data:"iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII="};
-  for (let i=0;i<5;i++) {
+  for (let i=0;i<30;i++) {
     const result=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image"}],image}});
     assert.equal(result.status,200);
   }
   const blocked=await call(worker,"/api/chat",{token:login.data.token,body:{messages:[{role:"user",content:"Describe this image again"}],image}});
   assert.equal(blocked.status,429);
   assert.equal(blocked.data.quota.type,"image_analysis");
-  assert.equal(requestedModels.length,5);
+  assert.equal(requestedModels.length,30);
 });
 
-test("Live voice is limited to ten server-counted minutes per Istanbul day", async () => {
+test("Live voice enforces its configured server-counted minute limit", async () => {
   const { worker }=createWorker();
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
-  for(let minute=0;minute<10;minute++){
+  for(let minute=0;minute<30;minute++){
     const result=await call(worker,"/api/live-minute",{token:login.data.token,body:{}});
     assert.equal(result.status,200);
     assert.equal(result.data.usedMinutes,minute+1);
@@ -666,6 +843,36 @@ test("image generation uses Nano Banana 2.1 with explicit 1K square output and v
   assert.deepEqual(capturedPayload.generationConfig.imageConfig, { aspectRatio: "1:1", imageSize: "1K" });
 });
 
+test("image generation provider failures are recorded for self-healing and quota is refunded", async () => {
+  const incidents=[];
+  const { worker, usageStore, usageKey } = createWorker(
+    async () => new Response(JSON.stringify({error:{message:"provider unavailable"}}), {status:503}),
+    undefined,
+    async (_env, route, error) => incidents.push({route,message:error.message})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"A failing test image"}});
+  assert.equal(result.status,502);
+  assert.deepEqual(incidents,[{route:"/api/image",message:"Image provider request failed: HTTP 503"}]);
+  const dateParts=new Intl.DateTimeFormat("en-CA",{timeZone:"Europe/Istanbul",year:"numeric",month:"2-digit",day:"2-digit"}).formatToParts(new Date());
+  const dateValues=Object.fromEntries(dateParts.map(part=>[part.type,part.value]));
+  const today=dateValues.year+"-"+dateValues.month+"-"+dateValues.day;
+  assert.equal(usageStore.get(usageKey("Argion","image_generation",today))?.used,0);
+});
+
+test("image generation invalid provider output is recorded for self-healing", async () => {
+  const incidents=[];
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({candidates:[{content:{parts:[{inlineData:{mimeType:"image/png",data:"aGVsbG8="}}]}}]}),{status:200}),
+    undefined,
+    async (_env, route, error) => incidents.push({route,message:error.message})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/image",{token:login.data.token,body:{prompt:"An invalid image test"}});
+  assert.equal(result.status,502);
+  assert.deepEqual(incidents,[{route:"/api/image",message:"Image provider returned invalid or missing image bytes"}]);
+});
+
 test("image generation rejects malformed provider image bytes", async () => {
   const { worker } = createWorker(async () => new Response(JSON.stringify({
     candidates: [{ content: { parts: [{ inlineData: { mimeType: "image/png", data: "aGVsbG8=" } }] } }]
@@ -793,6 +1000,8 @@ test("PWA shell is installable and never caches API or authorization requests", 
   assert.equal(parsed.scope, "./");
   assert.match(serviceWorker, /url\.pathname\.includes\("\/api\/"\)/);
   assert.match(serviceWorker, /request\.headers\.has\("Authorization"\)/);
+  assert.match(serviceWorker, /"\.\/media\.js"/);
+  assert.match(serviceWorker, /mina-shell-v8/);
   assert.match(serviceWorker, /fetch\(request\).*catch/s);
   assert.match(registration, /navigator\.serviceWorker\.register/);
 });
@@ -901,6 +1110,56 @@ test("Gemini 503 on ordinary chat switches to a different Flash model", async ()
   assert.equal(requestedModels.length, 2, "fallback must use a different model, not repeat the overloaded model");
   assert.ok(requestedModels[0].includes("gemini-3.8-flash"));
   assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
+});
+
+test("chat requests use the configured primary Gemini model", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    env: { GEMINI_MODEL: "gemini-custom-primary" },
+    body: { messages: [{ role: "user", content: "Özel model yönlendirme kontrolü: 417 numaralı deneme." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.ok(requestedModels[0].includes("gemini-custom-primary:generateContent"));
+  assert.equal(result.data.model, "gemini-custom-primary");
+});
+
+test("Gemini 429 quota response switches to the configured fallback model", async () => {
+  let primaryCalls = 0;
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-custom-primary:generateContent")) {
+      primaryCalls++;
+      return new Response(JSON.stringify({ error: { message: "rate limit" } }), { status: 429 });
+    }
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Kota yedeği yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    env: {
+      GEMINI_MODEL: "gemini-custom-primary",
+      GEMINI_FALLBACK_MODEL: "gemini-custom-fallback",
+      GEMINI_SECONDARY_FALLBACK_MODEL: "gemini-custom-secondary"
+    },
+    body: { messages: [{ role: "user", content: "429 yedek model denemesi için benzersiz bir metin." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(primaryCalls, 1);
+  assert.equal(result.data.requested_model, "gemini-custom-primary");
+  assert.equal(result.data.model, "gemini-custom-fallback");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2);
+  assert.ok(requestedModels[0].includes("gemini-custom-primary"));
+  assert.ok(requestedModels[1].includes("gemini-custom-fallback"));
 });
 
 test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
@@ -1019,6 +1278,39 @@ test("frontend exposes discipline appeal and admin review controls", () => {
   assert.match(frontendSource, /rejectDisciplineAppeal/);
 });
 
+test("live voice token provider failures are recorded for self-healing", async () => {
+  const incidents=[];
+  const { worker }=createWorker(
+    undefined,
+    undefined,
+    async (_env,route,error)=>incidents.push({route,message:error.message}),
+    async ()=>new Response(JSON.stringify({error:{message:"provider unavailable"}}),{status:503})
+  );
+  const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
+  const result=await call(worker,"/api/live-token",{token:login.data.token,method:"POST"});
+  assert.equal(result.status,502);
+  assert.match(result.data.error,/Canlı ses: Google Gemini şu anda yoğun \(HTTP 503\)/);
+  assert.deepEqual(incidents,[{route:"/api/live-token",message:"Live voice token provider request failed: HTTP 503"}]);
+});
+
+test("Live API HTTP 429 returns safe quota guidance without provider diagnostics", async () => {
+  const { worker } = createWorker(
+    undefined,
+    undefined,
+    undefined,
+    async () => new Response(JSON.stringify({ error: { message: "private Live quota diagnostic" } }), { status: 429 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", { method: "POST", token: login.data.token });
+  assert.equal(result.status, 502);
+  assert.equal(result.data.provider_status, 429);
+  assert.match(result.data.error, /Canlı ses: Google Gemini API kotası veya istek hız sınırı doldu/);
+  assert.doesNotMatch(JSON.stringify(result.data), /private Live quota diagnostic|test-gemini-key/);
+});
+
 test("live voice token endpoint requires an authenticated session and creates a constrained ephemeral token", async () => {
   const { worker, liveTokenRequests } = createWorker();
   const guest = await call(worker, "/api/live-token", { method: "POST" });
@@ -1040,8 +1332,9 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(liveTokenRequests[0].payload.uses, 1);
   assert.ok(liveTokenRequests[0].payload.expireTime);
   assert.ok(liveTokenRequests[0].payload.newSessionExpireTime);
-  const setup = liveTokenRequests[0].payload.bidiGenerateContentSetup;
-  assert.equal(setup.model, "models/gemini-3.8-live");
+  const constraints = liveTokenRequests[0].payload.liveConnectConstraints;
+  assert.equal(constraints.model, "models/gemini-3.8-live");
+  const setup = constraints.config;
   assert.deepEqual(setup.generationConfig.responseModalities, ["AUDIO"]);
   assert.equal(setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Aoede");
   assert.ok(setup.inputAudioTranscription);
@@ -1050,7 +1343,49 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.deepEqual(setup.realtimeInputConfig.automaticActivityDetection, { disabled: false });
   assert.match(setup.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
   assert.equal(liveTokenRequests[0].payload.authToken, undefined);
-  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints, undefined);
+  assert.equal(liveTokenRequests[0].payload.bidiGenerateContentSetup, undefined);
+});
+
+test("Live voice token endpoint uses the configured Live model ID", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    env: { GEMINI_LIVE_MODEL: "gemini-test-live" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.model, "models/gemini-test-live");
+  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints.model, "models/gemini-test-live");
+});
+
+test("Live voice quota errors use the configured minute limit instead of a hard-coded value", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const config = { LIVE_MINUTES_DAILY_LIMIT: "1" };
+  const firstMinute = await call(worker, "/api/live-minute", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(firstMinute.status, 200);
+  const blockedMinute = await call(worker, "/api/live-minute", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(blockedMinute.status, 429);
+  assert.match(blockedMinute.data.error, /1 dakikalık/);
+  assert.doesNotMatch(blockedMinute.data.error, /10 dakikalık/);
+  const blockedToken = await call(worker, "/api/live-token", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(blockedToken.status, 429);
+  assert.match(blockedToken.data.error, /1 dakikalık/);
+  assert.doesNotMatch(blockedToken.data.error, /10 dakikalık/);
+  assert.equal(liveTokenRequests.length, 0);
 });
 
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
@@ -1247,3 +1582,352 @@ test("preview migration config can only target the isolated preview D1 database"
   assert.match(config, /^migrations_dir = "migrations"$/m);
 });
 
+
+
+test("every self-healing route requires a valid administrator session", async () => {
+  const { handleSelfHealingRequest, recordSelfHealingIncident } = await import("../src/self-healing.mjs");
+  const { worker } = createWorker(undefined, handleSelfHealingRequest, recordSelfHealingIncident);
+  const incidents = [];
+  const healingDb = {
+    prepare(sql) {
+      let values = [];
+      return {
+        bind(...params) { values = params; return this; },
+        async run() {
+          if (sql.startsWith("INSERT INTO mina_self_healing_incidents")) {
+            const [id, source, route, message, stack, createdAt, updatedAt] = values;
+            incidents.push({ id, source, route, message, stack, status: "new", createdAt, updatedAt });
+          }
+          return { success: true, meta: { changes: 1 } };
+        },
+        async first() { return null; },
+        async all() { return { results: [] }; }
+      };
+    }
+  };
+  const healingEnv = {
+    MINA_DB: healingDb,
+    GEMINI_API_KEY: "fake-gemini-key",
+    GITHUB_ACTIONS_TOKEN: "fake-runner-token",
+    SELF_HEALING_APPROVAL_SECRET: "test-self-healing-approval-secret-at-least-32-chars",
+    SELF_HEALING_RUNNER_ENABLED: "true"
+  };
+  const proposalId = "223e4567-e89b-42d3-a456-426614174000";
+  const protectedRoutes = [
+    ["/api/admin/self-healing/status", "GET"],
+    ["/api/admin/self-healing/report", "POST"],
+    ["/api/admin/self-healing/incidents", "GET"],
+    ["/api/admin/self-healing/diagnose", "POST"],
+    ["/api/admin/self-healing/proposals", "GET"],
+    ["/api/admin/self-healing/proposals/" + proposalId + "/review", "POST"],
+    ["/api/admin/self-healing/proposals/" + proposalId + "/generate-patch", "POST"]
+  ];
+  for (const [path, method] of protectedRoutes) {
+    const guest = await call(worker, path, {
+      method,
+      body: method === "POST" ? {} : undefined,
+      env: healingEnv
+    });
+    assert.equal(guest.status, 401, path + " must require an administrator session");
+  }
+  const tamperedSession = await call(worker, "/api/admin/self-healing/status", {
+    token: "not.a.valid.session",
+    env: healingEnv
+  });
+  assert.equal(tamperedSession.status, 401);
+  assert.equal(incidents.length, 0, "unauthenticated visitors must not create incident records");
+
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  assert.equal(login.status, 200);
+  const adminStatus = await call(worker, "/api/admin/self-healing/status", {
+    token: login.data.token,
+    env: healingEnv
+  });
+  assert.equal(adminStatus.status, 200);
+  assert.equal(adminStatus.data.patchGeneration, true);
+  assert.equal(adminStatus.data.isolatedTestRunner, true);
+  assert.equal(adminStatus.data.approvalRequired, true);
+  assert.equal(adminStatus.data.automaticCodeChanges, false);
+  assert.doesNotMatch(JSON.stringify(adminStatus.data), /fake-gemini-key|fake-runner-token|test-self-healing-approval-secret/);
+
+  for (const approvalSecret of ["", "short-secret"]) {
+    const notReady = await call(worker, "/api/admin/self-healing/status", {
+      token: login.data.token,
+      env: { ...healingEnv, SELF_HEALING_APPROVAL_SECRET: approvalSecret }
+    });
+    assert.equal(notReady.status, 200);
+    assert.equal(notReady.data.patchGeneration, false);
+    assert.equal(notReady.data.isolatedTestRunner, false);
+  }
+  const runnerDisabled = await call(worker, "/api/admin/self-healing/status", {
+    token: login.data.token,
+    env: { ...healingEnv, SELF_HEALING_RUNNER_ENABLED: "false" }
+  });
+  assert.equal(runnerDisabled.data.patchGeneration, false);
+  assert.equal(runnerDisabled.data.isolatedTestRunner, false);
+
+  const adminReport = await call(worker, "/api/admin/self-healing/report", {
+    token: login.data.token,
+    method: "POST",
+    body: {
+      source: "manual",
+      route: "/settings",
+      message: "Synthetic error with Bearer example-token-value",
+      stack: "GEMINI_API_KEY=example-private-key"
+    },
+    env: healingEnv
+  });
+  assert.equal(adminReport.status, 201);
+  assert.equal(adminReport.data.recorded, true);
+  assert.equal(incidents.length, 1);
+  assert.match(incidents[0].message, /\[REDACTED\]/);
+  assert.match(incidents[0].stack, /\[REDACTED\]/);
+  assert.doesNotMatch(incidents[0].message + incidents[0].stack, /example-token-value|example-private-key/);
+});
+
+
+test("chat provider errors never expose raw upstream diagnostics", async () => {
+  const secret = "private-upstream-key-should-never-leak";
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: secret } }), { status: 400 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /isteği reddetti/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+  assert.equal("provider_detail" in result.data, false);
+});
+
+test("chat network exceptions never expose internal exception messages", async () => {
+  const secret = "internal-network-stack-and-secret-value";
+  const { worker } = createWorker(async () => { throw new Error(secret); });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /şu anda bağlanılamadı/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+});
+
+test("chat empty provider responses do not expose provider block diagnostics", async () => {
+  const secret = "internal-policy-diagnostic-secret";
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({ candidates: [], promptFeedback: { blockReason: secret } }), { status: 200 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /boş yanıt döndürdü/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+  assert.equal("provider_detail" in result.data, false);
+});
+
+test("exhausted Gemini fallback records a redacted self-healing incident", async () => {
+  const incidents = [];
+  const { worker, requestedModels } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: "temporary high demand" } }), { status: 503 }),
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Nasılsın?" }] }
+  });
+  assert.equal(result.status, 502);
+  assert.equal(requestedModels.length, 3, "all configured fallback models should be attempted");
+  assert.equal(incidents.length, 1, "the final provider failure should create one incident");
+  assert.equal(incidents[0].route, "/api/chat");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /temporary high demand|test-gemini-key/);
+});
+
+
+test("exhausted Gemini 429 returns safe quota guidance without upstream diagnostics", async () => {
+  const { worker, requestedModels } = createWorker(async () =>
+    new Response(JSON.stringify({ error: { message: "private provider quota diagnostic" } }), { status: 429 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Google 429 kota mesajı için benzersiz kontrol metni." }] }
+  });
+  assert.equal(result.status, 429);
+  assert.equal(requestedModels.length, 3);
+  assert.match(result.data.error, /Google Gemini API kotası veya istek hız sınırı doldu/);
+  assert.doesNotMatch(JSON.stringify(result.data), /private provider quota diagnostic|test-gemini-key/);
+});
+
+test("live voice token is administrator-only and issues a one-use short-lived token", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const guest = await call(worker, "/api/live-token", { method: "POST", body: {} });
+  assert.equal(guest.status, 401);
+  assert.equal(liveTokenRequests.length, 0, "guest requests must not contact Google's token API");
+
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.token, "authTokens/test-ephemeral-token");
+  assert.equal(result.data.model, "models/gemini-3.8-live");
+  assert.equal(liveTokenRequests.length, 1);
+  const payload = liveTokenRequests[0].payload;
+  assert.equal(payload.uses, 1, "ephemeral voice token must be single-use");
+  assert.equal(payload.liveConnectConstraints.model, "models/gemini-3.8-live");
+  assert.deepEqual(payload.liveConnectConstraints.config.generationConfig.responseModalities, ["AUDIO"]);
+  assert.ok(payload.liveConnectConstraints.config.sessionResumption);
+  assert.ok(Date.parse(payload.expireTime) > Date.now());
+  assert.ok(Date.parse(payload.newSessionExpireTime) > Date.now());
+  assert.ok(Date.parse(payload.newSessionExpireTime) < Date.parse(payload.expireTime));
+});
+
+test("live voice token is not issued after the daily live-minute quota is exhausted", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  for (let minute = 0; minute < 30; minute++) {
+    const result = await call(worker, "/api/live-minute", {
+      method: "POST",
+      token: login.data.token,
+      body: {}
+    });
+    assert.equal(result.status, 200);
+  }
+  const blocked = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(blocked.status, 429);
+  assert.equal(blocked.data.quota.remaining, 0);
+  assert.equal(liveTokenRequests.length, 0, "quota-exhausted sessions must not mint provider tokens");
+});
+
+test("live voice provider failures are recorded for self-healing without leaking provider details", async () => {
+  const incidents = [];
+  const { worker } = createWorker(
+    undefined,
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) }),
+    async () => new Response(JSON.stringify({ error: { message: "private upstream diagnostic" } }), { status: 503 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    body: {}
+  });
+  assert.equal(result.status, 502);
+  assert.doesNotMatch(JSON.stringify(result.data), /private upstream diagnostic|test-gemini-key/);
+  assert.equal("provider_detail" in result.data, false);
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].route, "/api/live-token");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /private upstream diagnostic|test-gemini-key/);
+});
+
+test("image generation falls back to the configured Nano Banana model after HTTP 503", async () => {
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-custom-image-primary:generateContent")) {
+      return new Response(JSON.stringify({ error: { message: "temporary image capacity" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [
+        { text: "Yedek görsel modeli" },
+        { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }
+      ] } }]
+    }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    env: {
+      GEMINI_IMAGE_MODEL: "gemini-custom-image-primary",
+      GEMINI_IMAGE_FALLBACK_MODEL: "gemini-custom-image-fallback",
+      GEMINI_IMAGE_SECONDARY_FALLBACK_MODEL: "gemini-custom-image-secondary"
+    },
+    body: { prompt: "A small blue house" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.model, "gemini-custom-image-fallback");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2);
+  assert.ok(requestedModels[0].includes("gemini-custom-image-primary"));
+  assert.ok(requestedModels[1].includes("gemini-custom-image-fallback"));
+});
+
+test("failed image generation refunds its daily quota and records a self-healing incident", async () => {
+  const incidents = [];
+  const { worker, usageStore, usageKey } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: "private image provider diagnostic" } }), { status: 503 }),
+    undefined,
+    async (_env, route, error) => incidents.push({ route, message: String(error?.message || error) })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    body: { prompt: "A small blue house" }
+  });
+  assert.equal(result.status, 502);
+  assert.doesNotMatch(JSON.stringify(result.data), /private image provider diagnostic|test-gemini-key/);
+  assert.equal("provider_detail" in result.data, false);
+  const day = new Intl.DateTimeFormat("en-CA", {
+    timeZone: "Europe/Istanbul", year: "numeric", month: "2-digit", day: "2-digit"
+  }).format(new Date());
+  assert.equal(usageStore.get(usageKey("Argion", "image_generation", day))?.used || 0, 0);
+  assert.equal(incidents.length, 1);
+  assert.equal(incidents[0].route, "/api/image");
+  assert.match(incidents[0].message, /HTTP 503/);
+  assert.doesNotMatch(incidents[0].message, /private image provider diagnostic|test-gemini-key/);
+});

@@ -1,10 +1,11 @@
-const CACHE_NAME = "mina-shell-v7";
+const CACHE_NAME = "mina-shell-v8";
 const SHELL_FILES = [
   "./",
   "./index.html",
   "./styles.css?v=mina-20261117-2",
   "./assets/mina-avatar.webp",
   "./app.js",
+  "./media.js",
   "./i18n.js",
   "./auth.js",
   "./voice.js",

@@ -11,6 +11,7 @@ test("diagnostic text redacts common credentials and bounds length", () => {
 
 test("source path allowlist rejects traversal and unknown files", () => {
   assert.equal(isAllowedDiagnosticPath("worker/src/index.js"), true);
+  assert.equal(isAllowedDiagnosticPath("media.js"), true, "camera and image pipeline fixes must be repairable");
   assert.equal(isAllowedDiagnosticPath("../../wrangler.toml"), false);
   assert.equal(isAllowedDiagnosticPath("worker/wrangler.toml"), false);
   assert.equal(isAllowedDiagnosticPath("worker/test/worker.test.cjs"), false, "AI patches must not weaken the regression suite");
@@ -85,6 +86,7 @@ test("patch parser accepts only bounded unified diffs for approved allowlisted f
 test("isolated repair workflow tests without secrets and creates only a review pull request", async () => {
   const fs = await import("node:fs");
   const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
+  const validator = fs.readFileSync(new URL("../scripts/validate_self_healing_patch.py", import.meta.url), "utf8");
   assert.match(workflow, /workflow_dispatch:/);
   assert.match(workflow, /validate-and-test:[\s\S]*?permissions:\s*contents: read/);
   assert.match(workflow, /create-review-pull-request:[\s\S]*?permissions:\s*contents: write\s*pull-requests: write/);
@@ -93,8 +95,10 @@ test("isolated repair workflow tests without secrets and creates only a review p
   assert.match(workflow, /--base main/);
   assert.doesNotMatch(workflow, /wrangler@4 deploy --config/);
   assert.ok(workflow.includes("APPROVAL_SECRET: " + "$" + "{{ secrets.MINA_SELF_HEALING_APPROVAL_SECRET }}"));
-  assert.match(workflow, /hmac\.compare_digest/);
-  assert.match(workflow, /APPROVAL_SIGNATURE/);
+  assert.match(workflow, /python worker\/scripts\/validate_self_healing_patch\.py/);
+  assert.match(validator, /hmac\.compare_digest/);
+  assert.match(validator, /abs\(int\(time\.time\(\) \* 1000\) - issued_ms\) > 600000/);
+  assert.match(validator, /APPROVAL_SIGNATURE/);
   const writeJob = workflow.split("create-review-pull-request:")[1] || "";
   assert.doesNotMatch(writeJob, /APPROVAL_SECRET|secrets\.MINA_SELF_HEALING_APPROVAL_SECRET/);
 });
@@ -145,11 +149,13 @@ test("repair workflow pins tests to the exact source commit and checks branch an
   const fs = await import("node:fs");
   const workflow = fs.readFileSync(new URL("../../.github/workflows/mina-self-healing-runner.yml", import.meta.url), "utf8");
   assert.ok(workflow.includes("base_sha:"));
+  assert.match(workflow, /name: Validate and materialize patch\s+env:[\s\S]*?run: \|\s+python worker\/scripts\/validate_self_healing_patch\.py\s+git fetch origin main --quiet\s+git merge-base --is-ancestor "\$BASE_SHA" origin\/main[\s\S]*?git switch --detach "\$BASE_SHA"\s+git apply --check "\$RUNNER_TEMP\/mina-repair\.patch"/);
   assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/main'));
   assert.ok(workflow.includes('git switch --detach "$BASE_SHA"'));
   assert.ok(workflow.includes("ref: ${{ inputs.base_sha }}"));
   assert.ok(workflow.includes('test "$(git rev-parse HEAD)" = "$BASE_SHA"'));
-  assert.ok(workflow.includes('git merge-base --is-ancestor "$BASE_SHA" origin/main'));
+  assert.ok(workflow.includes('test "$(git rev-parse origin/main)" = "$BASE_SHA"'));
+  assert.match(workflow, /create-review-pull-request:[\s\S]*?needs: validate-and-test[\s\S]*?permissions:\s+contents: write\s+pull-requests: write/);
 });
 
 

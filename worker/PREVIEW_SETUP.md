@@ -68,5 +68,4 @@ Use the returned Preview URL for browser testing. Confirm `/api/health`, authent
 Preview smoke scope: the image-pipeline branch checks health, admin login and usage quotas; R2 lifecycle checks begin with the R2 storage branch; the self-healing branch additionally checks safe defaults and incident capture.
 
 
-Self-healing repairs also require the same random SELF_HEALING_APPROVAL_SECRET value as a Cloudflare Worker secret and a GitHub Actions repository secret named MINA_SELF_HEALING_APPROVAL_SECRET. It must contain at least 32 characters. The Worker signs the approved proposal id, exact main commit, patch digest, and a timestamp valid for ten minutes; the read-only validation job rejects missing, expired, or mismatched signatures. Keep the repair button disabled until both copies are configured.
 

@@ -1,6 +1,7 @@
 const ALLOWED_SOURCE_PATHS = Object.freeze([
   "worker/src/index.js",
   "app.js",
+  "media.js",
   "auth.js",
   "voice.js",
   "i18n.js"
@@ -152,8 +153,8 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         enabled: true,
         incidentCapture: true,
         aiDiagnosis: !!env.GEMINI_API_KEY,
-        patchGeneration: !!(env.GEMINI_API_KEY && env.GITHUB_ACTIONS_TOKEN && env.SELF_HEALING_APPROVAL_SECRET && env.SELF_HEALING_RUNNER_ENABLED === "true"),
-        isolatedTestRunner: !!(env.GITHUB_ACTIONS_TOKEN && env.SELF_HEALING_RUNNER_ENABLED === "true"),
+        patchGeneration: !!(env.GEMINI_API_KEY && env.GITHUB_ACTIONS_TOKEN && typeof env.SELF_HEALING_APPROVAL_SECRET === "string" && env.SELF_HEALING_APPROVAL_SECRET.length >= 32 && env.SELF_HEALING_RUNNER_ENABLED === "true"),
+        isolatedTestRunner: !!(env.GITHUB_ACTIONS_TOKEN && typeof env.SELF_HEALING_APPROVAL_SECRET === "string" && env.SELF_HEALING_APPROVAL_SECRET.length >= 32 && env.SELF_HEALING_RUNNER_ENABLED === "true"),
         runnerWorkflowEnabled: env.SELF_HEALING_RUNNER_ENABLED === "true",
         patchExecution: false,
         automaticCodeChanges: false,
@@ -243,8 +244,9 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       if (!proposal) return json({ error: "Teşhis önerisi bulunamadı." }, 404, cors);
       if (proposal.status !== "approved_for_manual_test") return json({ error: "Önce teşhis önerisini manuel test için onaylamalısın." }, 409, cors);
       if (proposal.risk_level === "critical") return json({ error: "Kritik riskli öneriler için otomatik patch üretimi engellendi." }, 403, cors);
-      const existingPatch = await env.MINA_DB.prepare("SELECT id, status FROM mina_self_healing_patches WHERE proposal_id = ?").bind(proposalId).first();
-      if (existingPatch && existingPatch.status !== "dispatch_failed") return json({ error: "Bu öneri için patch süreci zaten başlatılmış." }, 409, cors);
+      const existingPatch = await env.MINA_DB.prepare("SELECT id, status, created_at FROM mina_self_healing_patches WHERE proposal_id = ?").bind(proposalId).first();
+      const staleGeneration = existingPatch?.status === "generating" && Date.now() - Number(existingPatch.created_at) > 5 * 60 * 1000;
+      if (existingPatch && existingPatch.status !== "dispatch_failed" && !staleGeneration) return json({ error: "Bu öneri için patch süreci zaten başlatılmış." }, 409, cors);
       const suggestedFiles = [...new Set(JSON.parse(proposal.files_json || "[]").filter(isAllowedDiagnosticPath))].slice(0, 5);
       if (!suggestedFiles.length) return json({ error: "Teşhis önerisinde güvenli kaynak dosyası bulunamadı." }, 400, cors);
       const incident = await env.MINA_DB.prepare("SELECT source, route, message, stack FROM mina_self_healing_incidents WHERE id = ?").bind(proposal.incident_id).first();
@@ -286,6 +288,12 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
         "Approved diagnosis: " + JSON.stringify({ summary: proposal.summary, root_cause: proposal.root_cause, risk_level: proposal.risk_level, test_plan: proposal.test_plan }),
         "Source files: " + JSON.stringify(sourceFiles)
       ].join("\n");
+      const patchId = crypto.randomUUID();
+      const claimTime = Date.now();
+      const claimStaleBefore = claimTime - 5 * 60 * 1000;
+      const patchClaim = await env.MINA_DB.prepare("INSERT INTO mina_self_healing_patches (id, proposal_id, patch_text, explanation, files_json, status, created_at) VALUES (?, ?, '', '', '[]', 'generating', ?) ON CONFLICT(proposal_id) DO UPDATE SET id = excluded.id, patch_text = '', explanation = '', files_json = '[]', status = 'generating', created_at = excluded.created_at WHERE mina_self_healing_patches.status = 'dispatch_failed' OR (mina_self_healing_patches.status = 'generating' AND mina_self_healing_patches.created_at < ?)").bind(patchId, proposalId, claimTime, claimStaleBefore).run();
+      if (patchClaim.meta?.changes !== 1) return json({ error: "Bu öneri için başka bir onarım isteği zaten işleniyor veya başlatıldı." }, 409, cors);
+      try {
       let providerResponse;
       try {
         providerResponse = await fetch("https://generativelanguage.googleapis.com/v1beta/models/" + encodeURIComponent(env.GEMINI_MODEL || "gemini-3.8-flash") + ":generateContent", {
@@ -303,22 +311,33 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       if (!generated) return json({ error: "AI güvenli ve doğrulanabilir bir unified diff üretemedi. Kod değiştirilmedi." }, 422, cors);
       const approvalIssuedAt = String(Date.now());
       const approvalSignature = await createRunnerApprovalSignature({ proposalId, baseSha, patch: generated.patch, issuedAt: approvalIssuedAt, secret: env.SELF_HEALING_APPROVAL_SECRET });
-      const patchId = existingPatch?.id || crypto.randomUUID();
       const now = Date.now();
-      await env.MINA_DB.prepare("INSERT INTO mina_self_healing_patches (id, proposal_id, patch_text, explanation, files_json, status, created_at) VALUES (?, ?, ?, ?, ?, 'generated', ?) ON CONFLICT(proposal_id) DO UPDATE SET patch_text = excluded.patch_text, explanation = excluded.explanation, files_json = excluded.files_json, status = 'generated', created_at = excluded.created_at").bind(patchId, proposalId, generated.patch, generated.explanation, JSON.stringify(generated.files), now).run();
-      const dispatchResponse = await fetch("https://api.github.com/repos/teknomail2025/mina-ai-platform/actions/workflows/mina-self-healing-runner.yml/dispatches", {
+      const generatedPatch = await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET patch_text = ?, explanation = ?, files_json = ?, status = 'generated', created_at = ? WHERE id = ? AND status = 'generating'").bind(generated.patch, generated.explanation, JSON.stringify(generated.files), now, patchId).run();
+      if (generatedPatch.meta?.changes !== 1) return json({ error: "Onarım isteğinin tekil kilidi değişti; hiçbir onarım başlatılmadı." }, 409, cors);
+      let dispatchResponse;
+      try {
+        dispatchResponse = await fetch("https://api.github.com/repos/teknomail2025/mina-ai-platform/actions/workflows/mina-self-healing-runner.yml/dispatches", {
         method: "POST",
         headers: { "Accept": "application/vnd.github+json", "Content-Type": "application/json", "Authorization": "Bearer " + env.GITHUB_ACTIONS_TOKEN, "X-GitHub-Api-Version": "2022-11-28", "User-Agent": "Mina-Self-Healing" },
         body: JSON.stringify({ ref: "main", inputs: { proposal_id: proposalId, base_sha: baseSha, patch: generated.patch, approval_issued_at: approvalIssuedAt, approval_signature: approvalSignature } }),
         signal: AbortSignal.timeout(15000)
-      }).catch(() => null);
-      if (!dispatchResponse || !dispatchResponse.ok) {
-        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'dispatch_failed' WHERE id = ?").bind(patchId).run();
+        });
+      } catch {
+        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'dispatch_uncertain' WHERE id = ?").bind(patchId).run();
+        return json({ error: "GitHub onarım isteğinin sonucu doğrulanamadı. Yinelenen çalışma başlatmamak için yeniden denemeden önce Actions geçmişini kontrol et.", patchGenerated: true, runnerDispatched: "unknown" }, 502, cors);
+      }
+      if (!dispatchResponse.ok) {
+        const dispatchUncertain = dispatchResponse.status >= 500;
+        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = '" + (dispatchUncertain ? "dispatch_uncertain" : "dispatch_failed") + "' WHERE id = ?").bind(patchId).run();
+        if (dispatchUncertain) return json({ error: "GitHub onarım isteğinin sonucu doğrulanamadı. Yinelenen çalışma başlatmamak için yeniden denemeden önce Actions geçmişini kontrol et.", patchGenerated: true, runnerDispatched: "unknown" }, 502, cors);
         return json({ error: "Patch güvenli biçimde üretildi ancak izole GitHub test süreci başlatılamadı. GitHub Actions yetkisini kontrol et.", patchGenerated: true, runnerDispatched: false }, 502, cors);
       }
       await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'runner_dispatched' WHERE id = ?").bind(patchId).run();
       await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = 'patch_queued' WHERE id = ?").bind(proposalId).run();
       return json({ patchGenerated: true, runnerDispatched: true, patchId, files: generated.files, explanation: generated.explanation, applied: false, deployed: false, message: "Düzeltme izole test sürecine gönderildi. Kod canlı sisteme uygulanmadı." }, 202, { ...cors, "Cache-Control": "no-store" });
+      } finally {
+        await env.MINA_DB.prepare("UPDATE mina_self_healing_patches SET status = 'dispatch_failed' WHERE id = ? AND status = 'generating'").bind(patchId).run().catch(() => {});
+      }
     }
 
     if (path === "/api/admin/self-healing/proposals" && request.method === "GET") {
@@ -345,7 +364,8 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       if (existing.status !== "pending_review") return json({ error: "Bu öneri daha önce değerlendirilmiş." }, 409, cors);
       const status = decision === "approve" ? "approved_for_manual_test" : "rejected";
       const now = Date.now();
-      await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ? WHERE id = ?").bind(status, now, proposalId).run();
+      const reviewed = await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ? WHERE id = ? AND status = 'pending_review'").bind(status, now, proposalId).run();
+      if (reviewed.meta?.changes !== 1) return json({ error: "Bu öneri eşzamanlı olarak değerlendirildi. Güncel durumu yeniden yükle." }, 409, cors);
       return json({ reviewed: true, status, applied: false, testsExecuted: false, message: decision === "approve" ? "Öneri yalnızca manuel test aşaması için onaylandı; kod değiştirilmedi." : "Öneri reddedildi; kod değiştirilmedi." }, 200, { ...cors, "Cache-Control": "no-store" });
     }
   } catch {

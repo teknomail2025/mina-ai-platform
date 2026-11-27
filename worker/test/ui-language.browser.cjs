@@ -8,7 +8,10 @@ const watchdog = setTimeout(() => {
 }, 120000);
 
 (async () => {
-  const browser = await chromium.launch({ headless: true });
+  const browser = await chromium.launch({
+    headless: true,
+    args: ["--use-fake-device-for-media-stream", "--use-fake-ui-for-media-stream"]
+  });
   const page = await browser.newPage();
   stage = "opening the app and signing in";
   page.setDefaultTimeout(15000);
@@ -57,6 +60,197 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
+    stage = "testing Gemini Live voice transport with isolated browser fakes";
+    const liveTokenRequests = [];
+    const liveMinuteRequests = [];
+    await page.route("http://127.0.0.1:8787/api/live-token", async route => {
+      liveTokenRequests.push(route.request().method());
+      await page.evaluate(() => window.__voiceTest.events.push("token-request"));
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "ephemeral-ci-live-token", model: "models/gemini-live-test" }) });
+    });
+    await page.route("http://127.0.0.1:8787/api/live-minute", async route => {
+      liveMinuteRequests.push(route.request().method());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ used: liveMinuteRequests.length, limit: 10, remaining: 10 - liveMinuteRequests.length }) });
+    });
+    await page.evaluate(() => {
+      window.__voiceTest = { sockets: [], sent: [], audioFrames: [], played: 0, context: null, processor: null, track: null, constraints: null, events: [] };
+      class FakeAudioContext {
+        constructor() { this.sampleRate = 48000; this.currentTime = 0; this.destination = {}; window.__voiceTest.context = this; }
+        async resume() {}
+        async close() { this.closed = true; }
+        createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+        createScriptProcessor() {
+          const node = { onaudioprocess: null, connect() {}, disconnect() {} };
+          window.__voiceTest.processor = node;
+          return node;
+        }
+        createGain() { return { gain: { value: 1 }, connect() {} }; }
+        createBuffer(_channels, length, rate) { const samples = new Float32Array(length); return { duration: length / rate, getChannelData: () => samples }; }
+        createBufferSource() { return { connect() {}, start() { window.__voiceTest.played++; }, stop() {}, onended: null }; }
+      }
+      class FakeWebSocket {
+        static OPEN = 1;
+        constructor(url) {
+          this.url = url; this.readyState = 0;
+          window.__voiceTest.sockets.push(this);
+          setTimeout(() => { this.readyState = 1; this.onopen?.(); }, 0);
+        }
+        send(raw) {
+          const message = JSON.parse(raw);
+          window.__voiceTest.sent.push(message);
+          if (message.realtimeInput?.audio) window.__voiceTest.audioFrames.push(message.realtimeInput.audio);
+          if (message.setup) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ setupComplete: {} }) }), 0);
+        }
+        close() { this.readyState = 3; this.onclose?.(); }
+      }
+      const track = { enabled: true, stopped: false, stop() { this.stopped = true; } };
+      window.__voiceTest.track = track;
+      window.__voiceTest.originalMediaDevices = navigator.mediaDevices;
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: { getUserMedia: async constraints => {
+          window.__voiceTest.events.push("microphone-permission");
+          window.__voiceTest.constraints = constraints;
+          return { getTracks: () => [track], getAudioTracks: () => [track] };
+        } }
+      });
+      window.AudioContext = FakeAudioContext;
+      window.WebSocket = FakeWebSocket;
+    });
+    await page.locator("#toolsToggle").click();
+    await page.locator("#voiceModeBtn").click();
+    await page.waitForFunction(() => document.getElementById("liveVoiceStatus")?.textContent === "Seni dinliyorum…", null, { timeout: 15000 });
+    await page.waitForFunction(() => !!window.__voiceTest?.processor, null, { timeout: 10000 });
+    assert.deepEqual(liveTokenRequests, ["POST"], "Live voice must request an ephemeral provider token");
+    assert.deepEqual(await page.evaluate(() => window.__voiceTest.events), ["microphone-permission", "token-request"], "the short-lived Live token must be requested only after microphone permission resolves");
+    assert.ok(liveMinuteRequests.length >= 1, "Live voice must reserve its first server-counted minute before streaming");
+    const liveSetup = await page.evaluate(() => window.__voiceTest.sent.find(message => message.setup)?.setup);
+    assert.equal(liveSetup.model, "models/gemini-live-test");
+    assert.match(await page.evaluate(() => window.__voiceTest.sockets[0].url), /BidiGenerateContentConstrained\?access_token=ephemeral-ci-live-token$/, "browser must use the constrained Live endpoint and ephemeral token");
+    assert.deepEqual(liveSetup.generationConfig.responseModalities, ["AUDIO"]);
+    assert.ok(liveSetup.inputAudioTranscription && liveSetup.outputAudioTranscription);
+    assert.equal(await page.evaluate(() => window.__voiceTest.constraints.audio.echoCancellation), true);
+    await page.evaluate(() => {
+      const socket = window.__voiceTest.sockets[0];
+      socket.onmessage({ data: JSON.stringify({ serverContent: {
+        outputTranscription: { text: "Merhaba Baba" },
+        modelTurn: { parts: [{ inlineData: { mimeType: "audio/pcm", data: "AAAAAA==" } }] }
+      } }) });
+      window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } });
+    });
+    await page.waitForFunction(() => window.__voiceTest.audioFrames.length === 1, null, { timeout: 10000 });
+    assert.equal(await page.locator("#liveVoiceTranscript").innerText(), "Mina: Merhaba Baba");
+    assert.equal(await page.evaluate(() => window.__voiceTest.played), 1, "provider PCM audio must be scheduled for playback");
+    const firstFrame = await page.evaluate(() => window.__voiceTest.audioFrames[0]);
+    assert.equal(firstFrame.mimeType, "audio/pcm;rate=16000");
+    assert.match(firstFrame.data, /^[A-Za-z0-9+/]+=*$/);
+    await page.locator("#liveVoiceMute").click();
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.enabled), false, "mute must disable the microphone track");
+    await page.evaluate(() => window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } }));
+    assert.equal(await page.evaluate(() => window.__voiceTest.audioFrames.length), 1, "muted microphone must not send audio frames");
+    await page.locator("#liveVoiceMute").click();
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.enabled), true, "unmute must re-enable the microphone track");
+    await page.evaluate(() => window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } }));
+    assert.equal(await page.evaluate(() => window.__voiceTest.audioFrames.length), 2, "unmuted microphone must resume audio frames");
+    await page.evaluate(() => window.__voiceTest.sockets[0].onclose({ code: 1011, reason: "RESOURCE_EXHAUSTED" }));
+    await page.waitForFunction(() => document.getElementById("liveVoiceStatus")?.textContent.includes("1011"));
+    assert.match(await page.locator("#liveVoiceStatus").innerText(), /1011/, "unexpected provider close codes must be visible for diagnosis");
+    await page.locator("#liveVoiceClose").click();
+    await page.waitForFunction(() => document.getElementById("liveVoice").hidden);
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.stopped), true, "closing Live voice must stop microphone tracks");
+    assert.equal(await page.evaluate(() => window.__voiceTest.context.closed), true, "closing Live voice must close the audio context");
+    assert.equal(await page.evaluate(() => window.__voiceTest.sockets[0].readyState), 3, "closing Live voice must close the provider socket");
+    await page.evaluate(() => Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: window.__voiceTest.originalMediaDevices }));
+
+    stage = "checking camera capture and image analysis requests";
+    const imageAnalysisRequests = [];
+    await page.route("http://127.0.0.1:8787/api/chat", async route => {
+      imageAnalysisRequests.push(JSON.parse(route.request().postData() || "{}"));
+      await route.fulfill({
+        status: 200,
+        contentType: "application/json",
+        body: JSON.stringify({ choices: [{ message: { role: "assistant", content: "Görseli inceledim." } }] })
+      });
+    });
+    await page.locator("#toolsToggle").click();
+    await page.locator("#cameraBtn").click();
+    await page.waitForFunction(() => document.getElementById("cameraStatus")?.textContent === "Hazır. Fotoğrafı çekebilirsin.", null, { timeout: 15000 });
+    await page.locator("#cameraCaptureBtn").click();
+    await page.waitForFunction(() => document.getElementById("cameraDialog").hidden);
+    assert.equal(await page.locator("#fileChip").isVisible(), true, "camera capture must attach a photo to the composer");
+    assert.ok((await page.locator("#fileName").innerText()).includes("Kameradan çekilen fotoğraf"));
+    await page.locator("#messageInput").fill("What is in this photo?");
+    const cameraAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await cameraAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(imageAnalysisRequests.length, 1, "camera photo must be sent to image analysis");
+    assert.equal(imageAnalysisRequests[0].image.mimeType, "image/jpeg");
+    assert.match(imageAnalysisRequests[0].image.data, /^[A-Za-z0-9+/]+=*$/);
+    const capturedJpeg = Buffer.from(imageAnalysisRequests[0].image.data, "base64");
+    assert.deepEqual([...capturedJpeg.subarray(0, 3)], [0xff, 0xd8, 0xff], "camera payload must contain actual JPEG bytes, not an empty or mislabeled image");
+    assert.ok(capturedJpeg.byteLength > 100 && capturedJpeg.byteLength <= 8 * 1024 * 1024, "captured JPEG must be non-empty and within the Worker image limit");
+    assert.ok(imageAnalysisRequests[0].messages.some(message => message.content.includes("What is in this photo?")));
+
+    const uploadedPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=", "base64");
+    await page.locator("#imageInput").setInputFiles({ name: "analysis-test.png", mimeType: "image/png", buffer: uploadedPng });
+    await page.waitForFunction(() => document.getElementById("fileName")?.textContent === "🖼 analysis-test.png", null, { timeout: 10000 });
+    await page.locator("#messageInput").fill("Please analyze the uploaded photo.");
+    const uploadedAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await uploadedAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(imageAnalysisRequests.length, 2, "uploaded photo must be sent to image analysis");
+    assert.equal(imageAnalysisRequests[1].image.mimeType, "image/png");
+    assert.equal(Buffer.from(imageAnalysisRequests[1].image.data, "base64").toString("base64"), uploadedPng.toString("base64"));
+
+    stage = "checking MP4 video attachment upload and chat payload";
+    assert.match(await page.locator("#fileInput").getAttribute("accept"), /\.mp4/);
+    assert.match(await page.locator("#fileInput").getAttribute("accept"), /\.webm/);
+    const videoUploads = [];
+    await page.route("http://127.0.0.1:8787/api/files", async route => {
+      if (route.request().method() !== "POST") return route.continue();
+      videoUploads.push(JSON.parse(route.request().postData() || "{}"));
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ saved: true, id: "11111111-1111-4111-8111-111111111111", name: "browser-video.mp4", size: 16 })
+      });
+    });
+    const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+    await page.locator("#fileInput").setInputFiles({ name: "browser-video.mp4", mimeType: "video/mp4", buffer: videoBytes });
+    await page.waitForFunction(() => document.getElementById("fileName")?.textContent === "🎬 browser-video.mp4", null, { timeout: 10000 });
+    await page.locator("#messageInput").fill("Summarize this video.");
+    const videoAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await videoAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(videoUploads.length, 1, "video must be stored before the chat analysis request");
+    assert.equal(videoUploads[0].name, "browser-video.mp4");
+    assert.equal(Buffer.from(videoUploads[0].data, "base64").toString("base64"), videoBytes.toString("base64"));
+    assert.equal(imageAnalysisRequests.length, 3, "video prompt must be sent through the chat analysis endpoint");
+    assert.deepEqual(imageAnalysisRequests[2].video, { name: "browser-video.mp4", mimeType: "video/mp4" });
+    assert.equal(imageAnalysisRequests[2].storedFileId, "11111111-1111-4111-8111-111111111111");
+    assert.ok(imageAnalysisRequests[2].messages.some(message => message.content.includes("Summarize this video.")));
+
+    stage = "checking daily quota guidance";
+    await page.route("http://127.0.0.1:8787/api/chat", async route => {
+      await route.fulfill({
+        status: 429,
+        contentType: "application/json",
+        body: JSON.stringify({ error: "Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.", quota: { type: "chat", used: 5, limit: 5, remaining: 0, day: "2026-11-27" } })
+      });
+    });
+    await page.locator("#messageInput").fill("Quota message test");
+    const quotaResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await quotaResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    const quotaMessage = await page.locator(".message.assistant .bubble").last().innerText();
+    assert.match(quotaMessage, /5\/5/);
+    assert.match(quotaMessage, /2026-11-27/);
+    assert.doesNotMatch(quotaMessage, /Cloudflare Worker ve Gemini API anahtarını kontrol et/i);
+
     await page.locator("#sidebarProfile").click();
     assert.equal(await page.locator(".profile-menu-heading span").innerText(), "Hesap ve ayarlar");
     await page.locator('[data-settings-section="language"]').click();
