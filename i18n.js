@@ -115,6 +115,7 @@
     "Resim inceleme": "Image analysis",
     "Video analizi": "Video analysis",
     "Dosyayı indir": "Download file",
+    "Dosyayı indir: ": "Download file: ",
     "Saklanan dosyayı sil": "Delete stored file",
     "R2 deposundan silmek istiyor musun?": "Do you want to delete it from R2 storage?",
     "Dosya": "Files",
