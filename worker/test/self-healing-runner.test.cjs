@@ -138,11 +138,11 @@ test("runner rejects malformed headers, duplicate paths, mode changes and binary
     ["mismatched old-file header", patch.replace("--- a/app.js", "--- b/app.js"), /Unexpected old-file header/],
     ["mismatched new-file header", patch.replace("+++ b/app.js", "+++ b/README.md"), /Unexpected new-file header/],
     ["duplicate file entry", patch + patch, /duplicate path/],
-    ["file mode mutation", patch.replace("--- a/app.js", "old mode 100644\\nnew mode 100755\\n--- a/app.js"), /File mode/],
-    ["binary patch", patch.replace("@@ -1 +1 @@", "GIT binary patch\\n@@ -1 +1 @@"), /binary patches are forbidden/],
+    ["file mode mutation", patch.replace("--- a/app.js", "old mode 100644\nnew mode 100755\n--- a/app.js"), /File mode/],
+    ["binary patch", patch.replace("@@ -1 +1 @@", "GIT binary patch\n@@ -1 +1 @@"), /binary patches are forbidden/],
     ["non-allowlisted path", patch.replaceAll("app.js", "README.md"), /outside the allowlist/],
-    ["missing hunk", patch.replace("@@ -1 +1 @@\\n", ""), /Unified diff hunks are missing/],
-    ["missing new-file header", patch.replace("+++ b/app.js\\n", ""), /headers are incomplete/],
+    ["missing hunk", patch.replace("@@ -1 +1 @@\n", ""), /Unified diff hunks are missing/],
+    ["missing new-file header", patch.replace("+++ b/app.js\n", ""), /headers are incomplete/],
   ];
 
   for (const [name, patchText, expected] of cases) {
