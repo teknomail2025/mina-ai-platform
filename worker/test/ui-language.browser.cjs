@@ -201,6 +201,35 @@ const watchdog = setTimeout(() => {
     assert.equal(imageAnalysisRequests[1].image.mimeType, "image/png");
     assert.equal(Buffer.from(imageAnalysisRequests[1].image.data, "base64").toString("base64"), uploadedPng.toString("base64"));
 
+    stage = "checking MP4 video attachment upload and chat payload";
+    assert.match(await page.locator("#fileInput").getAttribute("accept"), /\.mp4/);
+    assert.match(await page.locator("#fileInput").getAttribute("accept"), /\.webm/);
+    const videoUploads = [];
+    await page.route("http://127.0.0.1:8787/api/files", async route => {
+      if (route.request().method() !== "POST") return route.continue();
+      videoUploads.push(JSON.parse(route.request().postData() || "{}"));
+      await route.fulfill({
+        status: 201,
+        contentType: "application/json",
+        body: JSON.stringify({ saved: true, id: "11111111-1111-4111-8111-111111111111", name: "browser-video.mp4", size: 16 })
+      });
+    });
+    const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+    await page.locator("#fileInput").setInputFiles({ name: "browser-video.mp4", mimeType: "video/mp4", buffer: videoBytes });
+    await page.waitForFunction(() => document.getElementById("fileName")?.textContent === "🎬 browser-video.mp4", null, { timeout: 10000 });
+    await page.locator("#messageInput").fill("Summarize this video.");
+    const videoAnalysisResponse = page.waitForResponse("http://127.0.0.1:8787/api/chat");
+    await page.locator("#sendBtn").click();
+    await videoAnalysisResponse;
+    await page.waitForFunction(() => document.getElementById("messageInput")?.disabled === false, null, { timeout: 15000 });
+    assert.equal(videoUploads.length, 1, "video must be stored before the chat analysis request");
+    assert.equal(videoUploads[0].name, "browser-video.mp4");
+    assert.equal(Buffer.from(videoUploads[0].data, "base64").toString("base64"), videoBytes.toString("base64"));
+    assert.equal(imageAnalysisRequests.length, 3, "video prompt must be sent through the chat analysis endpoint");
+    assert.deepEqual(imageAnalysisRequests[2].video, { name: "browser-video.mp4", mimeType: "video/mp4" });
+    assert.equal(imageAnalysisRequests[2].storedFileId, "11111111-1111-4111-8111-111111111111");
+    assert.ok(imageAnalysisRequests[2].messages.some(message => message.content.includes("Summarize this video.")));
+
     stage = "checking daily quota guidance";
     await page.route("http://127.0.0.1:8787/api/chat", async route => {
       await route.fulfill({
