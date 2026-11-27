@@ -152,6 +152,9 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.evaluate(() => window.__voiceTest.track.enabled), true, "unmute must re-enable the microphone track");
     await page.evaluate(() => window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } }));
     assert.equal(await page.evaluate(() => window.__voiceTest.audioFrames.length), 2, "unmuted microphone must resume audio frames");
+    await page.evaluate(() => window.__voiceTest.sockets[0].onclose({ code: 1011, reason: "RESOURCE_EXHAUSTED" }));
+    await page.waitForFunction(() => document.getElementById("liveVoiceStatus")?.textContent.includes("1011"));
+    assert.match(await page.locator("#liveVoiceStatus").innerText(), /1011/, "unexpected provider close codes must be visible for diagnosis");
     await page.locator("#liveVoiceClose").click();
     await page.waitForFunction(() => document.getElementById("liveVoice").hidden);
     assert.equal(await page.evaluate(() => window.__voiceTest.track.stopped), true, "closing Live voice must stop microphone tracks");
