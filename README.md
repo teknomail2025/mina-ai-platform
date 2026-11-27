@@ -29,7 +29,7 @@ Mina, Türkçe konuşan ve görev türüne göre yanıt ayarlarını değiştire
 - Eklentiler: kullanılabilir araçları tek ekranda listeler ve ilgili arayüzü açar; GitHub OAuth/depo işlemleri henüz etkin değildir.
 - GitHub düğmesi yalnızca bağlantı durumunu gösterir; OAuth ve depo üzerinde güvenli okuma/yazma henüz etkin değildir.
 - PDF dosyaları Gemini'ye belge eki olarak iletilir; DOCX dosyalarının metni Mammoth ile tarayıcıda çıkarılır ve özgün dosya geçici R2 deposunda saklanır.
-- Android APK paketleme ve mağaza dağıtımı henüz yapılmamıştır; PWA altyapısı sonraki Capacitor paketlemesine hazırlık sağlar.
+- Android APK dağıtımı ve mağaza yayını henüz yapılmamıştır. `mobile/` altında Android, Windows ve macOS için ortak Flutter istemci temeli, HTTPS API istemcisi ve işletim sistemi güvenli oturum saklama altyapısı hazırlanmıştır. Bu aşama yalnızca altyapıdır; tamamlanmış sohbet arayüzü, kamera/mikrofon entegrasyonu, bildirimler veya mağaza paketi içermez. Kurulum ve kapsam için [`mobile/README.md`](mobile/README.md) dosyasına bakın.
 - Ren'Py odaklı özel eğitim, mevcut temel özellikler tamamlandıktan sonraki aşamadır.
 
 ## Cloudflare Worker Secrets
