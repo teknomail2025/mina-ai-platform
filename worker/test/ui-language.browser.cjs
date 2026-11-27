@@ -60,6 +60,100 @@ const watchdog = setTimeout(() => {
     await page.locator("#minaPassword").fill("ci-test-password-at-least-12");
     await page.locator("#minaLoginSubmit").click();
     await page.locator("body.mina-authenticated").waitFor();
+    stage = "testing Gemini Live voice transport with isolated browser fakes";
+    const liveTokenRequests = [];
+    const liveMinuteRequests = [];
+    await page.route("http://127.0.0.1:8787/api/live-token", async route => {
+      liveTokenRequests.push(route.request().method());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "ephemeral-ci-live-token", model: "models/gemini-live-test" }) });
+    });
+    await page.route("http://127.0.0.1:8787/api/live-minute", async route => {
+      liveMinuteRequests.push(route.request().method());
+      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ used: liveMinuteRequests.length, limit: 10, remaining: 10 - liveMinuteRequests.length }) });
+    });
+    await page.evaluate(() => {
+      window.__voiceTest = { sockets: [], sent: [], audioFrames: [], played: 0, context: null, processor: null, track: null, constraints: null };
+      class FakeAudioContext {
+        constructor() { this.sampleRate = 48000; this.currentTime = 0; this.destination = {}; window.__voiceTest.context = this; }
+        async resume() {}
+        async close() { this.closed = true; }
+        createMediaStreamSource() { return { connect() {}, disconnect() {} }; }
+        createScriptProcessor() {
+          const node = { onaudioprocess: null, connect() {}, disconnect() {} };
+          window.__voiceTest.processor = node;
+          return node;
+        }
+        createGain() { return { gain: { value: 1 }, connect() {} }; }
+        createBuffer(_channels, length, rate) { const samples = new Float32Array(length); return { duration: length / rate, getChannelData: () => samples }; }
+        createBufferSource() { return { connect() {}, start() { window.__voiceTest.played++; }, stop() {}, onended: null }; }
+      }
+      class FakeWebSocket {
+        static OPEN = 1;
+        constructor(url) {
+          this.url = url; this.readyState = 0;
+          window.__voiceTest.sockets.push(this);
+          setTimeout(() => { this.readyState = 1; this.onopen?.(); }, 0);
+        }
+        send(raw) {
+          const message = JSON.parse(raw);
+          window.__voiceTest.sent.push(message);
+          if (message.realtimeInput?.audio) window.__voiceTest.audioFrames.push(message.realtimeInput.audio);
+          if (message.setup) setTimeout(() => this.onmessage?.({ data: JSON.stringify({ setupComplete: {} }) }), 0);
+        }
+        close() { this.readyState = 3; this.onclose?.(); }
+      }
+      const track = { enabled: true, stopped: false, stop() { this.stopped = true; } };
+      window.__voiceTest.track = track;
+      Object.defineProperty(navigator, "mediaDevices", {
+        configurable: true,
+        value: { getUserMedia: async constraints => {
+          window.__voiceTest.constraints = constraints;
+          return { getTracks: () => [track], getAudioTracks: () => [track] };
+        } }
+      });
+      window.AudioContext = FakeAudioContext;
+      window.WebSocket = FakeWebSocket;
+    });
+    await page.locator("#toolsToggle").click();
+    await page.locator("#voiceModeBtn").click();
+    await page.waitForFunction(() => document.getElementById("liveVoiceStatus")?.textContent === "Seni dinliyorum…", null, { timeout: 15000 });
+    await page.waitForFunction(() => !!window.__voiceTest?.processor, null, { timeout: 10000 });
+    assert.deepEqual(liveTokenRequests, ["POST"], "Live voice must request an ephemeral provider token");
+    assert.ok(liveMinuteRequests.length >= 1, "Live voice must reserve its first server-counted minute before streaming");
+    const liveSetup = await page.evaluate(() => window.__voiceTest.sent.find(message => message.setup)?.setup);
+    assert.equal(liveSetup.model, "models/gemini-live-test");
+    assert.deepEqual(liveSetup.generationConfig.responseModalities, ["AUDIO"]);
+    assert.ok(liveSetup.inputAudioTranscription && liveSetup.outputAudioTranscription);
+    assert.equal(await page.evaluate(() => window.__voiceTest.constraints.audio.echoCancellation), true);
+    await page.evaluate(() => {
+      const socket = window.__voiceTest.sockets[0];
+      socket.onmessage({ data: JSON.stringify({ serverContent: {
+        outputTranscription: { text: "Merhaba Baba" },
+        modelTurn: { parts: [{ inlineData: { mimeType: "audio/pcm", data: "AAAAAA==" } }] }
+      } }) });
+      window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } });
+    });
+    await page.waitForFunction(() => window.__voiceTest.audioFrames.length === 1, null, { timeout: 10000 });
+    assert.equal(await page.locator("#liveVoiceTranscript").innerText(), "Mina: Merhaba Baba");
+    assert.equal(await page.evaluate(() => window.__voiceTest.played), 1, "provider PCM audio must be scheduled for playback");
+    const firstFrame = await page.evaluate(() => window.__voiceTest.audioFrames[0]);
+    assert.equal(firstFrame.mimeType, "audio/pcm;rate=16000");
+    assert.match(firstFrame.data, /^[A-Za-z0-9+/]+=*$/);
+    await page.locator("#liveVoiceMute").click();
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.enabled), false, "mute must disable the microphone track");
+    await page.evaluate(() => window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } }));
+    assert.equal(await page.evaluate(() => window.__voiceTest.audioFrames.length), 1, "muted microphone must not send audio frames");
+    await page.locator("#liveVoiceMute").click();
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.enabled), true, "unmute must re-enable the microphone track");
+    await page.evaluate(() => window.__voiceTest.processor.onaudioprocess({ inputBuffer: { getChannelData: () => new Float32Array(4096).fill(0.25) } }));
+    assert.equal(await page.evaluate(() => window.__voiceTest.audioFrames.length), 2, "unmuted microphone must resume audio frames");
+    await page.locator("#liveVoiceClose").click();
+    await page.waitForFunction(() => document.getElementById("liveVoice").hidden);
+    assert.equal(await page.evaluate(() => window.__voiceTest.track.stopped), true, "closing Live voice must stop microphone tracks");
+    assert.equal(await page.evaluate(() => window.__voiceTest.context.closed), true, "closing Live voice must close the audio context");
+    assert.equal(await page.evaluate(() => window.__voiceTest.sockets[0].readyState), 3, "closing Live voice must close the provider socket");
+    await page.locator("#toolsToggle").click();
+
     stage = "checking camera capture and image analysis requests";
     const imageAnalysisRequests = [];
     await page.route("http://127.0.0.1:8787/api/chat", async route => {
