@@ -571,6 +571,36 @@ test("video analysis sends the actual stored MP4 payload to Gemini Interactions 
   assert.equal(interactionRequests[0].payload.system_instruction.includes("Sen Mina'sın"), true);
 });
 
+test("video analysis enforces its own daily quota before calling Gemini", async () => {
+  const { worker, interactionRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "quota.mp4", data: videoBytes.toString("base64") }
+  });
+  assert.equal(upload.status, 201);
+  const options = {
+    token: login.data.token,
+    env: { VIDEO_ANALYSIS_DAILY_LIMIT: "1" },
+    body: {
+      messages: [{ role: "user", content: "Bu kısa videoyu özetle." }],
+      video: { name: "quota.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  };
+  const first = await call(worker, "/api/chat", options);
+  const second = await call(worker, "/api/chat", options);
+  assert.equal(first.status, 200);
+  assert.equal(second.status, 429);
+  assert.equal(second.data.quota.type, "video_analysis");
+  assert.equal(second.data.quota.limit, 1);
+  assert.equal(interactionRequests.length, 1);
+});
+
 test("video analysis switches to the configured fallback model after HTTP 503", async () => {
   const { worker, interactionRequests } = createWorker(async (target, options) => {
     const payload = JSON.parse(options.body || "{}");
