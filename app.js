@@ -70,7 +70,6 @@
     try {
       const response = await fetch(API_BASE + "/api/memory", {cache:"no-store",headers:{Accept:"application/json"}});
       const data = await response.json().catch(()=>({}));
-      failedResponseData=data;
       if (!response.ok) throw new Error(data.error || "MinaData bağlantısı kurulamadı.");
       if (data.initialized) {
         userMemory = typeof data.memory === "string" ? data.memory : "";
@@ -620,6 +619,7 @@
         body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf"}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,...(/\\.docx$/i.test(file.name)?{content:file.content}:{})}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
+      failedResponseData=data;
       if(typeof data.memory_updated==="string"){
         userMemory=data.memory_updated;
         try{if(userMemory)localStorage.setItem(MEMORY_KEY,userMemory);else localStorage.removeItem(MEMORY_KEY);}catch{}
