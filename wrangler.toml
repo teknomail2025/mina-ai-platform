@@ -6,12 +6,30 @@ preview_urls = true
 [vars]
 ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
 GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_COMPLEX_MODEL = "gemini-3.8-flash"
+GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+GEMINI_SECONDARY_FALLBACK_MODEL = "gemini-3.1-flash-lite"
+GEMINI_IMAGE_MODEL = "gemini-nano-banana-2.1"
+GEMINI_LIVE_MODEL = "gemini-3.8-live"
+CHAT_DAILY_LIMIT = "100"
+IMAGE_GENERATION_DAILY_LIMIT = "10"
+IMAGE_ANALYSIS_DAILY_LIMIT = "30"
+LIVE_MINUTES_DAILY_LIMIT = "30"
 
 [previews]
 
 [previews.vars]
 ALLOWED_ORIGINS = "https://teknomail2025.github.io,http://localhost:8000,http://127.0.0.1:8000"
 GEMINI_MODEL = "gemini-3.8-flash"
+GEMINI_COMPLEX_MODEL = "gemini-3.8-flash"
+GEMINI_FALLBACK_MODEL = "gemini-3.5-flash-lite"
+GEMINI_SECONDARY_FALLBACK_MODEL = "gemini-3.1-flash-lite"
+GEMINI_IMAGE_MODEL = "gemini-nano-banana-2.1"
+GEMINI_LIVE_MODEL = "gemini-3.8-live"
+CHAT_DAILY_LIMIT = "100"
+IMAGE_GENERATION_DAILY_LIMIT = "10"
+IMAGE_ANALYSIS_DAILY_LIMIT = "30"
+LIVE_MINUTES_DAILY_LIMIT = "30"
 
 [[previews.d1_databases]]
 binding = "MINA_DB"
