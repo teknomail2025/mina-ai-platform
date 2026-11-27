@@ -65,6 +65,7 @@ const watchdog = setTimeout(() => {
     const liveMinuteRequests = [];
     await page.route("http://127.0.0.1:8787/api/live-token", async route => {
       liveTokenRequests.push(route.request().method());
+      await page.evaluate(() => window.__voiceTest.events.push("token-request"));
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ token: "ephemeral-ci-live-token", model: "models/gemini-live-test" }) });
     });
     await page.route("http://127.0.0.1:8787/api/live-minute", async route => {
@@ -72,7 +73,7 @@ const watchdog = setTimeout(() => {
       await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify({ used: liveMinuteRequests.length, limit: 10, remaining: 10 - liveMinuteRequests.length }) });
     });
     await page.evaluate(() => {
-      window.__voiceTest = { sockets: [], sent: [], audioFrames: [], played: 0, context: null, processor: null, track: null, constraints: null };
+      window.__voiceTest = { sockets: [], sent: [], audioFrames: [], played: 0, context: null, processor: null, track: null, constraints: null, events: [] };
       class FakeAudioContext {
         constructor() { this.sampleRate = 48000; this.currentTime = 0; this.destination = {}; window.__voiceTest.context = this; }
         async resume() {}
@@ -108,6 +109,7 @@ const watchdog = setTimeout(() => {
       Object.defineProperty(navigator, "mediaDevices", {
         configurable: true,
         value: { getUserMedia: async constraints => {
+          window.__voiceTest.events.push("microphone-permission");
           window.__voiceTest.constraints = constraints;
           return { getTracks: () => [track], getAudioTracks: () => [track] };
         } }
@@ -120,9 +122,11 @@ const watchdog = setTimeout(() => {
     await page.waitForFunction(() => document.getElementById("liveVoiceStatus")?.textContent === "Seni dinliyorum…", null, { timeout: 15000 });
     await page.waitForFunction(() => !!window.__voiceTest?.processor, null, { timeout: 10000 });
     assert.deepEqual(liveTokenRequests, ["POST"], "Live voice must request an ephemeral provider token");
+    assert.deepEqual(await page.evaluate(() => window.__voiceTest.events), ["microphone-permission", "token-request"], "the short-lived Live token must be requested only after microphone permission resolves");
     assert.ok(liveMinuteRequests.length >= 1, "Live voice must reserve its first server-counted minute before streaming");
     const liveSetup = await page.evaluate(() => window.__voiceTest.sent.find(message => message.setup)?.setup);
     assert.equal(liveSetup.model, "models/gemini-live-test");
+    assert.match(await page.evaluate(() => window.__voiceTest.sockets[0].url), /BidiGenerateContentConstrained\\?access_token=ephemeral-ci-live-token$/, "browser must use the constrained Live endpoint and ephemeral token");
     assert.deepEqual(liveSetup.generationConfig.responseModalities, ["AUDIO"]);
     assert.ok(liveSetup.inputAudioTranscription && liveSetup.outputAudioTranscription);
     assert.equal(await page.evaluate(() => window.__voiceTest.constraints.audio.echoCancellation), true);
