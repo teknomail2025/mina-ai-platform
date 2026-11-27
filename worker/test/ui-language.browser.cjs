@@ -104,6 +104,7 @@ const watchdog = setTimeout(() => {
       }
       const track = { enabled: true, stopped: false, stop() { this.stopped = true; } };
       window.__voiceTest.track = track;
+      window.__voiceTest.originalMediaDevices = navigator.mediaDevices;
       Object.defineProperty(navigator, "mediaDevices", {
         configurable: true,
         value: { getUserMedia: async constraints => {
@@ -152,6 +153,7 @@ const watchdog = setTimeout(() => {
     assert.equal(await page.evaluate(() => window.__voiceTest.track.stopped), true, "closing Live voice must stop microphone tracks");
     assert.equal(await page.evaluate(() => window.__voiceTest.context.closed), true, "closing Live voice must close the audio context");
     assert.equal(await page.evaluate(() => window.__voiceTest.sockets[0].readyState), 3, "closing Live voice must close the provider socket");
+    await page.evaluate(() => Object.defineProperty(navigator, "mediaDevices", { configurable: true, value: window.__voiceTest.originalMediaDevices }));
     await page.locator("#toolsToggle").click();
 
     stage = "checking camera capture and image analysis requests";
