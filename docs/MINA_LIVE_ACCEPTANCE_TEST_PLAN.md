@@ -61,9 +61,12 @@ The production runner must remain disabled. Do not trigger a production dispatch
 - [ ] Verify critical-risk proposals cannot enter patch generation.
 - [ ] Verify patch validation rejects paths outside the six-file allowlist, more than five files, binary changes, mode changes, malformed diffs, duplicate paths, and wrong base commits.
 
-**Phase B — optional isolated GitHub runner test**
-Only after explicit operator approval:
-- [ ] Use a dedicated sandbox repository, not the Mina production repository.
+**Phase B — isolated GitHub runner test (currently blocked)**
+The current Worker dispatch URL is hard-coded to `teknomail2025/mina-ai-platform`. Therefore, the existing self-healing API cannot safely target a separate sandbox repository. Do not try to use the current API for a sandbox dispatch, and do not dispatch a synthetic patch to the Mina repository.
+
+Before Phase B can be run, implement and review a separate sandbox-only runner configuration:
+- [ ] Add an explicit repository target setting with a strict allowlist; the staging environment must accept only the dedicated sandbox repository.
+- [ ] Verify the workflow file and signing secret are present in that sandbox repository.
 - [ ] Use a disposable test branch and synthetic, non-sensitive patch.
 - [ ] Give the test token only the permissions required for that sandbox workflow.
 - [ ] Verify the runner checks out the exact approved SHA, runs validation without write permissions, then creates a review-only PR in the sandbox.
