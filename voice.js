@@ -7,7 +7,7 @@
   const status = $("liveVoiceStatus"), transcript = $("liveVoiceTranscript"), orb = $("liveVoiceOrb");
   const closeBtn = $("liveVoiceClose"), endBtn = $("liveVoiceEnd"), muteBtn = $("liveVoiceMute");
   const API_BASE = (window.MINA_API_BASE || "https://mina-ai-api.teknomail2025.workers.dev").replace(/\/$/, "");
-  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false, sessionId=0;
+  let socket=null, stream=null, audioContext=null, processor=null, source=null, muted=false, active=false, nextPlayTime=0, playing=[], pendingInputText="", moderationBusy=false, moderationQueue=[], setupTimer=null, liveQuotaTimer=null, intentionalClose=false, sessionId=0, lastUnexpectedCloseCode=0;
   const ui = value => window.MinaI18n?.t(value) || value;
   let lastVoiceIncidentAt = 0;
   function reportVoiceIncident(message, error) {
@@ -101,6 +101,7 @@
   }
   async function start() {
     if(active)return;
+    lastUnexpectedCloseCode=0;
     const currentSessionId=++sessionId;
     panel.hidden=false;openBtn.disabled=true;intentionalClose=false;pendingInputText="";moderationQueue.length=0;setStatus("Güvenli ses bağlantısı kuruluyor…");
     try{
@@ -159,6 +160,7 @@
         const closeReason=String(event?.reason||"").replace(/[\\r\\n]/g," ").slice(0,160);
         if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
         if(!intentionalClose){
+          lastUnexpectedCloseCode=wasActive?closeCode:0;
           reportVoiceIncident("Live voice WebSocket closed: code="+(closeCode||"unknown")+(closeReason?"; reason="+closeReason:""));
           setStatus(wasActive?ui("Ses bağlantısı kapandı")+(closeCode?" ("+closeCode+")":"")+ui(". Yeniden başlatabilirsin."):"Google canlı ses oturumu kurulamadı"+(closeCode?" ("+closeCode+")":"")+". API anahtarını ve model erişimini kontrol et.","error");
           void cleanup(false);
@@ -205,7 +207,8 @@
   });
   window.addEventListener("mina:ui-language-changed",()=>{
     muteBtn.textContent=ui(muted?"Mikrofonu aç":"Mikrofonu kapat");
-    if(active)setStatus(muted?"Mikrofon kapalı":playing.length?"Mina konuşuyor…":"Seni dinliyorum…",muted?"muted":playing.length?"speaking":"listening");
+    if(lastUnexpectedCloseCode){setStatus(ui("Ses bağlantısı kapandı")+(lastUnexpectedCloseCode?" ("+lastUnexpectedCloseCode+")":"")+ui(". Yeniden başlatabilirsin."),"error");}
+    else if(active)setStatus(muted?"Mikrofon kapalı":playing.length?"Mina konuşuyor…":"Seni dinliyorum…",muted?"muted":playing.length?"speaking":"listening");
   });
   openBtn.addEventListener("click",()=>{muteBtn.disabled=false;});
   panel.addEventListener("keydown",e=>{if(e.key==="Escape")cleanup(true);});
