@@ -1,5 +1,6 @@
 import 'dart:convert';
 
+import 'package:flutter/foundation.dart' show defaultTargetPlatform, TargetPlatform;
 import 'package:http/http.dart' as http;
 
 import 'secure_token_store.dart';
@@ -16,16 +17,29 @@ class MinaApiClient {
       'MINA_API_BASE',
       defaultValue: _defaultApiBase,
     ),
-    String platform = 'unknown',
+    String? platform,
   })  : _tokenStore = tokenStore,
         _http = httpClient ?? http.Client(),
         _baseUri = _validatedBaseUri(apiBase),
-        _platform = _normalizePlatform(platform);
+        _platform = _normalizePlatform(platform ?? _currentPlatform());
 
   final SecureTokenStore _tokenStore;
   final http.Client _http;
   final Uri _baseUri;
   final String _platform;
+
+  static String _currentPlatform() {
+    switch (defaultTargetPlatform) {
+      case TargetPlatform.android:
+        return 'android';
+      case TargetPlatform.windows:
+        return 'windows';
+      case TargetPlatform.macOS:
+        return 'macos';
+      default:
+        return 'unknown';
+    }
+  }
 
   static Uri _validatedBaseUri(String value) {
     final uri = Uri.tryParse(value);
@@ -72,10 +86,7 @@ class MinaApiClient {
         response.statusCode >= 300 ||
         token is! String ||
         token.isEmpty) {
-      throw MinaApiException(
-        response.statusCode,
-        _safeMessage(data['error']),
-      );
+      throw MinaApiException(response.statusCode, _safeMessage(data['error']));
     }
     await _tokenStore.write(token);
     return data;
