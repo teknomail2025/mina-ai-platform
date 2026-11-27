@@ -17,6 +17,8 @@ function getGeminiModels(env = {}) {
     fallback: configuredModel(env.GEMINI_FALLBACK_MODEL, FALLBACK_MODEL),
     secondaryFallback: configuredModel(env.GEMINI_SECONDARY_FALLBACK_MODEL, SECONDARY_FALLBACK_MODEL),
     image: configuredModel(env.GEMINI_IMAGE_MODEL, IMAGE_MODEL),
+    imageFallback: configuredModel(env.GEMINI_IMAGE_FALLBACK_MODEL, "gemini-3.1-flash-image"),
+    imageSecondaryFallback: configuredModel(env.GEMINI_IMAGE_SECONDARY_FALLBACK_MODEL, "gemini-3.1-flash-lite-image"),
     live: configuredModel(env.GEMINI_LIVE_MODEL, "gemini-3.8-live")
   };
 }
@@ -221,8 +223,8 @@ async function callGemini(env,model,payload){
   }
   throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
-async function callGeminiWithFallback(env, initialModel, payload, models=getGeminiModels(env)) {
-  const candidates = [...new Set([initialModel, models.fallback, models.secondaryFallback])];
+async function callGeminiWithFallback(env, initialModel, payload, models=getGeminiModels(env), fallbackModels=[models.fallback, models.secondaryFallback]) {
+  const candidates = [...new Set([initialModel, ...fallbackModels])];
   let response = null;
   let selectedModel = initialModel;
   let lastError = null;
@@ -539,7 +541,7 @@ export default {
   if(url.pathname==="/api/providers"&&request.method==="GET") return json({providers:{gemini:!!env.GEMINI_API_KEY,openai:!!env.OPENAI_API_KEY,anthropic:!!env.ANTHROPIC_API_KEY,huggingface:!!env.HF_TOKEN}},200,cors);
   if(url.pathname==="/api/models"&&request.method==="GET") {
     const models=getGeminiModels(env);
-    return json({provider:"Google Gemini",mode:"automatic",models:[{id:models.fast,role:"fast"},{id:models.advanced,role:"advanced"},{id:models.image,role:"image"},{id:models.live,role:"live"}]},200,cors);
+    return json({provider:"Google Gemini",mode:"automatic",models:[{id:models.fast,role:"fast"},{id:models.advanced,role:"advanced"},{id:models.image,role:"image"},{id:models.imageFallback,role:"image_fallback"},{id:models.imageSecondaryFallback,role:"image_secondary_fallback"},{id:models.live,role:"live"}]},200,cors);
   }
   if(url.pathname==="/api/tools/status"&&request.method==="GET") return json({imageUnderstanding:!!env.GEMINI_API_KEY,imageGeneration:!!env.GEMINI_API_KEY,webSearch:!!env.GEMINI_API_KEY,steamSearch:true,github:!!env.GITHUB_TOKEN,codeWorkspace:true},200,cors);
   if(url.pathname==="/api/steam/search"&&request.method==="GET"){
@@ -563,13 +565,15 @@ export default {
     if(!prompt||prompt.length>4000) return json({error:"Görsel açıklaması boş veya çok uzun."},400,cors);
     const userId=String(env.ADMIN_USERNAME||"admin");
     if(!env.MINA_DB)return json({error:"Görsel üretim kotası için D1 veritabanı bağlantısı gerekli."},503,cors);
-    const imageModel=getGeminiModels(env).image;
+    const models=getGeminiModels(env);
+    const imageModel=models.image;
     let quota;
     try{quota=await reserveDailyUsage(env.MINA_DB,userId,"image_generation",env);}
     catch(error){return json({error:"Görsel üretim kotası kontrol edilemedi."},503,cors);}
     if(!quota.allowed)return json({error:"Günlük görsel üretim limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0,day:quota.day}},429,cors);
     try{
-      const r=await callGemini(env,imageModel,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}});
+      const result=await callGeminiWithFallback(env,imageModel,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}},models,[models.imageFallback,models.imageSecondaryFallback]);
+      const r=result.response;
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
       if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider request failed: HTTP "+r.status));return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status},502,cors);}
       const parts=d.candidates?.[0]?.content?.parts||[];
@@ -578,7 +582,7 @@ export default {
       const blob=imagePart?.inlineData||imagePart?.inline_data;
       const image={mimeType:blob?.mimeType||blob?.mime_type||"image/png",data:blob?.data};
       if(!imageDataIsValid(image)){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider returned invalid or missing image bytes"));return json({error:"Görsel modeli geçerli PNG, JPG veya WEBP verisi döndürmedi. Lütfen isteği yeniden dene.",},502,cors);}
-      return json({image,caption:textPart?.text||"",model:imageModel},200,cors);
+      return json({image,caption:textPart?.text||"",model:result.model,fallback_used:result.model!==imageModel},200,cors);
     }catch(e){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,e);return json({error:"Görsel üretim servisine bağlanılamadı."},502,cors);}
   }
   if(url.pathname==="/api/github/status"&&request.method==="GET") return json({connected:!!env.GITHUB_TOKEN,message:env.GITHUB_TOKEN?"GitHub sunucu anahtarı tanımlı.":"GitHub OAuth/anahtar bağlantısı henüz kurulmadı."},200,cors);
