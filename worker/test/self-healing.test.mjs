@@ -11,6 +11,7 @@ test("diagnostic text redacts common credentials and bounds length", () => {
 
 test("source path allowlist rejects traversal and unknown files", () => {
   assert.equal(isAllowedDiagnosticPath("worker/src/index.js"), true);
+  assert.equal(isAllowedDiagnosticPath("media.js"), true, "camera and image pipeline fixes must be repairable");
   assert.equal(isAllowedDiagnosticPath("../../wrangler.toml"), false);
   assert.equal(isAllowedDiagnosticPath("worker/wrangler.toml"), false);
   assert.equal(isAllowedDiagnosticPath("worker/test/worker.test.cjs"), false, "AI patches must not weaken the regression suite");
