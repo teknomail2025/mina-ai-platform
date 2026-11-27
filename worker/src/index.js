@@ -223,6 +223,14 @@ async function callGemini(env,model,payload){
   }
   throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
+function geminiProviderFailure(status, operation="Gemini") {
+  const label=String(operation||"Gemini");
+  if(status===429)return label+": Google Gemini API kotası veya istek hız sınırı doldu (HTTP 429). Google AI Studio projesinin faturalandırma ve model kotalarını kontrol et.";
+  if(status===503)return label+": Google Gemini şu anda yoğun (HTTP 503). Mina yedek modelleri de denedi; biraz sonra tekrar dene.";
+  if(status===401||status===403)return label+": Google API anahtarı veya model erişimi reddedildi (HTTP "+status+"). Cloudflare Secret ve Google AI Studio proje erişimini kontrol et.";
+  if([500,502,504,524].includes(status))return label+": Google Gemini geçici bir servis hatası verdi (HTTP "+status+"). Biraz sonra tekrar dene.";
+  return label+": Google Gemini isteği reddetti (HTTP "+status+").";
+}
 async function callGeminiWithFallback(env, initialModel, payload, models=getGeminiModels(env), fallbackModels=[models.fallback, models.secondaryFallback]) {
   const candidates = [...new Set([initialModel, ...fallbackModels])];
   let response = null;
@@ -575,7 +583,7 @@ export default {
       const result=await callGeminiWithFallback(env,imageModel,{contents:[{role:"user",parts:[{text:"Create a high-quality image based on this request. "+prompt}]}],generationConfig:{responseModalities:["TEXT","IMAGE"],imageConfig:{aspectRatio:"1:1",imageSize:"1K"}}},models,[models.imageFallback,models.imageSecondaryFallback]);
       const r=result.response;
       const raw=await r.text();let d={};try{d=JSON.parse(raw);}catch{}
-      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider request failed: HTTP "+r.status));return json({error:"Gemini görsel üretim isteğini reddetti.",provider_status:r.status},502,cors);}
+      if(!r.ok){await refundDailyUsage(env.MINA_DB,userId,"image_generation",quota.day);await recordSelfHealingIncident(env,url.pathname,new Error("Image provider request failed: HTTP "+r.status));return json({error:geminiProviderFailure(r.status,"Görsel üretimi"),provider_status:r.status},502,cors);}
       const parts=d.candidates?.[0]?.content?.parts||[];
       const imagePart=parts.find(p=>p.inlineData?.data||p.inline_data?.data);
       const textPart=parts.find(p=>p.text);
@@ -640,7 +648,7 @@ export default {
         })
       });
       const d=await r.json().catch(()=>({}));
-      if(!r.ok){await recordSelfHealingIncident(env,url.pathname,new Error("Live voice token provider request failed: HTTP "+r.status));return json({error:"Gemini canlı ses oturumu başlatılamadı.",provider_status:r.status},502,cors);}
+      if(!r.ok){await recordSelfHealingIncident(env,url.pathname,new Error("Live voice token provider request failed: HTTP "+r.status));return json({error:geminiProviderFailure(r.status,"Canlı ses"),provider_status:r.status},502,cors);}
       if(!d.name){await recordSelfHealingIncident(env,url.pathname,new Error("Live voice token provider returned no ephemeral token"));return json({error:"Gemini geçici ses anahtarı döndürmedi."},502,cors);}
       return json({token:d.name,model:"models/"+liveModel},200,cors);
     }catch(e){await recordSelfHealingIncident(env,url.pathname,e);return json({error:"Canlı ses servisine bağlanılamadı."},502,cors);}
@@ -776,7 +784,7 @@ export default {
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
     else {await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);}
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
-    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider request failed: "+provider+" HTTP "+upstream.status+"; model="+model));return json({error:provider==="gemini"?"Google Gemini isteği reddetti.":"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
+    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider request failed: "+provider+" HTTP "+upstream.status+"; model="+model));return json({error:provider==="gemini"?geminiProviderFailure(upstream.status,"Sohbet"):"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
     const parts=parsed?.candidates?.[0]?.content?.parts||[];
     const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
     if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider returned an empty answer: "+provider+"; model="+model));return json({error:"Yapay zekâ sağlayıcısı boş yanıt döndürdü. Lütfen tekrar dene."},502,cors);}
