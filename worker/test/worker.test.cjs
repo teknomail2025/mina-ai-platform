@@ -20,6 +20,7 @@ const env = {
 
 function createWorker(fetchOverride, selfHealingHandler = async () => null, selfHealingIncidentRecorder = async () => {}, liveTokenFetchOverride = null) {
   const requestedModels = [];
+  const requestedPayloads = [];
   const liveTokenRequests = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
@@ -34,8 +35,9 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
     }
     if (target.includes(":generateContent")) {
       requestedModels.push(target);
-      if (fetchOverride) return fetchOverride(target, options);
       const payload = JSON.parse(options.body || "{}");
+      requestedPayloads.push({ url: target, payload });
+      if (fetchOverride) return fetchOverride(target, options);
       const wantsImage = payload.generationConfig?.responseModalities?.includes("IMAGE");
       const parts = wantsImage
         ? [{ text: "Test görsel açıklaması" }, { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }]
@@ -136,7 +138,7 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
     const needsDisciplineDb = pathname === "/api/files" || pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), MINA_FILES: mockR2, ...bindings });
   };
-  return { worker, requestedModels, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
+  return { worker, requestedModels, requestedPayloads, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -445,8 +447,8 @@ test("ordinary chat uses the Flash model", async () => {
   assert.ok(requestedModels[0].includes("gemini-3.8-flash"), "ordinary chat must use the Flash model");
 });
 
-test("image understanding validates input and reaches Gemini", async () => {
-  const { worker } = createWorker();
+test("image understanding validates input and forwards the exact photo bytes to Gemini", async () => {
+  const { worker, requestedPayloads } = createWorker();
   const login = await call(worker, "/api/auth/login", {
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
@@ -470,6 +472,14 @@ test("image understanding validates input and reaches Gemini", async () => {
   });
   assert.equal(valid.status, 200);
   assert.equal(valid.data.task, "vision");
+  assert.equal(requestedPayloads.length, 1, "valid image analysis must make exactly one Gemini request");
+  const sent = requestedPayloads[0].payload.contents.at(-1);
+  assert.equal(sent.role, "user");
+  assert.deepEqual(sent.parts[0], { text: "Bu resimde ne var?" });
+  assert.deepEqual(sent.parts[1].inlineData, {
+    mimeType: "image/png",
+    data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII="
+  });
 });
 
 test("daily usage endpoint reports server-side counters and limits", async () => {
