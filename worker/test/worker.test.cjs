@@ -1424,7 +1424,7 @@ test("chat provider errors never expose raw upstream diagnostics", async () => {
   const result = await call(worker, "/api/chat", {
     method: "POST",
     token: login.data.token,
-    body: { messages: [{ role: "user", content: "Merhaba" }] }
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
   });
   assert.equal(result.status, 502);
   assert.match(result.data.error, /isteği reddetti/);
@@ -1444,7 +1444,7 @@ test("chat empty provider responses do not expose provider block diagnostics", a
   const result = await call(worker, "/api/chat", {
     method: "POST",
     token: login.data.token,
-    body: { messages: [{ role: "user", content: "Merhaba" }] }
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
   });
   assert.equal(result.status, 502);
   assert.match(result.data.error, /boş yanıt döndürdü/);
