@@ -364,7 +364,8 @@ export async function handleSelfHealingRequest(request, url, env, cors, json, re
       if (existing.status !== "pending_review") return json({ error: "Bu öneri daha önce değerlendirilmiş." }, 409, cors);
       const status = decision === "approve" ? "approved_for_manual_test" : "rejected";
       const now = Date.now();
-      await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ? WHERE id = ?").bind(status, now, proposalId).run();
+      const reviewed = await env.MINA_DB.prepare("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ? WHERE id = ? AND status = 'pending_review'").bind(status, now, proposalId).run();
+      if (reviewed.meta?.changes !== 1) return json({ error: "Bu öneri eşzamanlı olarak değerlendirildi. Güncel durumu yeniden yükle." }, 409, cors);
       return json({ reviewed: true, status, applied: false, testsExecuted: false, message: decision === "approve" ? "Öneri yalnızca manuel test aşaması için onaylandı; kod değiştirilmedi." : "Öneri reddedildi; kod değiştirilmedi." }, 200, { ...cors, "Cache-Control": "no-store" });
     }
   } catch {
