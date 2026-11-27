@@ -408,8 +408,8 @@
         action("↻",uiText("Yanıtı yeniden oluştur"),()=>regenerateResponse(c.id));
       }
       if(m.role==="assistant"&&m.fileId){
-        action("↓",m.fileName+" dosyasını indir",()=>downloadStoredFile(m.fileId,m.fileName).catch(error=>alert(error.message)));
-        action("⌫","Saklanan dosyayı sil",()=>{if(window.confirm(m.fileName+" dosyasını R2 deposundan silmek istiyor musun?"))deleteStoredFile(m).catch(error=>alert(error.message));});
+        action("↓",uiText("Dosyayı indir")+": "+m.fileName,()=>downloadStoredFile(m.fileId,m.fileName).catch(error=>alert(error.message)));
+        action("⌫",uiText("Saklanan dosyayı sil"),()=>{if(window.confirm(m.fileName+" "+uiText("R2 deposundan silmek istiyor musun?")))deleteStoredFile(m).catch(error=>alert(error.message));});
       }
       action("×",uiText("Mesajı sil"),()=>deleteMessage(c.id,c.messages.indexOf(m)));
       row.append(actions);
