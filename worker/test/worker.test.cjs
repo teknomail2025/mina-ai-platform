@@ -1376,6 +1376,22 @@ test("every self-healing route requires a valid administrator session", async ()
   assert.equal(adminStatus.data.automaticCodeChanges, false);
   assert.doesNotMatch(JSON.stringify(adminStatus.data), /fake-gemini-key|fake-runner-token|test-self-healing-approval-secret/);
 
+  for (const approvalSecret of ["", "short-secret"]) {
+    const notReady = await call(worker, "/api/admin/self-healing/status", {
+      token: login.data.token,
+      env: { ...healingEnv, SELF_HEALING_APPROVAL_SECRET: approvalSecret }
+    });
+    assert.equal(notReady.status, 200);
+    assert.equal(notReady.data.patchGeneration, false);
+    assert.equal(notReady.data.isolatedTestRunner, false);
+  }
+  const runnerDisabled = await call(worker, "/api/admin/self-healing/status", {
+    token: login.data.token,
+    env: { ...healingEnv, SELF_HEALING_RUNNER_ENABLED: "false" }
+  });
+  assert.equal(runnerDisabled.data.patchGeneration, false);
+  assert.equal(runnerDisabled.data.isolatedTestRunner, false);
+
   const adminReport = await call(worker, "/api/admin/self-healing/report", {
     token: login.data.token,
     method: "POST",
