@@ -86,7 +86,8 @@ function getDailyUsageLimits(env = {}) {
     chat: readLimit("CHAT_DAILY_LIMIT", 100),
     image_generation: readLimit("IMAGE_GENERATION_DAILY_LIMIT", 10),
     image_analysis: readLimit("IMAGE_ANALYSIS_DAILY_LIMIT", 30),
-    live_minutes: readLimit("LIVE_MINUTES_DAILY_LIMIT", 30)
+    live_minutes: readLimit("LIVE_MINUTES_DAILY_LIMIT", 30),
+    video_analysis: readLimit("VIDEO_ANALYSIS_DAILY_LIMIT", 10)
   });
 }
 let usageSchemaReady = false;
@@ -223,6 +224,25 @@ async function callGemini(env,model,payload){
   }
   throw new Error("Gemini isteği zaman aşımına uğradı.");
 }
+async function callGeminiVideoWithFallback(env, initialModel, payload, models=getGeminiModels(env)) {
+  const candidates=[...new Set([initialModel,models.fallback,models.secondaryFallback])];
+  let response=null,selectedModel=initialModel,lastError=null;
+  for(const candidate of candidates){
+    selectedModel=candidate;
+    try{
+      response=await fetch("https://generativelanguage.googleapis.com/v1beta/interactions",{
+        method:"POST",
+        headers:{"x-goog-api-key":env.GEMINI_API_KEY,"Content-Type":"application/json"},
+        body:JSON.stringify({...payload,model:candidate}),
+        signal:AbortSignal.timeout(120000)
+      });
+      if(response.ok)return {response,model:candidate};
+      if(![429,500,502,503,504,524].includes(response.status))break;
+    }catch(error){lastError=error;}
+  }
+  if(!response&&lastError)throw lastError;
+  return {response,model:selectedModel};
+}
 function geminiProviderFailure(status, operation="Gemini") {
   const label=String(operation||"Gemini");
   if(status===429)return label+": Google Gemini API kotası veya istek hız sınırı doldu (HTTP 429). Google AI Studio projesinin faturalandırma ve model kotalarını kontrol et.";
@@ -312,13 +332,24 @@ const STORED_FILE_TYPES = Object.freeze({
   html:"text/html",css:"text/css",js:"text/javascript",py:"text/x-python",log:"text/plain",
   ts:"text/plain",tsx:"text/plain",jsx:"text/plain",java:"text/plain",cs:"text/plain",
   cpp:"text/plain",h:"text/plain",xml:"application/xml",yaml:"text/plain",yml:"text/plain",
-  toml:"text/plain",ini:"text/plain",sql:"text/plain"
+  toml:"text/plain",ini:"text/plain",sql:"text/plain",mp4:"video/mp4",webm:"video/webm"
 });
 function safeStoredFileName(value) {
   const raw=String(value||"").normalize("NFC").trim();
   if(raw.includes("/")||raw.includes("\\"))return "";
   const name=raw.replace(/[\x00-\x1f\x7f]/g,"_");
   return name && name.length<=255 ? name : "";
+}
+function videoBytesAreValid(bytes,mimeType) {
+  if(!(bytes instanceof Uint8Array))return false;
+  if(mimeType==="video/mp4")return bytes.length>=12&&String.fromCharCode(...bytes.slice(4,8))==="ftyp";
+  if(mimeType==="video/webm")return bytes.length>=4&&bytes[0]===0x1a&&bytes[1]===0x45&&bytes[2]===0xdf&&bytes[3]===0xa3;
+  return false;
+}
+function bytesToBase64(bytes) {
+  let binary="";
+  for(let i=0;i<bytes.length;i+=0x8000)binary+=String.fromCharCode(...bytes.subarray(i,Math.min(i+0x8000,bytes.length)));
+  return btoa(binary);
 }
 function decodeStoredFile(data,name) {
   if(!name||typeof data!=="string"||!data||data.length>Math.ceil(STORED_FILE_MAX_BYTES/3)*4+8||!/^[A-Za-z0-9+/]+={0,2}$/.test(data)||data.length%4!==0)return null;
@@ -329,6 +360,7 @@ function decodeStoredFile(data,name) {
   if(!Object.hasOwn(STORED_FILE_TYPES,ext))return null;
   if(ext==="pdf"&&new TextDecoder().decode(bytes.slice(0,5))!=="%PDF-")return null;
   if(ext==="docx"&&(bytes.length<4||bytes[0]!==0x50||bytes[1]!==0x4b))return null;
+  if((ext==="mp4"||ext==="webm")&&!videoBytesAreValid(bytes,STORED_FILE_TYPES[ext]))return null;
   return {bytes,mimeType:STORED_FILE_TYPES[ext]};
 }
 function storedFileKey(userId,id){return encodeURIComponent(userId)+"/"+id;}
@@ -660,24 +692,31 @@ export default {
   const body=parsedChat.value;
   if(!body||typeof body!=="object")return json({error:"Geçersiz sohbet isteği."},400,cors);
   if(!validMessages(body.messages)) return json({error:"Mesaj biçimi geçersiz veya çok uzun."},400,cors);
-  if(body.image&&(body.document||body.fileAttachment)||body.document&&body.fileAttachment)return json({error:"Tek istekte yalnızca bir belge veya resim eki kullanılabilir."},400,cors);
+  const attachmentCount=[body.image,body.document,body.fileAttachment,body.video].filter(Boolean).length;
+  if(attachmentCount>1)return json({error:"Tek istekte yalnızca bir resim, video veya belge eki kullanılabilir."},400,cors);
   if(body.document&&body.document.mimeType!=="application/pdf")return json({error:"PDF dosya türü geçersiz."},400,cors);
+  if(body.video!==undefined&&(!body.video||typeof body.video!=="object"||typeof body.video.name!=="string"||body.video.name.length>255||!["video/mp4","video/webm"].includes(body.video.mimeType)))return json({error:"Video eki geçersiz. MP4 veya WEBM kullan."},400,cors);
   if(body.fileAttachment!==undefined&&(!body.fileAttachment||typeof body.fileAttachment!=="object"||typeof body.fileAttachment.name!=="string"||body.fileAttachment.name.length>255||body.fileAttachment.content!==undefined&&typeof body.fileAttachment.content!=="string"))return json({error:"Dosya eki geçersiz."},400,cors);
   let attachmentBytes=0,storedAttachment=null;
-  if(body.document||body.fileAttachment){
+  if(body.document||body.fileAttachment||body.video){
     if(!env.MINA_FILES||typeof body.storedFileId!=="string"||! /^[0-9a-f-]{36}$/i.test(body.storedFileId))return json({error:"Dosyanın 24 saatlik güvenli depo kaydı doğrulanamadı."},400,cors);
     const userId=String(env.ADMIN_USERNAME||"admin"),key=storedFileKey(userId,body.storedFileId);
     try{
       storedAttachment=await env.MINA_FILES.get(key);
       if(!storedAttachment||storedAttachment.customMetadata?.owner!==userId||Number(storedAttachment.customMetadata?.expiresAt||0)<=Date.now())return json({error:"Dosyanın güvenli depo kaydı bulunamadı veya süresi doldu."},404,cors);
       const storedName=safeStoredFileName(storedAttachment.customMetadata?.fileName);
-      if(!storedName||(body.fileAttachment&&storedName!==body.fileAttachment.name)||(body.document&&!storedName.toLowerCase().endsWith(".pdf")))return json({error:"Dosya adı veya türü depo kaydıyla uyuşmuyor."},404,cors);
+      if(!storedName||(body.fileAttachment&&storedName!==body.fileAttachment.name)||(body.document&&!storedName.toLowerCase().endsWith(".pdf"))||(body.video&&storedName!==body.video.name))return json({error:"Dosya adı veya türü depo kaydıyla uyuşmuyor."},404,cors);
       attachmentBytes=Number(storedAttachment.size);
       if(!Number.isSafeInteger(attachmentBytes)||attachmentBytes<1||attachmentBytes>STORED_FILE_MAX_BYTES)return json({error:"Dosya boyutu sınır dışında."},413,cors);
       const storedBytes=new Uint8Array(await storedAttachment.arrayBuffer());
       if(storedBytes.byteLength!==attachmentBytes)return json({error:"Depodaki dosya eksik veya bozuk."},502,cors);
       const extension=storedName.split(".").pop().toLowerCase();
-      if(extension==="pdf"){
+      if(body.video){
+        if(!["mp4","webm"].includes(extension)||STORED_FILE_TYPES[extension]!==body.video.mimeType||!videoBytesAreValid(storedBytes,body.video.mimeType))return json({error:"Video dosyasının biçimi veya imzası geçersiz."},400,cors);
+        body.video={name:storedName,mimeType:body.video.mimeType,data:bytesToBase64(storedBytes)};
+        body.fileAttachment=undefined;
+      }else if(["mp4","webm"].includes(extension))return json({error:"Video dosyası video eki olarak gönderilmelidir."},400,cors);
+      else if(extension==="pdf"){
         if(new TextDecoder().decode(storedBytes.slice(0,5))!=="%PDF-")return json({error:"Saklanan PDF imzası geçersiz."},400,cors);
         let binary="";for(let i=0;i<storedBytes.length;i+=0x8000)binary+=String.fromCharCode(...storedBytes.subarray(i,i+0x8000));
         body.document={mimeType:"application/pdf",data:btoa(binary)};
@@ -747,11 +786,12 @@ export default {
   }
   if(body.image&&!imageDataIsValid(body.image)) return json({error:"Resim biçimi desteklenmiyor veya dosya çok büyük. JPG, PNG ya da WEBP ve en fazla yaklaşık 8 MB kullan."},400,cors);
   const provider=["gemini","openai","anthropic","huggingface"].includes(body.provider)?body.provider:"gemini";
+  if(body.video&&provider!=="gemini")return json({error:"Video analizi şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
   const apiKey={gemini:env.GEMINI_API_KEY,openai:env.OPENAI_API_KEY,anthropic:env.ANTHROPIC_API_KEY,huggingface:env.HF_TOKEN}[provider];
   if(!apiKey) return json({error:provider+" sağlayıcısı sunucuda yapılandırılmamış. Cloudflare Worker Secrets bölümüne API anahtarını ekleyin."},503,cors);
   if(body.image&&provider!=="gemini") return json({error:"Görsel anlama şu anda yalnızca Gemini sağlayıcısında etkin."},400,cors);
   const models=getGeminiModels(env);
-  const routing=chooseTask(body.messages,models);let model=body.image?models.fast:body.model==="fast"?models.fast:body.model==="advanced"?models.advanced:routing.model;
+  const routing=chooseTask(body.messages,models);let model=(body.image||body.video)?models.fast:body.model==="fast"?models.fast:body.model==="advanced"?models.advanced:routing.model;
   if(capabilities.code===false&&routing.task==="coding")model=models.fast;
   const contents=body.messages.map((m,i)=>{
     const parts=[{text:m.content}];
@@ -764,35 +804,52 @@ export default {
   const languageInstruction=language==="en"?" The response language is fixed to English.":language==="tr"?" Yanıt dili sabit olarak Türkçe.":" Detect whether the latest user message is Turkish or English and answer in that same language.";
    const memoryInstruction=durableMemory?"\n\nKALICI KULLANICI HAFIZASI (D1):\n"+durableMemory+"\nBu bilgileri yalnızca kullanıcının isteğiyle ilgili olduğunda kullan. Kullanıcı hafızasında neler olduğunu sorarsa kayıtlı bilgileri doğru ve eksiksiz özetle; kayıtta olmayan ayrıntıları uydurma.":"";
    const payload={systemInstruction:{parts:[{text:SYSTEM_PROMPT+languageInstruction+memoryInstruction}]},contents,generationConfig:{temperature:0.7,maxOutputTokens:1200,thinkingConfig:{thinkingLevel}}};
-  if(routing.research&&!body.image&&capabilities.web!==false) payload.tools=[{google_search:{}}];
-  const usageType=body.image?"image_analysis":"chat";
+  const videoConversation=body.messages.map(m=>(m.role==="assistant"?"Mina":"Baba")+": "+m.content).join("\n\n");
+  const videoPayload=body.video?{
+    model,
+    system_instruction:SYSTEM_PROMPT+languageInstruction+memoryInstruction,
+    input:[
+      {type:"video",data:body.video.data,mime_type:body.video.mimeType},
+      {type:"text",text:videoConversation}
+    ],
+    generation_config:{max_output_tokens:1200,thinking_level:thinkingLevel.toLowerCase()}
+  }:null;
+  if(routing.research&&!body.image&&!body.video&&capabilities.web!==false) payload.tools=[{google_search:{}}];
+  const usageType=body.image?"image_analysis":body.video?"video_analysis":"chat";
   const usageUserId=String(env.ADMIN_USERNAME||"admin");
   let usageReservation;
   try{usageReservation=await reserveDailyUsage(env.MINA_DB,usageUserId,usageType,env);}
   catch(error){return json({error:"Günlük kullanım kotası kontrol edilemedi."},503,cors);}
-  if(!usageReservation.allowed){return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
+  if(!usageReservation.allowed){return json({error:body.image?"Günlük resim yükleme ve inceleme limitin doldu. Yarın tekrar deneyebilirsin.":body.video?"Günlük video analiz limitin doldu. Yarın tekrar deneyebilirsin.":"Günlük yapay zekâ istek limitin doldu. Yarın tekrar deneyebilirsin.",quota:{type:usageType,used:usageReservation.used,limit:usageReservation.limit,remaining:0,day:usageReservation.day}},429,cors);}
   try{
     const generationStartedAt = Date.now();
     let upstream;
     const requestedModel = model;
+    let videoResult=null;
     if(provider==="gemini") {
-      const result = await callGeminiWithFallback(env, model, payload, models);
-      upstream = result.response;
-      model = result.model;
+      if(body.video){
+        videoResult=await callGeminiVideoWithFallback(env,model,videoPayload,models);
+        upstream=videoResult.response;
+        model=videoResult.model;
+      }else{
+        const result = await callGeminiWithFallback(env, model, payload, models);
+        upstream = result.response;
+        model = result.model;
+      }
     }
     else if(provider==="openai") upstream=await callOpenAI(env,body.model==="advanced"?"advanced":"fast",payload);
     else if(provider==="anthropic") upstream=await callAnthropic(env,body.model==="advanced"?"advanced":"fast",payload);
     else {await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);return json({error:"Hugging Face sohbet bağlantısı henüz etkinleştirilmedi."},501,cors);}
     const raw=await upstream.text();let parsed={};try{parsed=JSON.parse(raw);}catch{}
-    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider request failed: "+provider+" HTTP "+upstream.status+"; model="+model));return json({error:provider==="gemini"?geminiProviderFailure(upstream.status,"Sohbet"):"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
+    if(!upstream.ok){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider request failed: "+provider+" HTTP "+upstream.status+"; model="+model));return json({error:provider==="gemini"?geminiProviderFailure(upstream.status,body.video?"Video analizi":"Sohbet"):"Yapay zekâ sağlayıcısı isteği reddetti.",provider_status:upstream.status,requested_model:requestedModel,last_model:model},upstream.status===429?429:502,cors);}
     const parts=parsed?.candidates?.[0]?.content?.parts||[];
-    const answer=(provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
+    const answer=(body.video&&provider==="gemini"?(typeof parsed.output_text==="string"?parsed.output_text:""):provider==="gemini"?parts.map(p=>p.text||"").join(""):provider==="openai"?(parsed.choices?.[0]?.message?.content||""):(parsed.content||[]).map(p=>p.text||"").join("")).trim();
     if(!answer){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,new Error("AI provider returned an empty answer: "+provider+"; model="+model));return json({error:"Yapay zekâ sağlayıcısı boş yanıt döndürdü. Lütfen tekrar dene."},502,cors);}
     const sources=(parsed?.candidates?.[0]?.groundingMetadata?.groundingChunks||[]).map(x=>x.web).filter(x=>x?.uri).slice(0,8).map(x=>({title:x.title||x.uri,url:x.uri}));
     const candidate=parsed?.candidates?.[0];
     const usage=parsed?.usageMetadata||{};
     const generation={duration_ms:Date.now()-generationStartedAt,finish_reason:candidate?.finishReason||null,prompt_tokens:usage.promptTokenCount??null,output_tokens:usage.candidatesTokenCount??null,thinking_tokens:usage.thoughtsTokenCount??null};
-    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.image?"vision":routing.task,selection_reason:body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
+    return json({choices:[{message:{role:"assistant",content:answer}}],provider:provider==="gemini"?"Google Gemini":provider==="openai"?"OpenAI":"Anthropic Claude",model:provider==="gemini"?model:body.model,requested_model:provider==="gemini"?requestedModel:undefined,fallback_used:provider==="gemini"&&model!==requestedModel,task:body.video?"video":body.image?"vision":routing.task,selection_reason:body.video?"Video analizi":body.image?"Görsel anlama":routing.reason,generation,sources},200,cors);
   }catch(e){await refundDailyUsage(env.MINA_DB,usageUserId,usageType,usageReservation.day);await recordSelfHealingIncident(env,url.pathname,e);return json({error:"Yapay zekâ servisine şu anda bağlanılamadı. Lütfen daha sonra tekrar dene."},502,cors);}
   } catch(error) {
    await recordSelfHealingIncident(env,url.pathname,error);
