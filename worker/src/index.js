@@ -606,7 +606,7 @@ export default {
     const userId=String(env.ADMIN_USERNAME||"admin");
     try{
       const quota=await reserveDailyUsage(env.MINA_DB,userId,"live_minutes",env);
-      if(!quota.allowed)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0}},429,cors);
+      if(!quota.allowed)return json({error:"Günlük "+quota.limit+" dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:quota.used,limit:quota.limit,remaining:0}},429,cors);
       return json({ok:true,usedMinutes:quota.used,remainingMinutes:quota.remaining,limitMinutes:quota.limit,day:quota.day},200,{...cors,"Cache-Control":"no-store"});
     }catch(error){return json({error:"Canlı ses kullanım kotası kontrol edilemedi."},503,cors);}
   }
@@ -615,7 +615,7 @@ export default {
     const voiceDiscipline=await getDisciplineState(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"));
     if(Number(voiceDiscipline?.restricted_until)>Date.now())return json({error:"İletişim kısıtlaman devam ettiği için sesli sohbet geçici olarak kapalı.",restricted:true,restricted_until:voiceDiscipline.restricted_until},429,cors);
     const liveUsage=await readDailyUsage(env.MINA_DB,String(env.ADMIN_USERNAME||"admin"),"live_minutes",env);
-    if(liveUsage.remaining<=0)return json({error:"Günlük 10 dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:liveUsage.used,limit:liveUsage.limit,remaining:0}},429,cors);
+    if(liveUsage.remaining<=0)return json({error:"Günlük "+liveUsage.limit+" dakikalık canlı ses limitin doldu. Yarın tekrar deneyebilirsin.",quota:{used:liveUsage.used,limit:liveUsage.limit,remaining:0}},429,cors);
     if(!env.GEMINI_API_KEY) return json({error:"Canlı ses için GEMINI_API_KEY henüz tanımlı değil."},503,cors);
     try{
       const liveModel=getGeminiModels(env).live;
