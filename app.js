@@ -1221,6 +1221,7 @@
       }
     });
     $("cameraBtn").addEventListener("click", () => cameraController.open());
+    $("cameraCaptureBtn").addEventListener("click", () => cameraController.capture());
     $("cameraCloseBtn").addEventListener("click", () => cameraController.close());
     $("cameraCancelBtn").addEventListener("click", () => cameraController.close());
   } else {
