@@ -1,5 +1,6 @@
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mina_companion/src/mina_api_client.dart';
+import 'package:mina_companion/src/secure_token_store.dart';
 
 void main() {
   group('MinaApiClient configuration', () {
