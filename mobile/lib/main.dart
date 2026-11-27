@@ -14,8 +14,8 @@ class MinaCompanionFoundation extends StatelessWidget {
   Widget build(BuildContext context) {
     return WidgetsApp(
       title: 'Mina',
-      color: Color(0xFF6750A4),
-      home: _FoundationScreen(),
+      color: const Color(0xFF6750A4),
+      builder: (context, child) => const _FoundationScreen(),
     );
   }
 }
