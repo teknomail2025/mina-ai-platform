@@ -105,6 +105,12 @@
     panel.hidden=false;openBtn.disabled=true;intentionalClose=false;pendingInputText="";moderationQueue.length=0;setStatus("Güvenli ses bağlantısı kuruluyor…");
     try{
       if(!navigator.mediaDevices?.getUserMedia||!(window.AudioContext||window.webkitAudioContext)||!window.WebSocket) throw new Error("Bu tarayıcı canlı ses veya mikrofon erişimini desteklemiyor. Güncel Chrome ya da Edge kullan.");
+      const microphoneStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
+      if(currentSessionId!==sessionId){microphoneStream.getTracks().forEach(track=>track.stop());return;}
+      microphoneStream.getAudioTracks?.().forEach(track=>{track.enabled=!muted;});
+      stream=microphoneStream;
+      // Request the short-lived Live token only after microphone permission is granted.
+      // This prevents a slow permission prompt from expiring the token's new-session window.
       const tokenResponse=await fetch(API_BASE+"/api/live-token",{method:"POST"});
       if(currentSessionId!==sessionId)return;
       const tokenData=await tokenResponse.json().catch(()=>({}));
@@ -113,10 +119,6 @@
         const detail=tokenData.provider_detail?(" ("+(tokenData.provider_status||"Google")+": "+tokenData.provider_detail+")"):"";
         throw new Error((tokenData.error||"Canlı ses anahtarı alınamadı.")+detail);
       }
-      const microphoneStream=await navigator.mediaDevices.getUserMedia({audio:{channelCount:1,echoCancellation:true,noiseSuppression:true,autoGainControl:true}});
-      if(currentSessionId!==sessionId){microphoneStream.getTracks().forEach(track=>track.stop());return;}
-      microphoneStream.getAudioTracks?.().forEach(track=>{track.enabled=!muted;});
-      stream=microphoneStream;
       audioContext=new (window.AudioContext||window.webkitAudioContext)();
       await audioContext.resume();
       if(currentSessionId!==sessionId)return;
