@@ -114,7 +114,9 @@ jobs:
           cache: true
           cache-key: ${{ runner.os }}-flutter-${{ hashFiles('mobile/pubspec.lock') }}
       - name: Generate native host scaffolding
-        run: flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
+        run: |
+          flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
+          dart run tool/prepare_platforms.dart
       - name: Resolve dependencies
         run: flutter pub get
       - name: Static analysis
