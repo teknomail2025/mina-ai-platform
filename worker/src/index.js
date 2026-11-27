@@ -589,14 +589,16 @@ export default {
           uses:1,
           expireTime:new Date(Date.now()+30*60*1000).toISOString(),
           newSessionExpireTime:new Date(Date.now()+60*1000).toISOString(),
-          bidiGenerateContentSetup:{
+          liveConnectConstraints:{
             model:"models/gemini-3.8-live",
+            config:{
             generationConfig:{responseModalities:["AUDIO"],speechConfig:{voiceConfig:{prebuiltVoiceConfig:{voiceName:"Aoede"}}}},
             inputAudioTranscription:{},
             outputAudioTranscription:{},
             sessionResumption:{},
             realtimeInputConfig:{automaticActivityDetection:{disabled:false}},
             systemInstruction:{parts:[{text:SYSTEM_PROMPT+" Sesli konuşmada kısa, anlaşılır ve doğal cevaplar ver. Kullanıcı sözünü keserse hemen dinlemeye geç."}]}
+            }
           }
         })
       });
