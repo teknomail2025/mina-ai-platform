@@ -22,6 +22,7 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
   const requestedModels = [];
   const requestedPayloads = [];
   const liveTokenRequests = [];
+  const interactionRequests = [];
   const mockFetch = async (url, options = {}) => {
     const target = String(url);
     if (target.includes("/v1beta/auth_tokens")) {
@@ -29,6 +30,15 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
       liveTokenRequests.push({ url: target, headers: options.headers, payload });
       if (liveTokenFetchOverride) return liveTokenFetchOverride(target, options);
       return new Response(JSON.stringify({ name: "authTokens/test-ephemeral-token" }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" }
+      });
+    }
+    if (target.includes("/v1beta/interactions")) {
+      const payload = JSON.parse(options.body || "{}");
+      interactionRequests.push({ url: target, headers: options.headers, payload });
+      if (fetchOverride) return fetchOverride(target, options);
+      return new Response(JSON.stringify({ output_text: "Gemini video test yanıtı" }), {
         status: 200,
         headers: { "Content-Type": "application/json" }
       });
@@ -138,7 +148,7 @@ function createWorker(fetchOverride, selfHealingHandler = async () => null, self
     const needsDisciplineDb = pathname === "/api/files" || pathname === "/api/chat" || pathname === "/api/image" || pathname === "/api/usage" || pathname === "/api/live-minute" || pathname === "/api/live-token" || pathname === "/api/workspace" || pathname === "/api/preferences" || pathname === "/api/discipline/voice-check" || pathname === "/api/discipline/appeal" || pathname.startsWith("/api/admin/discipline");
     return originalFetch(request, { ...(needsDisciplineDb ? { MINA_DB: mockDb } : {}), MINA_FILES: mockR2, ...bindings });
   };
-  return { worker, requestedModels, requestedPayloads, liveTokenRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
+  return { worker, requestedModels, requestedPayloads, liveTokenRequests, interactionRequests, mockDb, disciplineStore, usageStore, usageKey, mockR2, r2Objects };
 }
 
 async function call(worker, endpoint, options = {}) {
@@ -492,6 +502,7 @@ test("daily usage endpoint reports server-side counters and limits", async () =>
   assert.deepEqual(result.data.usage.image_generation, { used: 0, limit: 10, remaining: 10 });
   assert.deepEqual(result.data.usage.image_analysis, { used: 0, limit: 30, remaining: 30 });
   assert.deepEqual(result.data.usage.live_minutes, { used: 0, limit: 30, remaining: 30 });
+  assert.deepEqual(result.data.usage.video_analysis, { used: 0, limit: 10, remaining: 10 });
   assert.deepEqual(result.data.usage.files, { usedBytes: 0, limitBytes: 104857600, remainingBytes: 104857600 });
 });
 
@@ -500,13 +511,64 @@ test("daily usage limits can be overridden safely by Worker variables", async ()
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
   const result = await call(worker, "/api/usage", {
     token: login.data.token,
-    env: { CHAT_DAILY_LIMIT: "12", IMAGE_GENERATION_DAILY_LIMIT: "7", IMAGE_ANALYSIS_DAILY_LIMIT: "18", LIVE_MINUTES_DAILY_LIMIT: "45" }
+    env: { CHAT_DAILY_LIMIT: "12", IMAGE_GENERATION_DAILY_LIMIT: "7", IMAGE_ANALYSIS_DAILY_LIMIT: "18", LIVE_MINUTES_DAILY_LIMIT: "45", VIDEO_ANALYSIS_DAILY_LIMIT: "4" }
   });
   assert.equal(result.status, 200);
   assert.equal(result.data.usage.chat.limit, 12);
   assert.equal(result.data.usage.image_generation.limit, 7);
   assert.equal(result.data.usage.image_analysis.limit, 18);
   assert.equal(result.data.usage.live_minutes.limit, 45);
+  assert.equal(result.data.usage.video_analysis.limit, 4);
+});
+
+test("MP4 and WebM uploads require matching video signatures", async () => {
+  const { worker } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const mp4 = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const webm = Buffer.from([0x1a,0x45,0xdf,0xa3,0x93,0x42,0x82,0x88]);
+  const validMp4 = await call(worker, "/api/files", { token: login.data.token, body: { name: "clip.mp4", data: mp4.toString("base64") } });
+  const validWebm = await call(worker, "/api/files", { token: login.data.token, body: { name: "clip.webm", data: webm.toString("base64") } });
+  const invalidMp4 = await call(worker, "/api/files", { token: login.data.token, body: { name: "fake.mp4", data: Buffer.from("not a video").toString("base64") } });
+  assert.equal(validMp4.status, 201);
+  assert.equal(validWebm.status, 201);
+  assert.equal(invalidMp4.status, 400);
+});
+
+test("video analysis sends the actual stored MP4 payload to Gemini Interactions API", async () => {
+  const { worker, interactionRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const base64Video = videoBytes.toString("base64");
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "sample.mp4", data: base64Video }
+  });
+  assert.equal(upload.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu videoyu özetle ve önemli sahneleri anlat." }],
+      video: { name: "sample.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Gemini video test yanıtı");
+  assert.equal(result.data.task, "video");
+  assert.equal(result.data.model, "gemini-3.8-flash");
+  assert.equal(interactionRequests.length, 1);
+  assert.equal(interactionRequests[0].url, "https://generativelanguage.googleapis.com/v1beta/interactions");
+  assert.equal(interactionRequests[0].payload.input[0].type, "video");
+  assert.equal(interactionRequests[0].payload.input[0].mime_type, "video/mp4");
+  assert.equal(interactionRequests[0].payload.input[0].data, base64Video);
+  assert.match(interactionRequests[0].payload.input[1].text, /Baba: Bu videoyu özetle/);
+  assert.equal(interactionRequests[0].payload.system_instruction.includes("Sen Mina'sın"), true);
 });
 
 test("Gemini model IDs are read from Worker variables and exposed without secrets", async () => {
