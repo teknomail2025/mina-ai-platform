@@ -1097,8 +1097,9 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(liveTokenRequests[0].payload.uses, 1);
   assert.ok(liveTokenRequests[0].payload.expireTime);
   assert.ok(liveTokenRequests[0].payload.newSessionExpireTime);
-  const setup = liveTokenRequests[0].payload.bidiGenerateContentSetup;
-  assert.equal(setup.model, "models/gemini-3.8-live");
+  const constraints = liveTokenRequests[0].payload.liveConnectConstraints;
+  assert.equal(constraints.model, "models/gemini-3.8-live");
+  const setup = constraints.config;
   assert.deepEqual(setup.generationConfig.responseModalities, ["AUDIO"]);
   assert.equal(setup.generationConfig.speechConfig.voiceConfig.prebuiltVoiceConfig.voiceName, "Aoede");
   assert.ok(setup.inputAudioTranscription);
@@ -1107,7 +1108,7 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.deepEqual(setup.realtimeInputConfig.automaticActivityDetection, { disabled: false });
   assert.match(setup.systemInstruction.parts[0].text, /AİLE ROLLERİ/);
   assert.equal(liveTokenRequests[0].payload.authToken, undefined);
-  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints, undefined);
+  assert.equal(liveTokenRequests[0].payload.bidiGenerateContentSetup, undefined);
 });
 
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
@@ -1441,8 +1442,9 @@ test("live voice token is administrator-only and issues a one-use short-lived to
   assert.equal(liveTokenRequests.length, 1);
   const payload = liveTokenRequests[0].payload;
   assert.equal(payload.uses, 1, "ephemeral voice token must be single-use");
-  assert.equal(payload.bidiGenerateContentSetup.model, "models/gemini-3.8-live");
-  assert.deepEqual(payload.bidiGenerateContentSetup.generationConfig.responseModalities, ["AUDIO"]);
+  assert.equal(payload.liveConnectConstraints.model, "models/gemini-3.8-live");
+  assert.deepEqual(payload.liveConnectConstraints.config.generationConfig.responseModalities, ["AUDIO"]);
+  assert.ok(payload.liveConnectConstraints.config.sessionResumption);
   assert.ok(Date.parse(payload.expireTime) > Date.now());
   assert.ok(Date.parse(payload.newSessionExpireTime) > Date.now());
   assert.ok(Date.parse(payload.newSessionExpireTime) < Date.parse(payload.expireTime));
