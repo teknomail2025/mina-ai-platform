@@ -48,7 +48,8 @@ class MemoryD1 {
     } else if (q.startsWith("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ?")) {
       const [status, reviewed_at, id] = p;
       const row = this.proposals.get(id);
-      if (row) Object.assign(row, { status, reviewed_at });
+      if (row && (!q.includes("AND status = 'pending_review'") || row.status === "pending_review")) Object.assign(row, { status, reviewed_at });
+      else changes = 0;
     } else if (q.startsWith("INSERT INTO mina_self_healing_patches") && q.includes("'generating'")) {
       const [id, proposal_id, created_at, staleBefore] = p;
       const existing = [...this.patches.values()].find(row => row.proposal_id === proposal_id);
@@ -194,6 +195,30 @@ test("incident report stores redacted diagnostic content and rejects an invalid 
   assert.ok(stored);
   assert.match(stored.message, /\[REDACTED\]/);
   assert.doesNotMatch(stored.message + stored.stack, /ghp_abcdefghijklmnopqrstuvwxyz123456|AIza123456789012345678901234567890/);
+});
+
+test("proposal review uses an atomic state transition when approval and rejection race", async () => {
+  const db = new MemoryD1({ proposals: [fakeProposal()] });
+  const originalRun = db.run.bind(db);
+  db.run = async (sql, params) => {
+    const query = sql.replace(/\s+/g, " ").trim();
+    if (query.startsWith("UPDATE mina_self_healing_proposals SET status = ?, reviewed_at = ?")) {
+      // Simulate another administrator tab winning after this request's SELECT.
+      db.proposals.get(params[2]).status = "rejected";
+    }
+    return originalRun(sql, params);
+  };
+
+  const response = await callHandler({
+    db,
+    path: "/api/admin/self-healing/proposals/" + PROPOSAL_ID + "/review",
+    method: "POST",
+    body: { decision: "approve" }
+  });
+  const data = await response.json();
+  assert.equal(response.status, 409);
+  assert.match(data.error, /eşzamanlı/);
+  assert.equal(db.proposals.get(PROPOSAL_ID).status, "rejected");
 });
 
 test("diagnosis creates a review-only proposal from the AI response", async t => {
