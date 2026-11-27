@@ -126,7 +126,7 @@ const watchdog = setTimeout(() => {
     assert.ok(liveMinuteRequests.length >= 1, "Live voice must reserve its first server-counted minute before streaming");
     const liveSetup = await page.evaluate(() => window.__voiceTest.sent.find(message => message.setup)?.setup);
     assert.equal(liveSetup.model, "models/gemini-live-test");
-    assert.match(await page.evaluate(() => window.__voiceTest.sockets[0].url), /BidiGenerateContentConstrained\\?access_token=ephemeral-ci-live-token$/, "browser must use the constrained Live endpoint and ephemeral token");
+    assert.match(await page.evaluate(() => window.__voiceTest.sockets[0].url), /BidiGenerateContentConstrained\?access_token=ephemeral-ci-live-token$/, "browser must use the constrained Live endpoint and ephemeral token");
     assert.deepEqual(liveSetup.generationConfig.responseModalities, ["AUDIO"]);
     assert.ok(liveSetup.inputAudioTranscription && liveSetup.outputAudioTranscription);
     assert.equal(await page.evaluate(() => window.__voiceTest.constraints.audio.echoCancellation), true);
