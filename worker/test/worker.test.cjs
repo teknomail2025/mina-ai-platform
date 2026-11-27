@@ -983,6 +983,56 @@ test("Gemini 503 on ordinary chat switches to a different Flash model", async ()
   assert.ok(requestedModels[1].includes("gemini-3.5-flash-lite"));
 });
 
+test("chat requests use the configured primary Gemini model", async () => {
+  const { worker, requestedModels } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    env: { GEMINI_MODEL: "gemini-custom-primary" },
+    body: { messages: [{ role: "user", content: "Özel model yönlendirme kontrolü: 417 numaralı deneme." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.ok(requestedModels[0].includes("gemini-custom-primary:generateContent"));
+  assert.equal(result.data.model, "gemini-custom-primary");
+});
+
+test("Gemini 429 quota response switches to the configured fallback model", async () => {
+  let primaryCalls = 0;
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-custom-primary:generateContent")) {
+      primaryCalls++;
+      return new Response(JSON.stringify({ error: { message: "rate limit" } }), { status: 429 });
+    }
+    return new Response(JSON.stringify({ candidates: [{ content: { parts: [{ text: "Kota yedeği yanıtı" }] } }] }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    env: {
+      GEMINI_MODEL: "gemini-custom-primary",
+      GEMINI_FALLBACK_MODEL: "gemini-custom-fallback",
+      GEMINI_SECONDARY_FALLBACK_MODEL: "gemini-custom-secondary"
+    },
+    body: { messages: [{ role: "user", content: "429 yedek model denemesi için benzersiz bir metin." }] }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(primaryCalls, 1);
+  assert.equal(result.data.requested_model, "gemini-custom-primary");
+  assert.equal(result.data.model, "gemini-custom-fallback");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2);
+  assert.ok(requestedModels[0].includes("gemini-custom-primary"));
+  assert.ok(requestedModels[1].includes("gemini-custom-fallback"));
+});
+
 test("Gemini advanced task falls back through Flash models without repeating a model", async () => {
   const { worker, requestedModels } = createWorker(async target => {
     if (!target.includes("gemini-3.1-flash-lite:generateContent")) {
