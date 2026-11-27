@@ -153,11 +153,14 @@
         if(msg.error){reportVoiceIncident("Live voice provider error: "+(msg.error.message||"unknown error"));void failVoice(ui("Ses bağlantısı hatası: ")+(msg.error.message||ui("bilinmeyen hata")));}
       };
       socket.onerror=()=>{reportVoiceIncident("Live voice WebSocket error");void failVoice("Canlı ses bağlantısında hata oluştu. Mikrofon kapatıldı; tekrar deneyebilirsin.");};
-      socket.onclose=()=>{
+      socket.onclose=event=>{
         const wasActive=active;active=false;
+        const closeCode=Number(event?.code)||0;
+        const closeReason=String(event?.reason||"").replace(/[\\r\\n]/g," ").slice(0,160);
         if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
         if(!intentionalClose){
-          setStatus(wasActive?"Ses bağlantısı kapandı. Yeniden başlatabilirsin.":"Google canlı ses oturumu kurulamadı. API anahtarını ve model erişimini kontrol et.","error");
+          reportVoiceIncident("Live voice WebSocket closed: code="+(closeCode||"unknown")+(closeReason?"; reason="+closeReason:""));
+          setStatus(wasActive?"Ses bağlantısı kapandı"+(closeCode?" ("+closeCode+")":"")+". Yeniden başlatabilirsin.":"Google canlı ses oturumu kurulamadı"+(closeCode?" ("+closeCode+")":"")+". API anahtarını ve model erişimini kontrol et.","error");
           void cleanup(false);
         }
       };
