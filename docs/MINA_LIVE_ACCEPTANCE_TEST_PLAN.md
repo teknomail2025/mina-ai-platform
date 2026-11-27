@@ -1,7 +1,7 @@
 # Mina AI — Live Provider and Device Acceptance Test Plan
 
 **Status:** Prepared; not executed against live providers.  
-**Scope:** Gemini image analysis, Gemini Live voice, real camera/microphone behavior, and the self-healing approval/runner boundary.  
+**Scope:** Gemini image and video analysis, Gemini Live voice, real camera/microphone behavior, and the self-healing approval/runner boundary.  
 **Safety rule:** Use an isolated Cloudflare Preview/staging Worker and test accounts only. Never run this plan against production D1/R2, production quotas, or the production self-healing dispatch path.
 
 ## 1. Preconditions and isolation
@@ -62,7 +62,7 @@ Use a desktop browser with a real microphone. Do not record or retain unrelated 
 
 **Pass criteria:** Real device audio round-trip works; mute/close/permission-race behavior matches the browser simulation; no token is minted after a denied, closed, or quota-blocked session.
 
-## 4. Self-healing runner acceptance — safe boundary
+## 5. Self-healing runner acceptance — safe boundary
 
 The production runner must remain disabled. Do not trigger a production dispatch.
 
@@ -89,7 +89,7 @@ Before Phase B can be run, implement and review a separate sandbox-only runner c
 
 **Pass criteria:** No automatic code application, merge, or deployment. Only a sandbox review PR may be created in Phase B.
 
-## 5. Evidence and final sign-off
+## 6. Evidence and final sign-off
 
 Record for each test: commit SHA, environment name, UTC timestamp, test case, pass/fail, HTTP status, redacted request correlation ID, quota before/after, and any issue link. Never record raw tokens, API keys, cookies, image contents, audio recordings, or full provider error bodies.
 
