@@ -85,6 +85,9 @@ const watchdog = setTimeout(() => {
     assert.equal(imageAnalysisRequests.length, 1, "camera photo must be sent to image analysis");
     assert.equal(imageAnalysisRequests[0].image.mimeType, "image/jpeg");
     assert.match(imageAnalysisRequests[0].image.data, /^[A-Za-z0-9+/]+=*$/);
+    const capturedJpeg = Buffer.from(imageAnalysisRequests[0].image.data, "base64");
+    assert.deepEqual([...capturedJpeg.subarray(0, 3)], [0xff, 0xd8, 0xff], "camera payload must contain actual JPEG bytes, not an empty or mislabeled image");
+    assert.ok(capturedJpeg.byteLength > 100 && capturedJpeg.byteLength <= 8 * 1024 * 1024, "captured JPEG must be non-empty and within the Worker image limit");
     assert.ok(imageAnalysisRequests[0].messages.some(message => message.content.includes("What is in this photo?")));
 
     const uploadedPng = Buffer.from("iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=", "base64");
