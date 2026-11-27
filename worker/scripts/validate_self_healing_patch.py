@@ -41,7 +41,7 @@ expected = hmac.new(secret.encode("utf-8"), message, hashlib.sha256).hexdigest()
 if not hmac.compare_digest(expected, signature):
     fail("Approval proof does not match this proposal, source commit, or patch.")
 
-allowed = {"worker/src/index.js", "app.js", "auth.js", "voice.js", "i18n.js"}
+allowed = {"worker/src/index.js", "app.js", "media.js", "auth.js", "voice.js", "i18n.js"}
 paths = []
 current = None
 old_header = False
