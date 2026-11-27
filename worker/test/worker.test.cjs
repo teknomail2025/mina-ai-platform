@@ -1566,7 +1566,7 @@ test("live voice token is not issued after the daily live-minute quota is exhaus
     method: "POST",
     body: { username: "Argion", password: env.ADMIN_PASSWORD }
   });
-  for (let minute = 0; minute < 10; minute++) {
+  for (let minute = 0; minute < 30; minute++) {
     const result = await call(worker, "/api/live-minute", {
       method: "POST",
       token: login.data.token,
