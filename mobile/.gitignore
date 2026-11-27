@@ -1,0 +1,22 @@
+# Flutter/Dart generated files
+.dart_tool/
+.packages
+.pub/
+.pub-cache/
+build/
+.flutter-plugins
+.flutter-plugins-dependencies
+*.iml
+
+# Android local/generated state
+android/.gradle/
+android/local.properties
+android/**/key.properties
+android/**/captures/
+android/**/GeneratedPluginRegistrant.java
+
+# Windows/macOS generated state
+windows/flutter/ephemeral/
+macos/Flutter/ephemeral/
+macos/Pods/
+macos/.symlinks/
