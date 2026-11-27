@@ -7,6 +7,7 @@ This directory is the shared Flutter client foundation for Android, Windows, and
 - Mina API base URL is supplied at build time with `--dart-define=MINA_API_BASE=...`; the default points to the existing Mina Worker API.
 - Authentication uses the existing `/api/auth/login` and `/api/auth/me` endpoints. Session tokens are stored through the platform secure-storage plugin, never in source code or plain preferences.
 - Requests carry a platform identifier. The server remains the authority for authorization and user data.
+- The bootstrap step adds the Android internet permission needed for HTTPS API access; camera/microphone/notification permissions are intentionally deferred until those features are implemented.
 - No Gemini/provider key is shipped to any client.
 
 ## One-command local bootstrap
