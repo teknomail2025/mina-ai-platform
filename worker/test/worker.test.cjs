@@ -1412,6 +1412,46 @@ test("every self-healing route requires a valid administrator session", async ()
 });
 
 
+test("chat provider errors never expose raw upstream diagnostics", async () => {
+  const secret = "private-upstream-key-should-never-leak";
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({ error: { message: secret } }), { status: 400 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Merhaba" }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /isteği reddetti/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+  assert.equal("provider_detail" in result.data, false);
+});
+
+test("chat empty provider responses do not expose provider block diagnostics", async () => {
+  const secret = "internal-policy-diagnostic-secret";
+  const { worker } = createWorker(
+    async () => new Response(JSON.stringify({ candidates: [], promptFeedback: { blockReason: secret } }), { status: 200 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Merhaba" }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /boş yanıt döndürdü/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+  assert.equal("provider_detail" in result.data, false);
+});
+
 test("exhausted Gemini fallback records a redacted self-healing incident", async () => {
   const incidents = [];
   const { worker, requestedModels } = createWorker(
