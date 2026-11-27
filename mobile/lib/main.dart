@@ -12,7 +12,7 @@ class MinaCompanionFoundation extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const WidgetsApp(
+    return WidgetsApp(
       title: 'Mina',
       color: Color(0xFF6750A4),
       home: _FoundationScreen(),
