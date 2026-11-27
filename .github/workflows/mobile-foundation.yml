@@ -1,0 +1,56 @@
+name: Mina cross-platform foundation
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - "mobile/**"
+      - ".github/workflows/mobile-foundation.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  platform-build:
+    name: "${{ matrix.platform }} foundation"
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - platform: android
+            runner: ubuntu-24.04
+            build_command: flutter build apk --debug
+          - platform: windows
+            runner: windows-latest
+            build_command: flutter build windows --debug
+          - platform: macos
+            runner: macos-latest
+            build_command: flutter build macos --debug
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 35
+    defaults:
+      run:
+        working-directory: mobile
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        if: matrix.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: "17"
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+          cache-key: ${{ runner.os }}-flutter-${{ hashFiles('mobile/pubspec.lock') }}
+      - name: Generate native host scaffolding
+        run: flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
+      - name: Resolve dependencies
+        run: flutter pub get
+      - name: Static analysis
+        run: flutter analyze --fatal-infos
+      - name: Unit tests
+        run: flutter test
+      - name: Build native debug target
+        run: ${{ matrix.build_command }}
