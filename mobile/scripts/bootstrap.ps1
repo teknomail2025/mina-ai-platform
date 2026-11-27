@@ -5,6 +5,8 @@ if (-not (Get-Command flutter -ErrorAction SilentlyContinue)) {
 }
 flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+dart run tool/prepare_platforms.dart
+if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 flutter pub get
 if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
 flutter analyze --fatal-infos
