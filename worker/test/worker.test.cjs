@@ -571,6 +571,39 @@ test("video analysis sends the actual stored MP4 payload to Gemini Interactions 
   assert.equal(interactionRequests[0].payload.system_instruction.includes("Sen Mina'sın"), true);
 });
 
+test("video analysis switches to the configured fallback model after HTTP 503", async () => {
+  const { worker, interactionRequests } = createWorker(async (target, options) => {
+    const payload = JSON.parse(options.body || "{}");
+    if (payload.model === "gemini-3.8-flash") {
+      return new Response(JSON.stringify({ error: { message: "temporary video capacity" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({ output_text: "Yedek model video özeti" }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const videoBytes = Buffer.from([0,0,0,24,0x66,0x74,0x79,0x70,0x69,0x73,0x6f,0x6d,0,0,0,0]);
+  const upload = await call(worker, "/api/files", {
+    token: login.data.token,
+    body: { name: "fallback.mp4", data: videoBytes.toString("base64") }
+  });
+  assert.equal(upload.status, 201);
+  const result = await call(worker, "/api/chat", {
+    token: login.data.token,
+    body: {
+      messages: [{ role: "user", content: "Bu videoyu yedek modelle analiz et." }],
+      video: { name: "fallback.mp4", mimeType: "video/mp4" },
+      storedFileId: upload.data.id
+    }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.choices[0].message.content, "Yedek model video özeti");
+  assert.equal(result.data.model, "gemini-3.5-flash-lite");
+  assert.equal(result.data.fallback_used, true);
+  assert.deepEqual(interactionRequests.map(x => x.payload.model), ["gemini-3.8-flash", "gemini-3.5-flash-lite"]);
+});
+
 test("Gemini model IDs are read from Worker variables and exposed without secrets", async () => {
   const { worker } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
