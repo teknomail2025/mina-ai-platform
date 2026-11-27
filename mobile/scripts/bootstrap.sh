@@ -6,6 +6,7 @@ command -v flutter >/dev/null 2>&1 || {
   exit 1
 }
 flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
+dart run tool/prepare_platforms.dart
 flutter pub get
 flutter analyze --fatal-infos
 flutter test
