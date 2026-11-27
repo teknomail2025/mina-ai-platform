@@ -21,7 +21,7 @@ Future<void> main() async {
     return;
   }
 
-  xml = xml.replaceFirst(
+  xml = xml.replaceFirstMapped(
     openingTag,
     (match) => '${match.group(0)}\n    <uses-permission android:name="android.permission.INTERNET" />',
   );
