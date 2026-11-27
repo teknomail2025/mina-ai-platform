@@ -1202,6 +1202,48 @@ test("live voice token endpoint requires an authenticated session and creates a 
   assert.equal(liveTokenRequests[0].payload.bidiGenerateContentSetup, undefined);
 });
 
+test("Live voice token endpoint uses the configured Live model ID", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", {
+    method: "POST",
+    token: login.data.token,
+    env: { GEMINI_LIVE_MODEL: "gemini-test-live" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.model, "models/gemini-test-live");
+  assert.equal(liveTokenRequests[0].payload.liveConnectConstraints.model, "models/gemini-test-live");
+});
+
+test("Live voice quota errors use the configured minute limit instead of a hard-coded value", async () => {
+  const { worker, liveTokenRequests } = createWorker();
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const config = { LIVE_MINUTES_DAILY_LIMIT: "1" };
+  const firstMinute = await call(worker, "/api/live-minute", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(firstMinute.status, 200);
+  const blockedMinute = await call(worker, "/api/live-minute", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(blockedMinute.status, 429);
+  assert.match(blockedMinute.data.error, /1 dakikalık/);
+  assert.doesNotMatch(blockedMinute.data.error, /10 dakikalık/);
+  const blockedToken = await call(worker, "/api/live-token", {
+    method: "POST", token: login.data.token, env: config, body: {}
+  });
+  assert.equal(blockedToken.status, 429);
+  assert.match(blockedToken.data.error, /1 dakikalık/);
+  assert.doesNotMatch(blockedToken.data.error, /10 dakikalık/);
+  assert.equal(liveTokenRequests.length, 0);
+});
+
 test("voice discipline endpoint records spoken insults and applies escalating restrictions", async () => {
   const { worker, disciplineStore } = createWorker();
   const login = await call(worker, "/api/auth/login", { method: "POST", body: { username: "Argion", password: env.ADMIN_PASSWORD } });
