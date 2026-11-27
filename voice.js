@@ -160,7 +160,7 @@
         if(setupTimer)clearTimeout(setupTimer);setupTimer=null;
         if(!intentionalClose){
           reportVoiceIncident("Live voice WebSocket closed: code="+(closeCode||"unknown")+(closeReason?"; reason="+closeReason:""));
-          setStatus(wasActive?"Ses bağlantısı kapandı"+(closeCode?" ("+closeCode+")":"")+". Yeniden başlatabilirsin.":"Google canlı ses oturumu kurulamadı"+(closeCode?" ("+closeCode+")":"")+". API anahtarını ve model erişimini kontrol et.","error");
+          setStatus(wasActive?ui("Ses bağlantısı kapandı")+(closeCode?" ("+closeCode+")":"")+ui(". Yeniden başlatabilirsin."):"Google canlı ses oturumu kurulamadı"+(closeCode?" ("+closeCode+")":"")+". API anahtarını ve model erişimini kontrol et.","error");
           void cleanup(false);
         }
       };
