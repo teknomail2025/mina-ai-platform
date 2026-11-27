@@ -593,13 +593,15 @@
     const c = current(); const userText = text.trim();
     let prompt = userText;
     const imageAttachment = attachedFile?.kind === "image" ? attachedFile : null;
+    const videoAttachment = attachedFile?.kind === "video" ? attachedFile : null;
     if (attachedFile?.kind === "text") prompt += (prompt ? "\n\n" : "") + "Ekli metin/kod dosyası: " + attachedFile.name + " (dosya içeriği ayrı ek olarak gönderiliyor).";
     if (attachedFile?.kind === "pdf") prompt += (prompt ? "\n\n" : "") + "Ekli PDF belgesi: " + attachedFile.name + ". Belgeyi incele ve sorumu yanıtla.";
     if (imageAttachment && !prompt) prompt = "Eklediğim resmi ayrıntılı olarak incele ve açıkla.";
+    if (videoAttachment && !prompt) prompt = "Eklediğim videoyu analiz et, özetle ve önemli sahneleri zaman damgalarıyla açıkla.";
     if (!prompt.trim()) return;
     // Durable memory is loaded by the Worker from D1 for every request; avoid stale browser copies and sync latency.
     const requestPrompt = prompt;
-    if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
+    if (!options.existingUser) addMessage("user", (userText || (imageAttachment ? "Bu resmi incele." : videoAttachment ? "Bu videoyu incele." : "")) + (attachedFile ? "\n[Ek: " + attachedFile.name + "]" : ""));
     const file = attachedFile; attachedFile = null; els.fileChip.hidden = true; els.fileInput.value = ""; els.imageInput.value = "";
     setBusy(true);
     let storedFile=null;
@@ -616,7 +618,7 @@
       }
       const response = await fetch(API_BASE + "/api/chat", {
         method:"POST", headers:{"Content-Type":"application/json"},
-        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf"}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,...(/\\.docx$/i.test(file.name)?{content:file.content}:{})}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
+        body:JSON.stringify({mode:"auto", provider:"auto", model:"auto", language:minaLanguage, capabilities:MINA_CAPABILITIES, image:imageAttachment ? {mimeType:imageAttachment.mimeType,data:imageAttachment.data.split(",")[1]} : undefined, video:videoAttachment?{name:videoAttachment.name,mimeType:videoAttachment.mimeType}:undefined, document:file?.kind==="pdf"?{mimeType:"application/pdf"}:undefined, fileAttachment:file?.kind==="text"?{name:file.name,...(/\\.docx$/i.test(file.name)?{content:file.content}:{})}:undefined, storedFileId:storedFile?.id, messages:options.existingUser ? [...c.messages.slice(-16, -1), {role:"user",content:requestPrompt}] : [...c.messages.filter(m=>m.role==="user" || m.role==="assistant").slice(-16, -1), {role:"user",content:requestPrompt}]})
       });
       const data = await response.json().catch(()=>({}));
       failedResponseData=data;
@@ -1138,7 +1140,7 @@
         const usage=data.usage||{};
         const fileUsed=((usage.files?.usedBytes||0)/1048576).toFixed(1);
         const minuteUnit=uiLanguage==="en"?"min":"dk";
-        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/"+(usage.chat?.limit||0)+" · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/"+(usage.image_generation?.limit||0)+" · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/"+(usage.image_analysis?.limit||0)+" · "+uiText("Canlı ses")+" "+(usage.live_minutes?.used||0)+"/"+(usage.live_minutes?.limit||0)+" "+minuteUnit+" · "+uiText("Dosya")+" "+fileUsed+"/100 MB";
+        status.textContent=uiText("Sohbet")+" "+(usage.chat?.used||0)+"/"+(usage.chat?.limit||0)+" · "+uiText("Görsel üretimi")+" "+(usage.image_generation?.used||0)+"/"+(usage.image_generation?.limit||0)+" · "+uiText("Resim inceleme")+" "+(usage.image_analysis?.used||0)+"/"+(usage.image_analysis?.limit||0)+" · "+uiText("Video analizi")+" "+(usage.video_analysis?.used||0)+"/"+(usage.video_analysis?.limit||0)+" · "+uiText("Canlı ses")+" "+(usage.live_minutes?.used||0)+"/"+(usage.live_minutes?.limit||0)+" "+minuteUnit+" · "+uiText("Dosya")+" "+fileUsed+"/100 MB";
       }catch(error){status.textContent=error.message||uiText("Kullanım bilgisi alınamadı.");}
     };
     $("refreshMinaUsage").addEventListener("click",refreshUsage);
@@ -1290,6 +1292,12 @@
     if(f.size>10*1024*1024){alert(uiText("Dosya başına en fazla 10 MB ekleyebilirsin."));els.fileInput.value="";return;}
     const lower=f.name.toLowerCase();
     try{
+      if(lower.endsWith(".mp4")||lower.endsWith(".webm")){
+        const mimeType=lower.endsWith(".mp4")?"video/mp4":"video/webm";
+        if(f.type!==mimeType)throw new Error("Video dosyasının MIME türü doğrulanamadı.");
+        attachedFile={kind:"video",name:f.name,mimeType,rawBase64:await fileToBase64(f),size:f.size};
+        els.fileName.textContent="🎬 "+f.name;els.fileChip.hidden=false;return;
+      }
       if(lower.endsWith(".pdf")){
         if(f.type!=="application/pdf")throw new Error("PDF dosyasının türü doğrulanamadı.");
         const reader=new FileReader();
@@ -1308,7 +1316,7 @@
         attachedFile={kind:"text",name:f.name,content:await f.text(),rawBase64:await fileToBase64(f),size:f.size};
       }
       if([".js",".ts",".tsx",".jsx",".py",".rpy",".html",".css",".json",".sql",".java",".cs",".cpp",".h",".xml",".yaml",".yml",".toml"].some(ext=>lower.endsWith(ext)))els.codeEditor.value=attachedFile.content;
-      els.fileName.textContent="📄 "+f.name;els.fileChip.hidden=false;
+      els.fileName.textContent=(attachedFile.kind==="video"?"🎬 ":"📄 ")+f.name;els.fileChip.hidden=false;
     }catch(error){alert(uiText(error.message||"Dosya okunamadı."));els.fileInput.value="";}
   });
   document.querySelectorAll(".suggestion").forEach(b=>b.addEventListener("click",()=>{els.input.value=b.dataset.prompt; els.form.requestSubmit();}));
