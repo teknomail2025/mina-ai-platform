@@ -1432,6 +1432,23 @@ test("chat provider errors never expose raw upstream diagnostics", async () => {
   assert.equal("provider_detail" in result.data, false);
 });
 
+test("chat network exceptions never expose internal exception messages", async () => {
+  const secret = "internal-network-stack-and-secret-value";
+  const { worker } = createWorker(async () => { throw new Error(secret); });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Bu metindeki mantık hatalarını bul: Bir iddia çok kez tekrarlandığı için doğru kabul edilemez; kanıtları değerlendir." }] }
+  });
+  assert.equal(result.status, 502);
+  assert.match(result.data.error, /şu anda bağlanılamadı/);
+  assert.doesNotMatch(JSON.stringify(result.data), new RegExp(secret));
+});
+
 test("chat empty provider responses do not expose provider block diagnostics", async () => {
   const secret = "internal-policy-diagnostic-secret";
   const { worker } = createWorker(
