@@ -9,18 +9,25 @@ This directory is the shared Flutter client foundation for Android, Windows, and
 - Requests carry a platform identifier. The server remains the authority for authorization and user data.
 - No Gemini/provider key is shipped to any client.
 
-## Local bootstrap
-Install the current stable Flutter SDK and the native toolchain for the target OS, then run:
+## One-command local bootstrap
+Install the current stable Flutter SDK and the native toolchain for the target OS.
 
+Linux/macOS:
 ```sh
 cd mobile
-flutter create --platforms=android,windows,macos --org ai.mina --project-name mina_companion .
-flutter pub get
-flutter analyze
-flutter test
+sh scripts/bootstrap.sh
 ```
 
-Build on the matching native host:
+Windows PowerShell:
+```powershell
+cd mobile
+.\scripts\bootstrap.ps1
+```
+
+The script generates the Android, Windows, and macOS host projects, resolves packages, runs static analysis, and runs unit tests.
+
+## Native debug builds
+Run on the matching native host:
 ```sh
 flutter build apk --debug
 flutter build windows --debug
