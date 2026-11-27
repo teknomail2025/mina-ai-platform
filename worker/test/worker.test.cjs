@@ -520,6 +520,8 @@ test("Gemini model IDs are read from Worker variables and exposed without secret
       GEMINI_FALLBACK_MODEL: "gemini-test-fallback",
       GEMINI_SECONDARY_FALLBACK_MODEL: "gemini-test-secondary",
       GEMINI_IMAGE_MODEL: "gemini-test-image",
+      GEMINI_IMAGE_FALLBACK_MODEL: "gemini-test-image-fallback",
+      GEMINI_IMAGE_SECONDARY_FALLBACK_MODEL: "gemini-test-image-secondary",
       GEMINI_LIVE_MODEL: "gemini-test-live"
     }
   });
@@ -528,6 +530,8 @@ test("Gemini model IDs are read from Worker variables and exposed without secret
     { id: "gemini-test-fast", role: "fast" },
     { id: "gemini-test-reasoning", role: "advanced" },
     { id: "gemini-test-image", role: "image" },
+    { id: "gemini-test-image-fallback", role: "image_fallback" },
+    { id: "gemini-test-image-secondary", role: "image_secondary_fallback" },
     { id: "gemini-test-live", role: "live" }
   ]);
 });
@@ -1658,6 +1662,40 @@ test("live voice provider failures are recorded for self-healing without leaking
   assert.equal(incidents[0].route, "/api/live-token");
   assert.match(incidents[0].message, /HTTP 503/);
   assert.doesNotMatch(incidents[0].message, /private upstream diagnostic|test-gemini-key/);
+});
+
+test("image generation falls back to the configured Nano Banana model after HTTP 503", async () => {
+  const { worker, requestedModels } = createWorker(async target => {
+    if (target.includes("gemini-custom-image-primary:generateContent")) {
+      return new Response(JSON.stringify({ error: { message: "temporary image capacity" } }), { status: 503 });
+    }
+    return new Response(JSON.stringify({
+      candidates: [{ content: { parts: [
+        { text: "Yedek görsel modeli" },
+        { inlineData: { mimeType: "image/png", data: "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+/z9sAAAAASUVORK5CYII=" } }
+      ] } }]
+    }), { status: 200 });
+  });
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/image", {
+    method: "POST",
+    token: login.data.token,
+    env: {
+      GEMINI_IMAGE_MODEL: "gemini-custom-image-primary",
+      GEMINI_IMAGE_FALLBACK_MODEL: "gemini-custom-image-fallback",
+      GEMINI_IMAGE_SECONDARY_FALLBACK_MODEL: "gemini-custom-image-secondary"
+    },
+    body: { prompt: "A small blue house" }
+  });
+  assert.equal(result.status, 200);
+  assert.equal(result.data.model, "gemini-custom-image-fallback");
+  assert.equal(result.data.fallback_used, true);
+  assert.equal(requestedModels.length, 2);
+  assert.ok(requestedModels[0].includes("gemini-custom-image-primary"));
+  assert.ok(requestedModels[1].includes("gemini-custom-image-fallback"));
 });
 
 test("failed image generation refunds its daily quota and records a self-healing incident", async () => {
