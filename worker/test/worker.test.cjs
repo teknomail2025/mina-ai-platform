@@ -1164,7 +1164,26 @@ test("live voice token provider failures are recorded for self-healing", async (
   const login=await call(worker,"/api/auth/login",{method:"POST",body:{username:"Argion",password:env.ADMIN_PASSWORD}});
   const result=await call(worker,"/api/live-token",{token:login.data.token,method:"POST"});
   assert.equal(result.status,502);
+  assert.match(result.data.error,/Canlı ses: Google Gemini şu anda yoğun \(HTTP 503\)/);
   assert.deepEqual(incidents,[{route:"/api/live-token",message:"Live voice token provider request failed: HTTP 503"}]);
+});
+
+test("Live API HTTP 429 returns safe quota guidance without provider diagnostics", async () => {
+  const { worker } = createWorker(
+    undefined,
+    undefined,
+    undefined,
+    async () => new Response(JSON.stringify({ error: { message: "private Live quota diagnostic" } }), { status: 429 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/live-token", { method: "POST", token: login.data.token });
+  assert.equal(result.status, 502);
+  assert.equal(result.data.provider_status, 429);
+  assert.match(result.data.error, /Canlı ses: Google Gemini API kotası veya istek hız sınırı doldu/);
+  assert.doesNotMatch(JSON.stringify(result.data), /private Live quota diagnostic|test-gemini-key/);
 });
 
 test("live voice token endpoint requires an authenticated session and creates a constrained ephemeral token", async () => {
@@ -1626,6 +1645,25 @@ test("exhausted Gemini fallback records a redacted self-healing incident", async
   assert.doesNotMatch(incidents[0].message, /temporary high demand|test-gemini-key/);
 });
 
+
+test("exhausted Gemini 429 returns safe quota guidance without upstream diagnostics", async () => {
+  const { worker, requestedModels } = createWorker(async () =>
+    new Response(JSON.stringify({ error: { message: "private provider quota diagnostic" } }), { status: 429 })
+  );
+  const login = await call(worker, "/api/auth/login", {
+    method: "POST",
+    body: { username: "Argion", password: env.ADMIN_PASSWORD }
+  });
+  const result = await call(worker, "/api/chat", {
+    method: "POST",
+    token: login.data.token,
+    body: { messages: [{ role: "user", content: "Google 429 kota mesajı için benzersiz kontrol metni." }] }
+  });
+  assert.equal(result.status, 429);
+  assert.equal(requestedModels.length, 3);
+  assert.match(result.data.error, /Google Gemini API kotası veya istek hız sınırı doldu/);
+  assert.doesNotMatch(JSON.stringify(result.data), /private provider quota diagnostic|test-gemini-key/);
+});
 
 test("live voice token is administrator-only and issues a one-use short-lived token", async () => {
   const { worker, liveTokenRequests } = createWorker();
