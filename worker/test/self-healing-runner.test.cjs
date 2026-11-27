@@ -112,3 +112,43 @@ test("approved runner patch validates and applies unchanged to its exact isolate
   execFileSync("git", ["apply", materializedPatch], { cwd: repository, stdio: "pipe" });
   assert.equal(fs.readFileSync(path.join(repository, "app.js"), "utf8"), "const answer = 'after';\n");
 });
+
+test("runner rejects malformed headers, duplicate paths, mode changes and binary patches", t => {
+  const runnerTemp = fs.mkdtempSync(path.join(os.tmpdir(), "mina-healing-malformed-"));
+  t.after(() => fs.rmSync(runnerTemp, { recursive: true, force: true }));
+  const python = process.platform === "win32" ? "python" : "python3";
+  const run = patchText => {
+    const issuedAt = String(Date.now());
+    return spawnSync(python, [verifier], {
+      encoding: "utf8",
+      env: {
+        ...process.env,
+        PATCH_JSON: JSON.stringify(patchText),
+        BASE_SHA: baseSha,
+        PROPOSAL_ID: proposalId,
+        APPROVAL_ISSUED_AT: issuedAt,
+        APPROVAL_SIGNATURE: sign({ patchText, issuedAt }),
+        APPROVAL_SECRET: secret,
+        RUNNER_TEMP: runnerTemp,
+      },
+    });
+  };
+
+  const cases = [
+    ["mismatched old-file header", patch.replace("--- a/app.js", "--- b/app.js"), /Unexpected old-file header/],
+    ["mismatched new-file header", patch.replace("+++ b/app.js", "+++ b/README.md"), /Unexpected new-file header/],
+    ["duplicate file entry", patch + patch, /duplicate path/],
+    ["file mode mutation", patch.replace("--- a/app.js", "old mode 100644\\nnew mode 100755\\n--- a/app.js"), /File mode/],
+    ["binary patch", patch.replace("@@ -1 +1 @@", "GIT binary patch\\n@@ -1 +1 @@"), /binary patches are forbidden/],
+    ["non-allowlisted path", patch.replaceAll("app.js", "README.md"), /outside the allowlist/],
+    ["missing hunk", patch.replace("@@ -1 +1 @@\\n", ""), /Unified diff hunks are missing/],
+    ["missing new-file header", patch.replace("+++ b/app.js\\n", ""), /headers are incomplete/],
+  ];
+
+  for (const [name, patchText, expected] of cases) {
+    const result = run(patchText);
+    assert.notEqual(result.status, 0, name + " must be rejected");
+    assert.match(result.stderr + result.stdout, expected, name);
+  }
+});
+
